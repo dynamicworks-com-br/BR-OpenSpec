@@ -35,10 +35,28 @@ pnpm exec tsc --noEmit
 pnpm lint
 ```
 
+### Configuração dos Testes
+
+Os testes são executados com **Vitest 3.x** configurado com:
+
+- **Pool**: `forks` (isolamento de processos, necessário porque os testes spawnam processos filhos da CLI e fazem suposições sobre `process.cwd()`)
+- **Workers**: Máximo de 4 (ou controlado via `VITEST_MAX_WORKERS=N`)
+- **Timeouts**:
+  - Teste: 10 segundos (padrão)
+  - Teardown: 3 segundos
+
+Para sobrescrever o número de workers:
+
+```bash
+VITEST_MAX_WORKERS=2 pnpm test
+```
+
+> **Nota**: O pool `forks` é mais lento que o pool padrão, mas necessário para isolamento. Se os testes estiverem lentos, reduza `VITEST_MAX_WORKERS`.
+
 ### Ambiente Atual do Workspace
 
 - Node.js: v24.14.0 ✅
-- pnpm: 10.33.2 ⚠️ (lockfile do projeto é para pnpm 9; funciona mas pode gerar warnings)
+- pnpm: 10.33.2 ⚠️ (lockfile do projeto é para pnpm 9; funciona, mas pode gerar warnings)
 - TypeScript: 5.9.3 ✅
 
 > **Nota**: O lockfile (`pnpm-lock.yaml`) foi gerado com pnpm 9. Se usar pnpm 10, pode ser necessário rodar `pnpm install` sem `--frozen-lockfile` para atualizar o lockfile, ou usar `COREPACK_ENABLE_AUTO_PIN=0` para evitar conflitos.
@@ -55,13 +73,13 @@ Acesse **Settings → Secrets and variables → Actions** no repositório `fkmat
 
 | Secret | Descrição | Obrigatório |
 |--------|-----------|-------------|
-| `APP_PRIVATE_KEY` | Private key do GitHub App para geração de token. Usado no workflow `release-prepare.yml` para criar/atualizar o PR de versionamento. | **Sim** (para release automático) |
+| `APP_PRIVATE_KEY` | Private key do GitHub App para geração de token. Usado no workflow `release-prepare.yml`, para criar/atualizar o PR de versionamento. | **Sim** (para release automático) |
 
 #### Variables (Não-encriptadas)
 
 | Variable | Descrição | Obrigatório |
 |----------|-----------|-------------|
-| `APP_ID` | ID do GitHub App instalado no repositório. Usado junto com `APP_PRIVATE_KEY`. | **Sim** (para release automático) |
+| `APP_ID` | ID do GitHub App instalado no repositório. Usado, em conjunto com `APP_PRIVATE_KEY`, no workflow `release-prepare.yml`. | **Sim** (para release automático) |
 
 ### 2.2 GitHub App para Release
 
@@ -131,8 +149,10 @@ Jobs:
 - `test_matrix`: Testes em Ubuntu, macOS e Windows (pushes para `main`)
 - `lint`: Build, type check, lint e verificação de artefatos
 - `nix-flake-validate`: Validação do build Nix (quando arquivos Nix mudam)
-- `validate-changesets`: Valida se changesets estão corretos
+- `validate-changesets`: Valida se changesets estão corretos (verifica se há changesets para mudanças e se o formato está correto)
 - `required-checks-pr` / `required-checks-main`: Agregadores de status
+
+> **Nota sobre Conventional Commits:** O projeto segue a convenção `type(scope): subject` para mensagens de commit (ex.: `feat(cli): add new command`). Esta convenção é documentada no README e AGENTS.md, mas **não há validação automatizada de mensagens de commit** nos workflows atuais — apenas a validação de changesets via `changeset status`. Se desejar adicionar validação de Conventional Commits, considere usar `commitlint` ou a ação `wagoid/commitlint-github-action`.
 
 ### `release-prepare.yml`
 
@@ -156,6 +176,7 @@ Antes de fazer merge para `main` e disparar o release:
 - [ ] `pnpm lint` passa
 - [ ] Changeset foi adicionado (`pnpm changeset`)
 - [ ] `package.json` version está correta
+- [ ] *(Opcional, para mudanças significativas)* Proposta/especificações adicionadas em `openspec/changes/`
 - [ ] Secrets `APP_ID` e `APP_PRIVATE_KEY` configurados
 - [ ] npm Trusted Publisher configurado para `fkmatsuda/BR-OpenSpec`
 

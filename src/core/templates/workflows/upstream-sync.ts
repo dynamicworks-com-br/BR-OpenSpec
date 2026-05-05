@@ -10,7 +10,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 export function getUpstreamSyncSkillTemplate(): SkillTemplate {
   return {
     name: 'openspec-upstream-sync',
-    description: 'Sincroniza o BR-OpenSpec com o upstream e traduz novas mensagens para português brasileiro. Use quando houver atualizações no repositório original que precisem ser incorporadas ao fork.',
+    description: 'Sincroniza o BR-OpenSpec com o upstream, traduz novas mensagens e atualiza a documentação em português brasileiro. Use quando houver atualizações no repositório original que precisem ser incorporadas ao fork.',
     instructions: `Sincronize o BR-OpenSpec com o repositório upstream e traduza o conteúdo novo para português brasileiro.
 
 **Entrada**: O usuário indica que há atualizações no upstream ou pede para sincronizar.
@@ -63,23 +63,36 @@ export function getUpstreamSyncSkillTemplate(): SkillTemplate {
    - Substitua referências ao nome do projeto em mensagens de usuário: \`s/\\bOpenSpec\\b/BR-OpenSpec/g\`
    - NÃO altere: \`openspec\` (comando), \`openspec-\` (prefixos), \`OPENSPEC_\` (constantes), URLs
 
-8. **Atualize os testes**
+8. **Sincronize a documentação traduzida**
+   Compare os arquivos de documentação em inglês com seus correspondentes em pt-BR:
+   - \`README.md\` ↔ \`README.pt-BR.md\`
+   - \`docs/*.md\` ↔ \`docs/pt-BR/*.md\`
+   
+   Para cada arquivo modificado pelo upstream:
+   - Aplique as mesmas mudanças estruturais nos correspondentes pt-BR
+   - Traduza novos trechos adicionados pelo upstream
+   - **PRESERVE adições pontuais do fork** (ex: justificativa da criação do fork, referências específicas ao BR-OpenSpec, links para recursos em pt-BR)
+   - Substitua "OpenSpec" por "BR-OpenSpec" quando o texto se referir ao projeto que o usuário está usando
+   - Mantenha nomes técnicos inalterados: \`openspec\`, \`.openspec.yaml\`, \`openspec/\`, skills \`openspec-*\`
+
+9. **Atualize os testes**
    - Rode \`pnpm test\` para identificar testes que quebraram devido às traduções
    - Atualize as expectativas de strings de \`test/\` para refletir as mensagens em português
    - NÃO altere a lógica dos testes — apenas as strings de comparação
 
-9. **Valide o build**
-   \`\`\`bash
-   pnpm run build
-   pnpm exec tsc --noEmit
-   pnpm lint
-   \`\`\`
+10. **Valide o build**
+    \`\`\`bash
+    pnpm run build
+    pnpm exec tsc --noEmit
+    pnpm lint
+    \`\`\`
 
-10. **Resumo do sync**
+11. **Resumo do sync**
     Informe ao usuário:
     - Quais commits foram incorporados
     - Quais arquivos foram modificados
     - Quantas novas mensagens foram traduzidas
+    - Quais arquivos de documentação foram sincronizados
     - Se há testes ainda falhando (e por quê)
 
 **IMPORTANTE**: NUNCA traduza código técnico (nomes de variáveis, funções, constantes) ou comentários de documentação de API. Apenas mensagens exibidas ao usuário final.
@@ -99,7 +112,8 @@ export function getOpsxUpstreamSyncCommandTemplate(): CommandTemplate {
 2. Se houver commits, crie branch e faça merge
 3. Identifique e traduza novas strings de usuário
 4. Atualize o catálogo em \`src/messages/index.ts\`
-5. Valide: \`pnpm run build && pnpm test\`
-6. Resuma as mudanças para o usuário`,
+5. Sincronize a documentação em pt-BR preservando adições do fork
+6. Valide: \`pnpm run build && pnpm test\`
+7. Resuma as mudanças para o usuário`,
   };
 }
