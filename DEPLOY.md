@@ -73,13 +73,13 @@ Acesse **Settings → Secrets and variables → Actions** no repositório `fkmat
 
 | Secret | Descrição | Obrigatório |
 |--------|-----------|-------------|
-| `APP_PRIVATE_KEY` | Private key do GitHub App para geração de token. Usado no workflow `release-prepare.yml`, para criar/atualizar o PR de versionamento. | **Sim** (para release automático) |
+| `APP_PRIVATE_KEY` | Private key do GitHub App para geração de token. Usado no workflow `release-prepare.yml`, para criar/atualizar o PR de versionamento. | **Sim**, (para release automático) |
 
 #### Variables (Não-encriptadas)
 
 | Variable | Descrição | Obrigatório |
 |----------|-----------|-------------|
-| `APP_ID` | ID do GitHub App instalado no repositório. Usado, em conjunto com `APP_PRIVATE_KEY`, no workflow `release-prepare.yml`. | **Sim** (para release automático) |
+| `APP_ID` | ID do GitHub App instalado no repositório. Usado, em conjunto com `APP_PRIVATE_KEY`, no workflow `release-prepare.yml`. | **Sim**, (para release automático) |
 
 ### 2.2 GitHub App para Release
 
