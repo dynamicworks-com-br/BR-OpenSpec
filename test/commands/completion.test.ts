@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { CompletionCommand } from '../../src/commands/completion.js';
+import { COMPLETION_MESSAGES } from '../../src/messages/index.js';
 import * as shellDetection from '../../src/utils/shell-detection.js';
 
 // Mock the shell detection module
@@ -72,7 +73,7 @@ describe('CompletionCommand', () => {
       await command.generate({});
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Error: Could not auto-detect shell. Please specify shell explicitly.'
+        COMPLETION_MESSAGES.couldNotDetectShell
       );
       expect(process.exitCode).toBe(1);
     });
@@ -81,7 +82,7 @@ describe('CompletionCommand', () => {
       await command.generate({ shell: 'tcsh' });
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error: Shell 'tcsh' is not supported yet. Currently supported: zsh, bash, fish, powershell"
+        COMPLETION_MESSAGES.shellNotSupported('tcsh', 'zsh, bash, fish, powershell')
       );
       expect(process.exitCode).toBe(1);
     });
@@ -109,7 +110,7 @@ describe('CompletionCommand', () => {
       await command.install({ shell: 'zsh', verbose: true });
 
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Installed to:')
+        expect.stringContaining(COMPLETION_MESSAGES.installedTo('').trim())
       );
     });
 
@@ -129,7 +130,7 @@ describe('CompletionCommand', () => {
       await command.install({});
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Error: Could not auto-detect shell. Please specify shell explicitly.'
+        COMPLETION_MESSAGES.couldNotDetectShell
       );
       expect(process.exitCode).toBe(1);
     });
@@ -138,7 +139,7 @@ describe('CompletionCommand', () => {
       await command.install({ shell: 'tcsh' });
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error: Shell 'tcsh' is not supported yet. Currently supported: zsh, bash, fish, powershell"
+        COMPLETION_MESSAGES.shellNotSupported('tcsh', 'zsh, bash, fish, powershell')
       );
       expect(process.exitCode).toBe(1);
     });
@@ -178,7 +179,7 @@ describe('CompletionCommand', () => {
       await command.uninstall({ yes: true });
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Error: Could not auto-detect shell. Please specify shell explicitly.'
+        COMPLETION_MESSAGES.couldNotDetectShell
       );
       expect(process.exitCode).toBe(1);
     });
@@ -187,7 +188,7 @@ describe('CompletionCommand', () => {
       await command.uninstall({ shell: 'tcsh', yes: true });
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error: Shell 'tcsh' is not supported yet. Currently supported: zsh, bash, fish, powershell"
+        COMPLETION_MESSAGES.shellNotSupported('tcsh', 'zsh, bash, fish, powershell')
       );
       expect(process.exitCode).toBe(1);
     });
@@ -251,7 +252,7 @@ describe('CompletionCommand', () => {
       await command.generate({});
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error: Shell 'tcsh' is not supported yet. Currently supported: zsh, bash, fish, powershell"
+        COMPLETION_MESSAGES.shellNotSupported('tcsh', 'zsh, bash, fish, powershell')
       );
       expect(process.exitCode).toBe(1);
     });

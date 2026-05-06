@@ -1,6 +1,6 @@
 # Migrando para o OPSX
 
-Este guia ajuda você a fazer a transição do fluxo de trabalho legado do OpenSpec para o OPSX. A migração foi projetada para ser suave—seu trabalho existente é preservado, e o novo sistema oferece mais flexibilidade.
+Este guia ajuda você a fazer a transição do fluxo de trabalho legado do BR-OpenSpec para o OPSX. A migração foi projetada para ser suave—seu trabalho existente é preservado, e o novo sistema oferece mais flexibilidade.
 
 ## O Que Está Mudando?
 
@@ -27,17 +27,17 @@ O processo de migração foi projetado com preservação em mente:
 - **Mudanças ativas em `openspec/changes/`** — Completamente preservadas. Você pode continuá-las com comandos OPSX.
 - **Mudanças arquivadas** — Intocadas. Seu histórico permanece intacto.
 - **Specs principais em `openspec/specs/`** — Intocadas. Estas são sua fonte de verdade.
-- **Seu conteúdo em CLAUDE.md, AGENTS.md, etc.** — Preservado. Apenas os blocos de marcadores do OpenSpec são removidos; tudo o que você escreveu permanece.
+- **Seu conteúdo em CLAUDE.md, AGENTS.md, etc.** — Preservado. Apenas os blocos de marcadores do BR-OpenSpec são removidos; tudo o que você escreveu permanece.
 
 ### O Que Será Removido
 
-Apenas os arquivos gerenciados pelo OpenSpec que estão sendo substituídos:
+Apenas os arquivos gerenciados pelo BR-OpenSpec que estão sendo substituídos:
 
 | O quê | Por quê |
 |------|-----|
 | Diretórios/arquivos de comandos slash legados | Substituídos pelo novo sistema de skills |
 | `openspec/AGENTS.md` | Gatilho de fluxo de trabalho obsoleto |
-| Marcadores do OpenSpec em `CLAUDE.md`, `AGENTS.md`, etc. | Não são mais necessários |
+| Marcadores do BR-OpenSpec em `CLAUDE.md`, `AGENTS.md`, etc. | Não são mais necessários |
 
 **Localizações de comandos legados por ferramenta** (exemplos—sua ferramenta pode variar):
 
@@ -51,7 +51,7 @@ Apenas os arquivos gerenciados pelo OpenSpec que estão sendo substituídos:
 
 A migração detecta quais ferramentas você tem configuradas e limpa seus arquivos legados.
 
-A lista de remoção pode parecer longa, mas todos esses arquivos foram criados originalmente pelo OpenSpec. Seu próprio conteúdo nunca é excluído.
+A lista de remoção pode parecer longa, mas todos esses arquivos foram criados originalmente pelo BR-OpenSpec. Seu próprio conteúdo nunca é excluído.
 
 ### O Que Precisa da Sua Atenção
 
@@ -67,7 +67,7 @@ Um arquivo requer migração manual:
 
 O antigo `project.md` era passivo—os agentes podiam lê-lo, ou não, ou esquecer o que leram. Descobrimos que a confiabilidade era inconsistente.
 
-O contexto do novo `config.yaml` é **ativamente injetado em cada requisição de planejamento do OpenSpec**. Isso significa que as convenções do seu projeto, tech stack e regras estão sempre presentes quando a IA está criando artefatos. Maior confiabilidade.
+O contexto do novo `config.yaml` é **ativamente injetado em cada requisição de planejamento do BR-OpenSpec**. Isso significa que as convenções do seu projeto, tech stack e regras estão sempre presentes quando a IA está criando artefatos. Maior confiabilidade.
 
 **A troca:**
 
@@ -98,9 +98,9 @@ openspec init
 O comando init detecta arquivos legados e guia você pelo processo de limpeza:
 
 ```
-Upgrading to the new OpenSpec
+Upgrading to the new BR-OpenSpec
 
-OpenSpec now uses agent skills, the emerging standard across coding
+BR-OpenSpec now uses agent skills, the emerging standard across coding
 agents. This simplifies your setup while keeping everything working
 as before.
 
@@ -110,7 +110,7 @@ No user content to preserve:
   • openspec/AGENTS.md
 
 Files to update
-OpenSpec markers will be removed, your content preserved:
+BR-OpenSpec markers will be removed, your content preserved:
   • CLAUDE.md
   • AGENTS.md
 
@@ -119,7 +119,7 @@ Needs your attention
     We won't delete this file. It may contain useful project context.
 
     The new openspec/config.yaml has a "context:" section for planning
-    context. This is included in every OpenSpec request and works more
+    context. This is included in every BR-OpenSpec request and works more
     reliably than the old project.md approach.
 
     Review project.md, move any useful content to config.yaml's context
@@ -131,7 +131,7 @@ Needs your attention
 **O que acontece quando você diz sim:**
 
 1. Os diretórios de comandos slash legados são removidos
-2. Os marcadores do OpenSpec são removidos de `CLAUDE.md`, `AGENTS.md`, etc. (seu conteúdo permanece)
+2. Os marcadores do BR-OpenSpec são removidos de `CLAUDE.md`, `AGENTS.md`, etc. (seu conteúdo permanece)
 3. `openspec/AGENTS.md` é excluído
 4. Novas skills são instaladas em `.claude/skills/`
 5. `openspec/config.yaml` é criado com um schema padrão
@@ -260,16 +260,16 @@ Ao migrar, seja seletivo. Pergunte a si mesmo: "A IA precisa disso para *cada* r
 Se não tiver certeza de como condensar seu project.md, pergunte ao seu assistente de IA:
 
 ```
-I'm migrating from OpenSpec's old project.md to the new config.yaml format.
+Estou migrando do antigo project.md do BR-OpenSpec para o novo formato config.yaml.
 
-Here's my current project.md:
-[paste your project.md content]
+Aqui está o meu project.md atual:
+[cole aqui o conteúdo do seu project.md]
 
-Please help me create a config.yaml with:
-1. A concise `context:` section (this gets injected into every planning request, so keep it tight—focus on tech stack, key constraints, and conventions that often get ignored)
-2. `rules:` for specific artifacts if any content is artifact-specific (e.g., "use Given/When/Then" belongs in specs rules, not global context)
+Ajude-me a criar um config.yaml com:
+1. Uma seção `context:` concisa (é injetada em toda requisição de planejamento, então seja enxuto — foque em stack tecnológica, restrições principais e convenções que costumam ser ignoradas)
+2. `rules:` para artefatos específicos, se houver conteúdo voltado a um artefato (ex.: "use Given/When/Then" vai em regras de specs, não no contexto global)
 
-Leave out anything generic that AI models already know. Be ruthless about brevity.
+Elimine qualquer coisa genérica que os modelos de IA já conheçam. Seja implacável com a brevidade.
 ```
 
 A IA ajudará você a identificar o que é essencial versus o que pode ser removido.
@@ -562,8 +562,8 @@ project/
 │       ├── openspec-explore/
 │       ├── openspec-apply-change/
 │       └── ...                   # perfil expandido adiciona new/continue/ff/etc.
-├── CLAUDE.md                     # Marcadores do OpenSpec removidos, seu conteúdo preservado
-└── AGENTS.md                     # Marcadores do OpenSpec removidos, seu conteúdo preservado
+├── CLAUDE.md                     # Marcadores do BR-OpenSpec removidos, seu conteúdo preservado
+└── AGENTS.md                     # Marcadores do BR-OpenSpec removidos, seu conteúdo preservado
 ```
 
 ### O Que Foi Removido
@@ -571,7 +571,7 @@ project/
 - `.claude/commands/openspec/` — substituído por `.claude/skills/`
 - `openspec/AGENTS.md` — obsoleto
 - `openspec/project.md` — migre para `config.yaml`, depois exclua
-- Blocos de marcadores do OpenSpec em `CLAUDE.md`, `AGENTS.md`, etc.
+- Blocos de marcadores do BR-OpenSpec em `CLAUDE.md`, `AGENTS.md`, etc.
 
 ### Guia Rápido de Comandos
 

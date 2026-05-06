@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import { FileSystemUtils } from '../../../utils/file-system.js';
+import { COMPLETION_MESSAGES } from '../../../messages/index.js';
 import { InstallationResult } from '../factory.js';
 
 /**
@@ -101,7 +102,7 @@ export class BashInstaller {
    */
   private generateBashrcConfig(completionsDir: string): string {
     return [
-      '# OpenSpec shell completions configuration',
+      '# BR-OpenSpec shell completions configuration',
       `if [ -d "${completionsDir}" ]; then`,
       `  for f in "${completionsDir}"/*; do`,
       '    [ -f "$f" ] && . "$f"',
@@ -226,10 +227,10 @@ export class BashInstaller {
           return {
             success: true,
             installedPath: targetPath,
-            message: 'Completion script is already installed (up to date)',
+            message: COMPLETION_MESSAGES.bashAlreadyInstalled,
             instructions: [
-              'The completion script is already installed and up to date.',
-              'If completions are not working, try: exec bash',
+              COMPLETION_MESSAGES.bashAlreadyInstalledDetail,
+              COMPLETION_MESSAGES.bashAlreadyInstalledHint,
             ],
           };
         }
@@ -260,13 +261,13 @@ export class BashInstaller {
       const warnings: string[] = [];
       if (!hasBashCompletion) {
         warnings.push(
-          '⚠️  Warning: bash-completion package not detected',
+          COMPLETION_MESSAGES.bashCompletionNotDetected,
           '',
-          'The completion script requires bash-completion to function.',
-          'Install it with:',
+          COMPLETION_MESSAGES.bashCompletionRequired,
+          COMPLETION_MESSAGES.installWith,
           '  brew install bash-completion@2',
           '',
-          'Then add to your ~/.bash_profile:',
+          COMPLETION_MESSAGES.addToBashProfile,
           '  [[ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ]] && . "/opt/homebrew/etc/profile.d/bash_completion.sh"'
         );
       }
@@ -275,12 +276,12 @@ export class BashInstaller {
       let message: string;
       if (isUpdate) {
         message = backupPath
-          ? 'Completion script updated successfully (previous version backed up)'
-          : 'Completion script updated successfully';
+          ? COMPLETION_MESSAGES.bashUpdatedWithBackup
+          : COMPLETION_MESSAGES.bashUpdated;
       } else {
         message = bashrcConfigured
-          ? 'Completion script installed and .bashrc configured successfully'
-          : 'Completion script installed successfully for Bash';
+          ? COMPLETION_MESSAGES.bashInstalledWithBashrc
+          : COMPLETION_MESSAGES.bashInstalled;
       }
 
       return {
@@ -295,7 +296,7 @@ export class BashInstaller {
     } catch (error) {
       return {
         success: false,
-        message: `Failed to install completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.bashFailedToInstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -310,18 +311,18 @@ export class BashInstaller {
     const completionsDir = path.dirname(installedPath);
 
     return [
-      'Completion script installed successfully.',
+      COMPLETION_MESSAGES.bashScriptInstalled,
       '',
-      'To enable completions, add the following to your ~/.bashrc file:',
+      COMPLETION_MESSAGES.bashAddToBashrc,
       '',
-      `  # Source OpenSpec completions`,
+      `  ${COMPLETION_MESSAGES.bashSourceComment}`,
       `  if [ -d "${completionsDir}" ]; then`,
       `    for f in "${completionsDir}"/*; do`,
       '      [ -f "$f" ] && . "$f"',
       '    done',
       '  fi',
       '',
-      'Then restart your shell or run: exec bash',
+      COMPLETION_MESSAGES.bashThenRestartShell('exec bash'),
     ];
   }
 
@@ -342,7 +343,7 @@ export class BashInstaller {
       } catch {
         return {
           success: false,
-          message: 'Completion script is not installed',
+          message: COMPLETION_MESSAGES.bashNotInstalled,
         };
       }
 
@@ -354,12 +355,12 @@ export class BashInstaller {
 
       return {
         success: true,
-        message: 'Completion script uninstalled successfully',
+        message: COMPLETION_MESSAGES.bashUninstalled,
       };
     } catch (error) {
       return {
         success: false,
-        message: `Failed to uninstall completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.bashFailedToUninstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }

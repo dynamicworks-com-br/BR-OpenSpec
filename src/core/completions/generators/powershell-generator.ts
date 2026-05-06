@@ -1,8 +1,9 @@
 import { CompletionGenerator, CommandDefinition, FlagDefinition } from '../types.js';
 import { POWERSHELL_DYNAMIC_HELPERS } from '../templates/powershell-templates.js';
+import { COMPLETION_MESSAGES } from '../../../messages/index.js';
 
 /**
- * Generates PowerShell completion scripts for the OpenSpec CLI.
+ * Generates PowerShell completion scripts for the BR-OpenSpec CLI.
  * Uses Register-ArgumentCompleter for command completion.
  */
 export class PowerShellGenerator implements CompletionGenerator {
@@ -41,8 +42,8 @@ export class PowerShellGenerator implements CompletionGenerator {
     const helpers = POWERSHELL_DYNAMIC_HELPERS;
 
     // Assemble final script with template literal
-    return `# PowerShell completion script for OpenSpec CLI
-# Auto-generated - do not edit manually
+    return `${COMPLETION_MESSAGES.powershellCompletionHeader}
+${COMPLETION_MESSAGES.powershellCompletionNote}
 
 ${helpers}
 $openspecCompleter = {
@@ -182,17 +183,17 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
 
     switch (positionalType) {
       case 'change-id':
-        lines.push(`${indent}Get-OpenSpecChanges | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {`);
+        lines.push(`${indent}Get-BROpenSpecChanges | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {`);
         lines.push(`${indent}    [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", "Change: $_")`);
         lines.push(`${indent}}`);
         break;
       case 'spec-id':
-        lines.push(`${indent}Get-OpenSpecSpecs | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {`);
+        lines.push(`${indent}Get-BROpenSpecSpecs | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {`);
         lines.push(`${indent}    [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", "Spec: $_")`);
         lines.push(`${indent}}`);
         break;
       case 'change-or-spec-id':
-        lines.push(`${indent}$items = @(Get-OpenSpecChanges) + @(Get-OpenSpecSpecs)`);
+        lines.push(`${indent}$items = @(Get-BROpenSpecChanges) + @(Get-BROpenSpecSpecs)`);
         lines.push(`${indent}$items | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {`);
         lines.push(`${indent}    [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", $_)`);
         lines.push(`${indent}}`);

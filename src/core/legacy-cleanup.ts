@@ -8,6 +8,7 @@ import { promises as fs } from 'fs';
 import chalk from 'chalk';
 import { FileSystemUtils, removeMarkerBlock as removeMarkerBlockUtil } from '../utils/file-system.js';
 import { OPENSPEC_MARKERS } from './config.js';
+import { LEGACY_CLEANUP_MESSAGES } from '../messages/index.js';
 
 /**
  * Legacy config file names from the old ToolRegistry.
@@ -384,7 +385,7 @@ export async function cleanupLegacyArtifacts(
       await FileSystemUtils.writeFile(filePath, newContent);
       result.modifiedFiles.push(fileName);
     } catch (error: any) {
-      result.errors.push(`Failed to modify ${fileName}: ${error.message}`);
+      result.errors.push(LEGACY_CLEANUP_MESSAGES.failedToModify(fileName, error.message));
     }
   }
 
@@ -395,7 +396,7 @@ export async function cleanupLegacyArtifacts(
       await fs.rm(fullPath, { recursive: true, force: true });
       result.deletedDirs.push(dirPath);
     } catch (error: any) {
-      result.errors.push(`Failed to delete directory ${dirPath}: ${error.message}`);
+      result.errors.push(LEGACY_CLEANUP_MESSAGES.failedToDeleteDir(dirPath, error.message));
     }
   }
 
@@ -406,7 +407,7 @@ export async function cleanupLegacyArtifacts(
       await fs.unlink(fullPath);
       result.deletedFiles.push(filePath);
     } catch (error: any) {
-      result.errors.push(`Failed to delete ${filePath}: ${error.message}`);
+      result.errors.push(LEGACY_CLEANUP_MESSAGES.failedToDeleteFile(filePath, error.message));
     }
   }
 
@@ -418,7 +419,7 @@ export async function cleanupLegacyArtifacts(
         await fs.unlink(agentsPath);
         result.deletedFiles.push('openspec/AGENTS.md');
       } catch (error: any) {
-        result.errors.push(`Failed to delete openspec/AGENTS.md: ${error.message}`);
+        result.errors.push(LEGACY_CLEANUP_MESSAGES.failedToDeleteOpenspecAgents(error.message));
       }
     }
   }
@@ -440,18 +441,18 @@ export function formatCleanupSummary(result: CleanupResult): string {
   const lines: string[] = [];
 
   if (result.deletedFiles.length > 0 || result.deletedDirs.length > 0 || result.modifiedFiles.length > 0) {
-    lines.push('Cleaned up legacy files:');
+    lines.push(LEGACY_CLEANUP_MESSAGES.cleanedUpHeader);
 
     for (const file of result.deletedFiles) {
-      lines.push(`  ✓ Removed ${file}`);
+      lines.push(LEGACY_CLEANUP_MESSAGES.removedFile(file));
     }
 
     for (const dir of result.deletedDirs) {
-      lines.push(`  ✓ Removed ${dir}/ (replaced by /opsx:*)`);
+      lines.push(LEGACY_CLEANUP_MESSAGES.removedDir(dir));
     }
 
     for (const file of result.modifiedFiles) {
-      lines.push(`  ✓ Removed OpenSpec markers from ${file}`);
+      lines.push(LEGACY_CLEANUP_MESSAGES.removedMarkers(file));
     }
   }
 
@@ -466,9 +467,9 @@ export function formatCleanupSummary(result: CleanupResult): string {
     if (lines.length > 0) {
       lines.push('');
     }
-    lines.push('Errors during cleanup:');
+    lines.push(LEGACY_CLEANUP_MESSAGES.errorsHeader);
     for (const error of result.errors) {
-      lines.push(`  ⚠ ${error}`);
+      lines.push(LEGACY_CLEANUP_MESSAGES.errorItem(error));
     }
   }
 
@@ -490,17 +491,17 @@ function buildRemovalsList(detection: LegacyDetectionResult): Array<{ path: stri
   for (const dir of detection.slashCommandDirs) {
     // Split on both forward and backward slashes for Windows compatibility
     const toolDir = dir.split(/[\/\\]/)[0];
-    removals.push({ path: dir + '/', explanation: `replaced by ${toolDir}/skills/` });
+    removals.push({ path: dir + '/', explanation: LEGACY_CLEANUP_MESSAGES.explanationReplacedByToolSkills(toolDir) });
   }
 
   // Slash command files (these are 100% OpenSpec-managed)
   for (const file of detection.slashCommandFiles) {
-    removals.push({ path: file, explanation: 'replaced by skills/' });
+    removals.push({ path: file, explanation: LEGACY_CLEANUP_MESSAGES.explanationReplacedBySkills });
   }
 
   // openspec/AGENTS.md (inside openspec/, it's OpenSpec-managed)
   if (detection.hasOpenspecAgents) {
-    removals.push({ path: 'openspec/AGENTS.md', explanation: 'obsolete workflow file' });
+    removals.push({ path: 'openspec/AGENTS.md', explanation: LEGACY_CLEANUP_MESSAGES.explanationObsoleteWorkflow });
   }
 
   // Note: Config files (CLAUDE.md, AGENTS.md, etc.) are NEVER in the removals list
@@ -521,7 +522,7 @@ function buildUpdatesList(detection: LegacyDetectionResult): Array<{ path: strin
 
   // All config files with markers get updated (markers removed, file preserved)
   for (const file of detection.configFilesToUpdate) {
-    updates.push({ path: file, explanation: 'removing OpenSpec markers' });
+    updates.push({ path: file, explanation: LEGACY_CLEANUP_MESSAGES.explanationRemovingMarkers });
   }
 
   return updates;
@@ -546,17 +547,17 @@ export function formatDetectionSummary(detection: LegacyDetectionResult): string
   }
 
   // Header - welcoming upgrade message
-  lines.push(chalk.bold('Upgrading to the new OpenSpec'));
+  lines.push(chalk.bold(LEGACY_CLEANUP_MESSAGES.upgradeHeader));
   lines.push('');
-  lines.push('OpenSpec now uses agent skills, the emerging standard across coding');
-  lines.push('agents. This simplifies your setup while keeping everything working');
-  lines.push('as before.');
+  lines.push(LEGACY_CLEANUP_MESSAGES.upgradeLine1);
+  lines.push(LEGACY_CLEANUP_MESSAGES.upgradeLine2);
+  lines.push(LEGACY_CLEANUP_MESSAGES.upgradeLine3);
   lines.push('');
 
   // Section 1: Files to remove (no user content to preserve)
   if (removals.length > 0) {
-    lines.push(chalk.bold('Files to remove'));
-    lines.push(chalk.dim('No user content to preserve:'));
+    lines.push(chalk.bold(LEGACY_CLEANUP_MESSAGES.filesToRemoveHeader));
+    lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.filesToRemoveSubheader));
     for (const { path } of removals) {
       lines.push(`  • ${path}`);
     }
@@ -565,8 +566,8 @@ export function formatDetectionSummary(detection: LegacyDetectionResult): string
   // Section 2: Files to update (markers removed, content preserved)
   if (updates.length > 0) {
     if (removals.length > 0) lines.push('');
-    lines.push(chalk.bold('Files to update'));
-    lines.push(chalk.dim('OpenSpec markers will be removed, your content preserved:'));
+    lines.push(chalk.bold(LEGACY_CLEANUP_MESSAGES.filesToUpdateHeader));
+    lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.filesToUpdateSubheader));
     for (const { path } of updates) {
       lines.push(`  • ${path}`);
     }
@@ -638,15 +639,15 @@ export function getToolsFromLegacyArtifacts(detection: LegacyDetectionResult): s
  */
 export function formatProjectMdMigrationHint(): string {
   const lines: string[] = [];
-  lines.push(chalk.yellow.bold('Needs your attention'));
-  lines.push('  • openspec/project.md');
-  lines.push(chalk.dim('    We won\'t delete this file. It may contain useful project context.'));
+  lines.push(chalk.yellow.bold(LEGACY_CLEANUP_MESSAGES.needsAttention));
+  lines.push(LEGACY_CLEANUP_MESSAGES.projectMdItem);
+  lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.projectMdWontDelete));
   lines.push('');
-  lines.push(chalk.dim('    The new openspec/config.yaml has a "context:" section for planning'));
-  lines.push(chalk.dim('    context. This is included in every OpenSpec request and works more'));
-  lines.push(chalk.dim('    reliably than the old project.md approach.'));
+  lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.projectMdContextLine1));
+  lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.projectMdContextLine2));
+  lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.projectMdContextLine3));
   lines.push('');
-  lines.push(chalk.dim('    Review project.md, move any useful content to config.yaml\'s context'));
-  lines.push(chalk.dim('    section, then delete the file when ready.'));
+  lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.projectMdReviewLine1));
+  lines.push(chalk.dim(LEGACY_CLEANUP_MESSAGES.projectMdReviewLine2));
   return lines.join('\n');
 }

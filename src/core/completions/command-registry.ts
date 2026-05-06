@@ -1,4 +1,5 @@
 import { CommandDefinition, FlagDefinition } from './types.js';
+import { CLI_DESCRIPTIONS, CONFIG_MESSAGES, SCHEMA_MESSAGES } from '../../messages/index.js';
 
 /**
  * Common flags used across multiple commands
@@ -6,96 +7,96 @@ import { CommandDefinition, FlagDefinition } from './types.js';
 const COMMON_FLAGS = {
   json: {
     name: 'json',
-    description: 'Output as JSON',
+    description: CLI_DESCRIPTIONS.showJson,
   } as FlagDefinition,
   jsonValidation: {
     name: 'json',
-    description: 'Output validation results as JSON',
+    description: CLI_DESCRIPTIONS.validateJson,
   } as FlagDefinition,
   strict: {
     name: 'strict',
-    description: 'Enable strict validation mode',
+    description: CLI_DESCRIPTIONS.validateStrict,
   } as FlagDefinition,
   noInteractive: {
     name: 'no-interactive',
-    description: 'Disable interactive prompts',
+    description: CLI_DESCRIPTIONS.showNoInteractive,
   } as FlagDefinition,
   type: {
     name: 'type',
-    description: 'Specify item type when ambiguous',
+    description: CLI_DESCRIPTIONS.validateType,
     takesValue: true,
     values: ['change', 'spec'],
   } as FlagDefinition,
 } as const;
 
 /**
- * Registry of all OpenSpec CLI commands with their flags and metadata.
+ * Registry of all BR-OpenSpec CLI commands with their flags and metadata.
  * This registry is used to generate shell completion scripts.
  */
 export const COMMAND_REGISTRY: CommandDefinition[] = [
   {
     name: 'init',
-    description: 'Initialize OpenSpec in your project',
+    description: CLI_DESCRIPTIONS.init,
     acceptsPositional: true,
     positionalType: 'path',
     flags: [
       {
         name: 'tools',
-        description: 'Configure AI tools non-interactively (e.g., "all", "none", or comma-separated tool IDs)',
+        description: CLI_DESCRIPTIONS.toolsOption,
         takesValue: true,
       },
     ],
   },
   {
     name: 'update',
-    description: 'Update OpenSpec instruction files',
+    description: CLI_DESCRIPTIONS.update,
     acceptsPositional: true,
     positionalType: 'path',
     flags: [],
   },
   {
     name: 'list',
-    description: 'List items (changes by default, or specs with --specs)',
+    description: CLI_DESCRIPTIONS.list,
     flags: [
       {
         name: 'specs',
-        description: 'List specs instead of changes',
+        description: CLI_DESCRIPTIONS.listSpecs,
       },
       {
         name: 'changes',
-        description: 'List changes explicitly (default)',
+        description: CLI_DESCRIPTIONS.listChanges,
       },
     ],
   },
   {
     name: 'view',
-    description: 'Display an interactive dashboard of specs and changes',
+    description: CLI_DESCRIPTIONS.view,
     flags: [],
   },
   {
     name: 'validate',
-    description: 'Validate changes and specs',
+    description: CLI_DESCRIPTIONS.validate,
     acceptsPositional: true,
     positionalType: 'change-or-spec-id',
     flags: [
       {
         name: 'all',
-        description: 'Validate all changes and specs',
+        description: CLI_DESCRIPTIONS.validateAll,
       },
       {
         name: 'changes',
-        description: 'Validate all changes',
+        description: CLI_DESCRIPTIONS.validateChanges,
       },
       {
         name: 'specs',
-        description: 'Validate all specs',
+        description: CLI_DESCRIPTIONS.validateSpecs,
       },
       COMMON_FLAGS.type,
       COMMON_FLAGS.strict,
       COMMON_FLAGS.jsonValidation,
       {
         name: 'concurrency',
-        description: 'Max concurrent validations (defaults to env OPENSPEC_CONCURRENCY or 6)',
+        description: CLI_DESCRIPTIONS.validateConcurrency,
         takesValue: true,
       },
       COMMON_FLAGS.noInteractive,
@@ -103,7 +104,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   },
   {
     name: 'show',
-    description: 'Show a change or spec',
+    description: CLI_DESCRIPTIONS.show,
     acceptsPositional: true,
     positionalType: 'change-or-spec-id',
     flags: [
@@ -112,98 +113,98 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       COMMON_FLAGS.noInteractive,
       {
         name: 'deltas-only',
-        description: 'Show only deltas (JSON only, change-specific)',
+        description: CLI_DESCRIPTIONS.showDeltasOnly,
       },
       {
         name: 'requirements-only',
-        description: 'Alias for --deltas-only (deprecated, change-specific)',
+        description: CLI_DESCRIPTIONS.showRequirementsOnly,
       },
       {
         name: 'requirements',
-        description: 'Show only requirements, exclude scenarios (JSON only, spec-specific)',
+        description: CLI_DESCRIPTIONS.showRequirements,
       },
       {
         name: 'no-scenarios',
-        description: 'Exclude scenario content (JSON only, spec-specific)',
+        description: CLI_DESCRIPTIONS.showNoScenarios,
       },
       {
         name: 'requirement',
         short: 'r',
-        description: 'Show specific requirement by ID (JSON only, spec-specific)',
+        description: CLI_DESCRIPTIONS.showRequirement,
         takesValue: true,
       },
     ],
   },
   {
     name: 'archive',
-    description: 'Archive a completed change and update main specs',
+    description: CLI_DESCRIPTIONS.archive,
     acceptsPositional: true,
     positionalType: 'change-id',
     flags: [
       {
         name: 'yes',
         short: 'y',
-        description: 'Skip confirmation prompts',
+        description: CLI_DESCRIPTIONS.archiveYes,
       },
       {
         name: 'skip-specs',
-        description: 'Skip spec update operations',
+        description: CLI_DESCRIPTIONS.archiveSkipSpecs,
       },
       {
         name: 'no-validate',
-        description: 'Skip validation (not recommended)',
+        description: CLI_DESCRIPTIONS.archiveNoValidate,
       },
     ],
   },
   {
     name: 'feedback',
-    description: 'Submit feedback about OpenSpec',
+    description: CLI_DESCRIPTIONS.feedback,
     acceptsPositional: true,
     flags: [
       {
         name: 'body',
-        description: 'Detailed description for the feedback',
+        description: CLI_DESCRIPTIONS.feedbackBody,
         takesValue: true,
       },
     ],
   },
   {
     name: 'change',
-    description: 'Manage OpenSpec change proposals (deprecated)',
+    description: CLI_DESCRIPTIONS.change,
     flags: [],
     subcommands: [
       {
         name: 'show',
-        description: 'Show a change proposal',
+        description: CLI_DESCRIPTIONS.changeShow,
         acceptsPositional: true,
         positionalType: 'change-id',
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'deltas-only',
-            description: 'Show only deltas (JSON only)',
+            description: CLI_DESCRIPTIONS.changeShowDeltasOnly,
           },
           {
             name: 'requirements-only',
-            description: 'Alias for --deltas-only (deprecated)',
+            description: CLI_DESCRIPTIONS.changeShowRequirementsOnly,
           },
           COMMON_FLAGS.noInteractive,
         ],
       },
       {
         name: 'list',
-        description: 'List all active changes (deprecated)',
+        description: CLI_DESCRIPTIONS.changeList,
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'long',
-            description: 'Show id and title with counts',
+            description: CLI_DESCRIPTIONS.changeListLong,
           },
         ],
       },
       {
         name: 'validate',
-        description: 'Validate a change proposal',
+        description: CLI_DESCRIPTIONS.changeValidate,
         acceptsPositional: true,
         positionalType: 'change-id',
         flags: [
@@ -216,28 +217,28 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   },
   {
     name: 'spec',
-    description: 'Manage OpenSpec specifications',
+    description: CLI_DESCRIPTIONS.spec,
     flags: [],
     subcommands: [
       {
         name: 'show',
-        description: 'Show a specification',
+        description: CLI_DESCRIPTIONS.specShow,
         acceptsPositional: true,
         positionalType: 'spec-id',
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'requirements',
-            description: 'Show only requirements, exclude scenarios (JSON only)',
+            description: CLI_DESCRIPTIONS.specShowRequirements,
           },
           {
             name: 'no-scenarios',
-            description: 'Exclude scenario content (JSON only)',
+            description: CLI_DESCRIPTIONS.specShowNoScenarios,
           },
           {
             name: 'requirement',
             short: 'r',
-            description: 'Show specific requirement by ID (JSON only)',
+            description: CLI_DESCRIPTIONS.specShowRequirement,
             takesValue: true,
           },
           COMMON_FLAGS.noInteractive,
@@ -245,18 +246,18 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       },
       {
         name: 'list',
-        description: 'List all specifications',
+        description: CLI_DESCRIPTIONS.specList,
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'long',
-            description: 'Show id and title with counts',
+            description: CLI_DESCRIPTIONS.specListLong,
           },
         ],
       },
       {
         name: 'validate',
-        description: 'Validate a specification',
+        description: CLI_DESCRIPTIONS.specValidate,
         acceptsPositional: true,
         positionalType: 'spec-id',
         flags: [
@@ -269,38 +270,38 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   },
   {
     name: 'completion',
-    description: 'Manage shell completions for OpenSpec CLI',
+    description: CLI_DESCRIPTIONS.completion,
     flags: [],
     subcommands: [
       {
         name: 'generate',
-        description: 'Generate completion script for a shell (outputs to stdout)',
+        description: CLI_DESCRIPTIONS.completionGenerate,
         acceptsPositional: true,
         positionalType: 'shell',
         flags: [],
       },
       {
         name: 'install',
-        description: 'Install completion script for a shell',
+        description: CLI_DESCRIPTIONS.completionInstall,
         acceptsPositional: true,
         positionalType: 'shell',
         flags: [
           {
             name: 'verbose',
-            description: 'Show detailed installation output',
+            description: CLI_DESCRIPTIONS.completionVerbose,
           },
         ],
       },
       {
         name: 'uninstall',
-        description: 'Uninstall completion script for a shell',
+        description: CLI_DESCRIPTIONS.completionUninstall,
         acceptsPositional: true,
         positionalType: 'shell',
         flags: [
           {
             name: 'yes',
             short: 'y',
-            description: 'Skip confirmation prompts',
+            description: CLI_DESCRIPTIONS.yesSkipConfirm,
           },
         ],
       },
@@ -308,11 +309,11 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   },
   {
     name: 'config',
-    description: 'View and modify global OpenSpec configuration',
+    description: CONFIG_MESSAGES.viewAndModify,
     flags: [
       {
         name: 'scope',
-        description: 'Config scope (only "global" supported currently)',
+        description: CONFIG_MESSAGES.configScopeOption,
         takesValue: true,
         values: ['global'],
       },
@@ -320,141 +321,141 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
     subcommands: [
       {
         name: 'path',
-        description: 'Show config file location',
+        description: CONFIG_MESSAGES.showLocation,
         flags: [],
       },
       {
         name: 'list',
-        description: 'Show all current settings',
+        description: CONFIG_MESSAGES.showAllSettings,
         flags: [
           COMMON_FLAGS.json,
         ],
       },
       {
         name: 'get',
-        description: 'Get a specific value (raw, scriptable)',
+        description: CONFIG_MESSAGES.getValue,
         acceptsPositional: true,
         flags: [],
       },
       {
         name: 'set',
-        description: 'Set a value (auto-coerce types)',
+        description: CONFIG_MESSAGES.setValue,
         acceptsPositional: true,
         flags: [
           {
             name: 'string',
-            description: 'Force value to be stored as string',
+            description: CONFIG_MESSAGES.forceStringOption,
           },
           {
             name: 'allow-unknown',
-            description: 'Allow setting unknown keys',
+            description: CONFIG_MESSAGES.allowUnknownOption,
           },
         ],
       },
       {
         name: 'unset',
-        description: 'Remove a key (revert to default)',
+        description: CONFIG_MESSAGES.removeKey,
         acceptsPositional: true,
         flags: [],
       },
       {
         name: 'reset',
-        description: 'Reset configuration to defaults',
+        description: CONFIG_MESSAGES.resetConfig,
         flags: [
           {
             name: 'all',
-            description: 'Reset all configuration (required)',
+            description: CONFIG_MESSAGES.resetAllOption,
           },
           {
             name: 'yes',
             short: 'y',
-            description: 'Skip confirmation prompts',
+            description: CLI_DESCRIPTIONS.yesSkipConfirm,
           },
         ],
       },
       {
         name: 'edit',
-        description: 'Open config in $EDITOR',
+        description: CONFIG_MESSAGES.openInEditor,
         flags: [],
       },
       {
         name: 'profile',
-        description: 'Configure workflow profile (interactive picker or preset shortcut)',
+        description: CONFIG_MESSAGES.configureProfile,
         flags: [],
       },
     ],
   },
   {
     name: 'schema',
-    description: 'Manage workflow schemas',
+    description: SCHEMA_MESSAGES.manageWorkflows,
     flags: [],
     subcommands: [
       {
         name: 'which',
-        description: 'Show where a schema resolves from',
+        description: SCHEMA_MESSAGES.showResolve,
         acceptsPositional: true,
         positionalType: 'schema-name',
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'all',
-            description: 'List all schemas with their resolution sources',
+            description: SCHEMA_MESSAGES.listAllSchemasOption,
           },
         ],
       },
       {
         name: 'validate',
-        description: 'Validate a schema structure and templates',
+        description: SCHEMA_MESSAGES.validateStructure,
         acceptsPositional: true,
         positionalType: 'schema-name',
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'verbose',
-            description: 'Show detailed validation steps',
+            description: SCHEMA_MESSAGES.verboseOption,
           },
         ],
       },
       {
         name: 'fork',
-        description: 'Copy an existing schema to project for customization',
+        description: SCHEMA_MESSAGES.copySchema,
         acceptsPositional: true,
         positionalType: 'schema-name',
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'force',
-            description: 'Overwrite existing destination',
+            description: SCHEMA_MESSAGES.forceOption,
           },
         ],
       },
       {
         name: 'init',
-        description: 'Create a new project-local schema',
+        description: SCHEMA_MESSAGES.createSchema,
         acceptsPositional: true,
         flags: [
           COMMON_FLAGS.json,
           {
             name: 'description',
-            description: 'Schema description',
+            description: SCHEMA_MESSAGES.descriptionOption,
             takesValue: true,
           },
           {
             name: 'artifacts',
-            description: 'Comma-separated artifact IDs',
+            description: SCHEMA_MESSAGES.artifactsOption,
             takesValue: true,
           },
           {
             name: 'default',
-            description: 'Set as project default schema',
+            description: SCHEMA_MESSAGES.defaultOption,
           },
           {
             name: 'no-default',
-            description: 'Do not prompt to set as default',
+            description: SCHEMA_MESSAGES.noDefaultOption,
           },
           {
             name: 'force',
-            description: 'Overwrite existing schema',
+            description: SCHEMA_MESSAGES.forceOption2,
           },
         ],
       },

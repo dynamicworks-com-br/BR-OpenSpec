@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import { FileSystemUtils } from '../../../utils/file-system.js';
+import { COMPLETION_MESSAGES } from '../../../messages/index.js';
 import { InstallationResult } from '../factory.js';
 
 /**
@@ -105,7 +106,7 @@ export class ZshInstaller {
    */
   private generateZshrcConfig(completionsDir: string): string {
     return [
-      '# OpenSpec shell completions configuration',
+      '# BR-OpenSpec shell completions configuration',
       `fpath=("${completionsDir}" $fpath)`,
       'autoload -Uz compinit',
       'compinit',
@@ -263,10 +264,10 @@ export class ZshInstaller {
             success: true,
             installedPath: targetPath,
             isOhMyZsh,
-            message: 'Completion script is already installed (up to date)',
+            message: COMPLETION_MESSAGES.zshAlreadyInstalled,
             instructions: [
-              'The completion script is already installed and up to date.',
-              'If completions are not working, try: exec zsh',
+              COMPLETION_MESSAGES.zshAlreadyInstalledDetail,
+              COMPLETION_MESSAGES.zshAlreadyInstalledHint,
             ],
           };
         }
@@ -316,14 +317,14 @@ export class ZshInstaller {
       let message: string;
       if (isUpdate) {
         message = backupPath
-          ? 'Completion script updated successfully (previous version backed up)'
-          : 'Completion script updated successfully';
+          ? COMPLETION_MESSAGES.zshUpdatedWithBackup
+          : COMPLETION_MESSAGES.zshUpdated;
       } else {
         message = isOhMyZsh
-          ? 'Completion script installed successfully for Oh My Zsh'
+          ? COMPLETION_MESSAGES.zshInstalledOhMyZsh
           : zshrcConfigured
-            ? 'Completion script installed and .zshrc configured successfully'
-            : 'Completion script installed successfully for Zsh';
+            ? COMPLETION_MESSAGES.zshInstalledWithZshrc
+            : COMPLETION_MESSAGES.zshInstalled;
       }
 
       return {
@@ -339,7 +340,7 @@ export class ZshInstaller {
       return {
         success: false,
         isOhMyZsh: false,
-        message: `Failed to install completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.zshFailedToInstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -352,11 +353,11 @@ export class ZshInstaller {
    */
   private generateOhMyZshFpathGuidance(completionsDir: string): string[] | undefined {
     return [
-      'Note: Oh My Zsh typically auto-loads completions from custom/completions.',
-      `Verify that ${completionsDir} is in your fpath by running:`,
+      COMPLETION_MESSAGES.zshOhMyZshFpathNote,
+      COMPLETION_MESSAGES.zshOhMyZshFpathVerify(completionsDir),
       '  echo $fpath | grep "custom/completions"',
       '',
-      'If not found, completions may not work. Restart your shell to ensure changes take effect.',
+      COMPLETION_MESSAGES.zshOhMyZshFpathRestart,
     ];
   }
 
@@ -370,29 +371,29 @@ export class ZshInstaller {
   private generateInstructions(isOhMyZsh: boolean, installedPath: string): string[] {
     if (isOhMyZsh) {
       return [
-        'Completion script installed to Oh My Zsh completions directory.',
-        'Restart your shell or run: exec zsh',
-        'Completions should activate automatically.',
+        COMPLETION_MESSAGES.zshOhMyZshInstalledDir,
+        COMPLETION_MESSAGES.restartShell('exec zsh'),
+        COMPLETION_MESSAGES.zshOhMyZshAutoActivate,
       ];
     } else {
       const completionsDir = path.dirname(installedPath);
       const zshrcPath = path.join(this.homeDir, '.zshrc');
 
       return [
-        'Completion script installed to ~/.zsh/completions/',
+        COMPLETION_MESSAGES.zshInstalledDir,
         '',
-        'To enable completions, add the following to your ~/.zshrc file:',
+        COMPLETION_MESSAGES.zshAddToZshrc,
         '',
-        `  # Add completions directory to fpath`,
+        `  ${COMPLETION_MESSAGES.zshFpathComment}`,
         `  fpath=(${completionsDir} $fpath)`,
         '',
-        '  # Initialize completion system',
+        `  ${COMPLETION_MESSAGES.zshCompinitComment}`,
         '  autoload -Uz compinit',
         '  compinit',
         '',
-        'Then restart your shell or run: exec zsh',
+        COMPLETION_MESSAGES.zshThenRestartShell('exec zsh'),
         '',
-        `Check if these lines already exist in ${zshrcPath} before adding.`,
+        COMPLETION_MESSAGES.zshCheckExistingLines(zshrcPath),
       ];
     }
   }
@@ -435,10 +436,10 @@ export class ZshInstaller {
 
       const messages: string[] = [];
       if (scriptRemoved) {
-        messages.push(`Completion script removed from ${targetPath}`);
+        messages.push(COMPLETION_MESSAGES.zshScriptRemoved(targetPath));
       }
       if (zshrcCleaned && !isOhMyZsh) {
-        messages.push('Removed OpenSpec configuration from ~/.zshrc');
+        messages.push(COMPLETION_MESSAGES.zshConfigRemoved);
       }
 
       return {
@@ -448,7 +449,7 @@ export class ZshInstaller {
     } catch (error) {
       return {
         success: false,
-        message: `Failed to uninstall completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.failedToUninstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }

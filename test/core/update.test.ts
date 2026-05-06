@@ -77,7 +77,7 @@ describe('UpdateCommand', () => {
       });
 
       await expect(updateCommand.execute(testDir)).rejects.toThrow(
-        "No OpenSpec directory found. Run 'openspec init' first."
+        "Diretório do BR-OpenSpec não encontrado. Execute 'openspec init' primeiro."
       );
     });
 
@@ -87,7 +87,7 @@ describe('UpdateCommand', () => {
       await updateCommand.execute(testDir);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('No configured tools found')
+        expect.stringContaining('Nenhuma ferramenta configurada encontrada.')
       );
 
       consoleSpy.mockRestore();
@@ -134,7 +134,7 @@ Old instructions content
 
       // Check console output
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updating 1 tool(s): claude')
+        expect.stringContaining('Atualizando 1 ferramenta(s): claude')
       );
 
       consoleSpy.mockRestore();
@@ -281,7 +281,7 @@ Old instructions content
 
       // Both tools should be updated
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updating 2 tool(s)')
+        expect.stringContaining('Atualizando 2 ferramenta(s)')
       );
 
       // Verify Claude skills updated
@@ -388,7 +388,7 @@ Old instructions content
 
       // Should report failure
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed')
+        expect.stringContaining('Falhas')
       );
 
       writeSpy.mockRestore();
@@ -430,14 +430,14 @@ Old instructions content
 
       await updateCommand.execute(testDir);
 
-      // Cursor should still be updated - check the actual format from ora spinner
+      // Cursor should still be updated - check summary message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updated: Cursor')
+        expect.stringContaining('Atualizados: Cursor')
       );
 
       // Claude should be reported as failed
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed')
+        expect.stringContaining('Falhas')
       );
 
       writeSpy.mockRestore();
@@ -457,7 +457,7 @@ Old instructions content
 
       // Should report no configured tools
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('No configured tools found')
+        expect.stringContaining('Nenhuma ferramenta configurada encontrada.')
       );
 
       consoleSpy.mockRestore();
@@ -480,7 +480,7 @@ Old instructions content
 
       // Should detect and update Claude
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updating 1 tool(s): claude')
+        expect.stringContaining('Atualizando 1 ferramenta(s): claude')
       );
 
       consoleSpy.mockRestore();
@@ -559,7 +559,7 @@ Old instructions content
 
       // The success output uses "✓ Updated: <name>"
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updated: Claude Code')
+        expect.stringContaining('Atualizados: Claude Code')
       );
 
       consoleSpy.mockRestore();
@@ -581,7 +581,7 @@ Old instructions content
       await updateCommand.execute(testDir);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Restart your IDE')
+        expect.stringContaining('Reinicie sua IDE')
       );
 
       consoleSpy.mockRestore();
@@ -599,7 +599,7 @@ Old instructions content
       await updateCommand.execute(testDir);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('up to date')
+        expect.stringContaining('atualizadas')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('--force')
@@ -717,14 +717,14 @@ Content
       const forceUpdateCommand = new UpdateCommand({ force: true });
       await forceUpdateCommand.execute(testDir);
 
-      // Should show "Force updating" message
+      // Should show "Forçando atualização" message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Force updating')
+        expect.stringContaining('Forçando atualização')
       );
 
       // Should show updated message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updated: Claude Code')
+        expect.stringContaining('Atualizados: Claude Code')
       );
 
       consoleSpy.mockRestore();
@@ -752,7 +752,7 @@ Content
       );
 
       // Should not show "Use --force" since force was used
-      const hasForceHint = allCalls.some(call => call.includes('Use --force'));
+      const hasForceHint = allCalls.some(call => call.includes('Use --force para atualizar'));
       expect(hasForceHint).toBe(false);
 
       consoleSpy.mockRestore();
@@ -791,7 +791,7 @@ metadata:
 
       // Should show both tools being force updated
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Force updating 2 tool(s)')
+        expect.stringContaining('Forçando atualização de 2 ferramenta(s)')
       );
 
       consoleSpy.mockRestore();
@@ -842,12 +842,12 @@ metadata:
 
       // Should show only Claude being updated
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updating 1 tool(s)')
+        expect.stringContaining('Atualizando 1 ferramenta(s)')
       );
 
       // Should mention Cursor is already up to date
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Already up to date: cursor')
+        expect.stringContaining('Já atualizadas: cursor')
       );
 
       consoleSpy.mockRestore();
@@ -866,7 +866,7 @@ metadata:
         'old'
       );
 
-      // Create legacy CLAUDE.md with OpenSpec markers
+      // Create legacy CLAUDE.md with BR-OpenSpec markers
       const legacyContent = `${OPENSPEC_MARKERS.start}
 # OpenSpec Instructions
 
@@ -883,12 +883,12 @@ ${OPENSPEC_MARKERS.end}
 
       // Should show v1 upgrade message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Upgrading to the new OpenSpec')
+        expect.stringContaining('Atualizando para o novo BR-OpenSpec')
       );
 
       // Should show marker removal message (config files are never deleted, only have markers removed)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Removed OpenSpec markers from CLAUDE.md')
+        expect.stringContaining('Marcadores BR-OpenSpec removidos de CLAUDE.md')
       );
 
       // Config file should still exist (never deleted)
@@ -916,7 +916,7 @@ ${OPENSPEC_MARKERS.end}
         'old'
       );
 
-      // Create legacy CLAUDE.md with OpenSpec markers
+      // Create legacy CLAUDE.md with BR-OpenSpec markers
       const legacyContent = `${OPENSPEC_MARKERS.start}
 # OpenSpec Instructions
 ${OPENSPEC_MARKERS.end}
@@ -930,17 +930,17 @@ ${OPENSPEC_MARKERS.end}
 
       // Should show v1 upgrade message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Upgrading to the new OpenSpec')
+        expect.stringContaining('Atualizando para o novo BR-OpenSpec')
       );
 
       // Should show warning about --force
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Run with --force to auto-cleanup')
+        expect.stringContaining('Execute com --force para limpar automaticamente')
       );
 
       // Should continue with update
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updated: Claude Code')
+        expect.stringContaining('Atualizados: Claude Code')
       );
 
       // Legacy file should still exist (not cleaned up)
@@ -979,7 +979,7 @@ ${OPENSPEC_MARKERS.end}
 
       // Should show cleanup message for directory
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Removed .claude/commands/openspec/')
+        expect.stringContaining('Removido .claude/commands/openspec/')
       );
 
       // Legacy directory should be deleted
@@ -1014,7 +1014,7 @@ ${OPENSPEC_MARKERS.end}
 
       // Should show cleanup message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Removed openspec/AGENTS.md')
+        expect.stringContaining('Removido openspec/AGENTS.md')
       );
 
       // Legacy file should be deleted
@@ -1046,7 +1046,7 @@ ${OPENSPEC_MARKERS.end}
         call.map(arg => String(arg)).join(' ')
       );
       const hasLegacyMessage = calls.some(call =>
-        call.includes('Upgrading to the new OpenSpec')
+        call.includes('Atualizando para o novo BR-OpenSpec')
       );
       expect(hasLegacyMessage).toBe(false);
 
@@ -1064,7 +1064,7 @@ ${OPENSPEC_MARKERS.end}
         'old'
       );
 
-      // Create CLAUDE.md with mixed content (user content + OpenSpec markers)
+      // Create CLAUDE.md with mixed content (user content + BR-OpenSpec markers)
       const mixedContent = `# My Project
 
 Some user-defined instructions here.
@@ -1087,7 +1087,7 @@ More user content after markers.
 
       // Should show marker removal message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Removed OpenSpec markers from CLAUDE.md')
+        expect.stringContaining('Marcadores BR-OpenSpec removidos de CLAUDE.md')
       );
 
       // File should still exist
@@ -1129,7 +1129,7 @@ More user content after markers.
 
       // Should show detected tools message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Tools detected from legacy artifacts')
+        expect.stringContaining('Ferramentas detectadas de artefatos legados')
       );
 
       // Should show Claude Code being set up
@@ -1139,7 +1139,7 @@ More user content after markers.
 
       // Should show getting started message for newly configured tools
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Getting started')
+        expect.stringContaining('Início rápido')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('/opsx:new')
@@ -1179,7 +1179,7 @@ More user content after markers.
 
       // Should detect both tools
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Tools detected from legacy artifacts')
+        expect.stringContaining('Ferramentas detectadas de artefatos legados')
       );
 
       // Both tools should have skills created
@@ -1217,21 +1217,21 @@ More user content after markers.
 
       // Legacy cleanup should happen
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Removed .claude/commands/openspec/')
+        expect.stringContaining('Removido .claude/commands/openspec/')
       );
 
-      // Should NOT show "Tools detected from legacy artifacts" because claude is already configured
+      // Should NOT show "Ferramentas detectadas de artefatos legados" because claude is already configured
       const calls = consoleSpy.mock.calls.map(call =>
         call.map(arg => String(arg)).join(' ')
       );
       const hasDetectedMessage = calls.some(call =>
-        call.includes('Tools detected from legacy artifacts')
+        call.includes('Ferramentas detectadas de artefatos legados')
       );
       expect(hasDetectedMessage).toBe(false);
 
-      // Should update existing skills (not "Getting started" for newly configured)
+      // Should update existing skills (not "Início rápido" for newly configured)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Updated: Claude Code')
+        expect.stringContaining('Atualizados: Claude Code')
       );
 
       consoleSpy.mockRestore();
@@ -1267,16 +1267,16 @@ More user content after markers.
 
       // Should detect Cursor as a legacy tool to upgrade (but not Claude)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Tools detected from legacy artifacts')
+        expect.stringContaining('Ferramentas detectadas de artefatos legados')
       );
 
       // Cursor skills should be created
       const cursorSkillFile = path.join(testDir, '.cursor', 'skills', 'openspec-explore', 'SKILL.md');
       expect(await FileSystemUtils.fileExists(cursorSkillFile)).toBe(true);
 
-      // Should show "Getting started" for newly configured Cursor
+      // Should show "Início rápido" for newly configured Cursor
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Getting started')
+        expect.stringContaining('Início rápido')
       );
 
       consoleSpy.mockRestore();
@@ -1295,12 +1295,12 @@ More user content after markers.
 
       await updateCommand.execute(testDir);
 
-      // Should NOT show "Getting started" message
+      // Should NOT show "Início rápido" message
       const calls = consoleSpy.mock.calls.map(call =>
         call.map(arg => String(arg)).join(' ')
       );
       const hasGettingStarted = calls.some(call =>
-        call.includes('Getting started')
+        call.includes('Início rápido')
       );
       expect(hasGettingStarted).toBe(false);
 
@@ -1556,7 +1556,7 @@ content
         call.map(arg => String(arg)).join(' ')
       );
       const hasNoConfiguredMessage = calls.some(call =>
-        call.includes('No configured tools found')
+        call.includes('Nenhuma ferramenta configurada encontrada.')
       );
       expect(hasNoConfiguredMessage).toBe(false);
 
@@ -1603,7 +1603,7 @@ content
         call.map(arg => String(arg)).join(' ')
       );
       const hasDeselectedRemovalNote = calls.some(call =>
-        call.includes('deselected workflows')
+        call.includes('fluxos de trabalho desselecionados')
       );
       expect(hasDeselectedRemovalNote).toBe(true);
 
@@ -1630,7 +1630,7 @@ content
         call.map(arg => String(arg)).join(' ')
       );
       const hasNewToolMessage = calls.some(call =>
-        call.includes("Detected new tool: Cursor. Run 'openspec init' to add it.")
+        call.includes("Detectadas novas ferramenta: Cursor. Execute 'openspec init' para adicionar ela.")
       );
       expect(hasNewToolMessage).toBe(true);
 
@@ -1657,15 +1657,15 @@ content
       );
 
       const consolidatedCalls = calls.filter(call =>
-        call.includes('Detected new tools:')
+        call.includes('Detectadas novas ferramentas:')
       );
       expect(consolidatedCalls).toHaveLength(1);
       expect(consolidatedCalls[0]).toContain('GitHub Copilot');
       expect(consolidatedCalls[0]).toContain('Windsurf');
-      expect(consolidatedCalls[0]).toContain("Run 'openspec init' to add them.");
+      expect(consolidatedCalls[0]).toContain("Execute 'openspec init' para adicionar elas.");
 
       const repeatedSingularCalls = calls.filter(call =>
-        call.includes('Detected new tool:')
+        call.includes('Detectadas novas ferramenta:')
       );
       expect(repeatedSingularCalls).toHaveLength(0);
 
@@ -1686,7 +1686,7 @@ content
         call.map(arg => String(arg)).join(' ')
       );
       const hasNewToolMessage = calls.some(call =>
-        call.includes('Detected new tool')
+        call.includes('Detectadas novas ferramenta') || call.includes('Detectadas novas ferramentas')
       );
       expect(hasNewToolMessage).toBe(false);
 
@@ -1764,7 +1764,8 @@ content
         call.map(arg => String(arg)).join(' ')
       );
       const hasToolsList = calls.some(call =>
-        call.includes('Tools:') && call.includes('Claude Code')
+        (call.includes('Ferramentas:') || call.includes('Tools:'))
+        && (call.includes('Claude Code') || call.includes('claude'))
       );
       expect(hasToolsList).toBe(true);
 

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SPEC_MESSAGES, CHANGE_MESSAGES } from '../../../src/messages/index.js';
 import { MarkdownParser } from '../../../src/core/parsers/markdown-parser.js';
 
 describe('MarkdownParser', () => {
@@ -90,7 +91,7 @@ When action
 Then result`;
 
       const parser = new MarkdownParser(content);
-      expect(() => parser.parseSpec('test')).toThrow('must have a Purpose section');
+      expect(() => parser.parseSpec('test')).toThrow(SPEC_MESSAGES.missingPurposeSection);
     });
 
     it('should throw error for missing requirements', () => {
@@ -100,7 +101,7 @@ Then result`;
 This is a test spec`;
 
       const parser = new MarkdownParser(content);
-      expect(() => parser.parseSpec('test')).toThrow('must have a Requirements section');
+      expect(() => parser.parseSpec('test')).toThrow(SPEC_MESSAGES.missingRequirementsSection);
     });
 
     it('should ignore headings that appear inside fenced code blocks', () => {
@@ -206,7 +207,7 @@ We need to implement user authentication to secure the application and protect u
 - **test:** Add test`;
 
       const parser = new MarkdownParser(content);
-      expect(() => parser.parseChange('test')).toThrow('must have a Why section');
+      expect(() => parser.parseChange('test')).toThrow(CHANGE_MESSAGES.missingWhySection);
     });
 
     it('should throw error for missing what changes section', () => {
@@ -216,7 +217,7 @@ We need to implement user authentication to secure the application and protect u
 Because we need it`;
 
       const parser = new MarkdownParser(content);
-      expect(() => parser.parseChange('test')).toThrow('must have a What Changes section');
+      expect(() => parser.parseChange('test')).toThrow(CHANGE_MESSAGES.missingWhatChangesSection);
     });
 
     it('should handle changes without deltas', () => {

@@ -100,12 +100,12 @@ describe('FeedbackCommand', () => {
 
       // Should display warning
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('GitHub CLI not found')
+        expect.stringContaining('GitHub CLI não encontrado')
       );
 
       // Should show formatted feedback
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--- FORMATTED FEEDBACK ---')
+        expect.stringContaining('--- FEEDBACK FORMATADO ---')
       );
 
       // Should show manual submission URL
@@ -134,17 +134,17 @@ describe('FeedbackCommand', () => {
 
       // Should display warning
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('GitHub authentication required')
+        expect.stringContaining('Autenticação do GitHub necessária')
       );
 
       // Should show auth instructions
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('To auto-submit in the future: gh auth login')
+        expect.stringContaining('Para envio automático no futuro: gh auth login')
       );
 
       // Should show formatted feedback
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--- FORMATTED FEEDBACK ---')
+        expect.stringContaining('--- FEEDBACK FORMATADO ---')
       );
     });
   });
@@ -179,7 +179,7 @@ describe('FeedbackCommand', () => {
           '--title',
           'Feedback: Great tool!',
           '--body',
-          expect.stringContaining('Submitted via OpenSpec CLI'),
+          expect.stringContaining('Enviado via BR-OpenSpec CLI'),
           '--label',
           'feedback',
         ],
@@ -191,7 +191,7 @@ describe('FeedbackCommand', () => {
 
       // Should display success message
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Feedback submitted successfully')
+        expect.stringContaining('Feedback enviado com sucesso!')
       );
 
       // Should display issue URL
@@ -274,7 +274,7 @@ describe('FeedbackCommand', () => {
         'gh',
         expect.arrayContaining([
           '--body',
-          expect.stringMatching(/Submitted via OpenSpec CLI[\s\S]*Version:[\s\S]*Platform:[\s\S]*Timestamp:/),
+          expect.stringMatching(/Enviado via BR-OpenSpec CLI[\s\S]*Versão:[\s\S]*Plataforma:[\s\S]*Timestamp:/),
         ]),
         expect.any(Object)
       );
@@ -387,16 +387,16 @@ describe('FeedbackCommand', () => {
 
       // Verify formatted output structure
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--- FORMATTED FEEDBACK ---')
+        expect.stringContaining('--- FEEDBACK FORMATADO ---')
       );
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Title: Feedback: Test message')
+        expect.stringContaining('Título: Feedback: Test message')
       );
       expect(consoleLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('Labels: feedback')
       );
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--- END FEEDBACK ---')
+        expect.stringContaining('--- FIM DO FEEDBACK ---')
       );
     });
 

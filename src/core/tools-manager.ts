@@ -5,6 +5,7 @@
  * Shared by `openspec init` (via InitCommand) and `openspec tools`.
  */
 
+import { TOOLS_MESSAGES } from '../messages/index.js';
 import path from 'path';
 import * as fs from 'fs';
 import { createRequire } from 'module';
@@ -225,9 +226,7 @@ export function getEligibleTools(): AIToolOption[] {
 export function resolveToolsArg(raw: string): string[] {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
-    throw new Error(
-      'The --add/--remove option requires a value. Use "all" or a comma-separated list of tool IDs.'
-    );
+    throw new Error(TOOLS_MESSAGES.addRemoveRequiresValue);
   }
 
   const availableTools = getToolsWithSkillsDir();
@@ -247,13 +246,13 @@ export function resolveToolsArg(raw: string): string[] {
     .filter((t) => t.length > 0);
 
   if (tokens.some((t) => t === 'all' || t === 'none')) {
-    throw new Error('Cannot combine "all" or "none" with specific tool IDs.');
+    throw new Error(TOOLS_MESSAGES.cannotCombineReserved);
   }
 
   const invalid = tokens.filter((t) => !availableSet.has(t));
   if (invalid.length > 0) {
     throw new Error(
-      `Invalid tool(s): ${invalid.join(', ')}. Available: ${availableTools.join(', ')}`
+      TOOLS_MESSAGES.invalidTools(invalid.join(', '), availableTools.join(', '))
     );
   }
 

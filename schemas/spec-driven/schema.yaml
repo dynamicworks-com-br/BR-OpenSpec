@@ -1,6 +1,6 @@
 name: spec-driven
 version: 1
-description: Default OpenSpec workflow - proposal → specs → design → tasks
+description: Fluxo de trabalho BR-OpenSpec padrão - proposta → specs → design → tarefas
 artifacts:
   - id: proposal
     generates: proposal.md

@@ -57,8 +57,8 @@ describe('ChangeCommand.show/validate', () => {
       // Should have set exit code and printed hint
       expect(process.exitCode).toBe(1);
       const errOut = logsErr.join('\n');
-      expect(errOut).toMatch(/No change specified/);
-      expect(errOut).toMatch(/Available IDs/);
+      expect(errOut).toMatch(/Nenhuma alteração especificada/);
+      expect(errOut).toMatch(/IDs disponíveis/);
     } finally {
       console.error = origErr;
       process.exitCode = 0;

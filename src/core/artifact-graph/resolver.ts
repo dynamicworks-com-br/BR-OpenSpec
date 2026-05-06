@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WORKFLOW_MESSAGES } from '../../messages/index.js';
 import { getGlobalDataDir } from '../global-config.js';
 import { parseSchema, SchemaValidationError } from './schema.js';
 import type { SchemaYaml } from './types.js';
@@ -114,7 +115,7 @@ export function resolveSchema(name: string, projectRoot?: string): SchemaYaml {
   if (!schemaDir) {
     const availableSchemas = listSchemas(projectRoot);
     throw new Error(
-      `Schema '${normalizedName}' not found. Available schemas: ${availableSchemas.join(', ')}`
+      WORKFLOW_MESSAGES.schemaNotFound(normalizedName, availableSchemas.join(', '))
     );
   }
 
@@ -127,7 +128,7 @@ export function resolveSchema(name: string, projectRoot?: string): SchemaYaml {
   } catch (err) {
     const ioError = err instanceof Error ? err : new Error(String(err));
     throw new SchemaLoadError(
-      `Failed to read schema at '${schemaPath}': ${ioError.message}`,
+      WORKFLOW_MESSAGES.schemaReadFailed(schemaPath, ioError.message),
       schemaPath,
       ioError
     );
@@ -138,14 +139,14 @@ export function resolveSchema(name: string, projectRoot?: string): SchemaYaml {
   } catch (err) {
     if (err instanceof SchemaValidationError) {
       throw new SchemaLoadError(
-        `Invalid schema at '${schemaPath}': ${err.message}`,
+        WORKFLOW_MESSAGES.schemaInvalid(schemaPath, err.message),
         schemaPath,
         err
       );
     }
     const parseError = err instanceof Error ? err : new Error(String(err));
     throw new SchemaLoadError(
-      `Failed to parse schema at '${schemaPath}': ${parseError.message}`,
+      WORKFLOW_MESSAGES.schemaParseFailed(schemaPath, parseError.message),
       schemaPath,
       parseError
     );

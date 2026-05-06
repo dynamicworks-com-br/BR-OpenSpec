@@ -16,6 +16,7 @@ import {
 } from './parsers/requirement-blocks.js';
 import { findMainSpecStructureIssues } from './parsers/spec-structure.js';
 import { Validator } from './validation/validator.js';
+import { ARCHIVE_MESSAGES } from '../messages/index.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -216,7 +217,7 @@ export async function buildUpdatedSpec(
     if (plan.removed.length > 0) {
       console.log(
         chalk.yellow(
-          `⚠️  Warning: ${specName} - ${plan.removed.length} REMOVED requirement(s) ignored for new spec (nothing to remove).`
+          ARCHIVE_MESSAGES.removedRequirementsIgnored(specName, plan.removed.length)
         )
       );
     }
