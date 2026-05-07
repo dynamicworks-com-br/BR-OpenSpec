@@ -32,6 +32,8 @@ bun add -g @fkmatsuda/br-openspec@latest
 
 ## Nix
 
+> **Nota:** O Nix requer features experimentais habilitadas. Adicione `experimental-features = nix-command flakes` ao seu `~/.config/nix/nix.conf` ou use as flags `--extra-experimental-features nix-command --extra-experimental-features flakes` em cada comando.
+
 Execute o BR-OpenSpec diretamente sem instalação:
 
 ```bash
