@@ -590,5 +590,5 @@ project/
 
 ## Obtendo Ajuda
 
-- **GitHub Issues**: [github.com/fkmatsuda/BR-OpenSpec/issues](https://github.com/fkmatsuda/BR-OpenSpec/issues)
+- **GitHub Issues**: [github.com/fkmatsuda/BR-OpenSpec/issues](https://github.com/dynamicworks-com-br/BR-OpenSpec/issues)
 - **Documentação**: [docs/opsx.md](opsx.md) para a referência completa do OPSX

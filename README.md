@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://github.com/fkmatsuda/BR-OpenSpec">
+  <a href="https://github.com/dynamicworks-com-br/BR-OpenSpec">
     <picture>
       <source srcset="assets/openspec_bg.png">
       <img src="assets/openspec_bg.png" alt="OpenSpec logo">
@@ -8,17 +8,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/fkmatsuda/BR-OpenSpec/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/fkmatsuda/BR-OpenSpec/actions/workflows/ci.yml/badge.svg" /></a>
-  <a href="https://www.npmjs.com/package/@fkmatsuda/br-openspec"><img alt="npm version" src="https://img.shields.io/npm/v/@fkmatsuda/br-openspec?style=flat-square" /></a>
+  <a href="https://github.com/dynamicworks-com-br/BR-OpenSpec/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/dynamicworks-com-br/BR-OpenSpec/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://www.npmjs.com/package/@dynamicworks/br-openspec"><img alt="npm version" src="https://img.shields.io/npm/v/@dynamicworks/br-openspec?style=flat-square" /></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" /></a>
 </p>
 
 <details>
 <summary><strong>The most loved spec framework.</strong></summary>
 
-[![Stars](https://img.shields.io/github/stars/fkmatsuda/BR-OpenSpec?style=flat-square&label=Stars)](https://github.com/fkmatsuda/BR-OpenSpec/stargazers)
-[![Downloads](https://img.shields.io/npm/dm/@fkmatsuda/br-openspec?style=flat-square&label=Downloads/mo)](https://www.npmjs.com/package/@fkmatsuda/br-openspec)
-[![Contributors](https://img.shields.io/github/contributors/fkmatsuda/BR-OpenSpec?style=flat-square&label=Contributors)](https://github.com/fkmatsuda/BR-OpenSpec/graphs/contributors)
+[![Stars](https://img.shields.io/github/stars/dynamicworks-com-br/BR-OpenSpec?style=flat-square&label=Stars)](https://github.com/dynamicworks-com-br/BR-OpenSpec/stargazers)
+[![Downloads](https://img.shields.io/npm/dm/@dynamicworks/br-openspec?style=flat-square&label=Downloads/mo)](https://www.npmjs.com/package/@dynamicworks/br-openspec)
+[![Contributors](https://img.shields.io/github/contributors/dynamicworks-com-br/BR-OpenSpec?style=flat-square&label=Contributors)](https://github.com/dynamicworks-com-br/BR-OpenSpec/graphs/contributors)
 
 </details>
 <p></p>
@@ -85,7 +85,7 @@ AI:  Archived to openspec/changes/archive/2025-01-23-add-dark-mode/
 Install BR-OpenSpec globally:
 
 ```bash
-npm install -g @fkmatsuda/br-openspec@latest
+npm install -g @dynamicworks/br-openspec@latest
 ```
 
 Then navigate to your project directory and initialize:
@@ -138,7 +138,7 @@ AI coding assistants are powerful but unpredictable when requirements live only 
 **Upgrade the package**
 
 ```bash
-npm install -g @fkmatsuda/br-openspec@latest
+npm install -g @dynamicworks/br-openspec@latest
 ```
 
 **Refresh agent instructions**

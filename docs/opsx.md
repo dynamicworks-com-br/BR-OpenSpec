@@ -654,4 +654,4 @@ openspec schema validate my-workflow
 
 This is rough. That's intentional — we're learning what works.
 
-Found a bug? Have ideas? Open an issue on [GitHub](https://github.com/fkmatsuda/BR-OpenSpec/issues).
+Found a bug? Have ideas? Open an issue on [GitHub](https://github.com/dynamicworks-com-br/BR-OpenSpec/issues).

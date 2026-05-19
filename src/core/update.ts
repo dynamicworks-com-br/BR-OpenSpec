@@ -273,7 +273,7 @@ export class UpdateCommand {
       console.log(UPDATE_MESSAGES.cmdContinue);
       console.log(UPDATE_MESSAGES.cmdApply);
       console.log();
-      console.log(UPDATE_MESSAGES.learnMore(chalk.cyan('https://github.com/fkmatsuda/BR-OpenSpec')));
+      console.log(UPDATE_MESSAGES.learnMore(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec')));
     }
 
     const configuredAndNewTools = [...new Set([...configuredTools, ...newlyConfiguredTools])];

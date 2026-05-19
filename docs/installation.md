@@ -9,25 +9,25 @@
 ### npm
 
 ```bash
-npm install -g @fkmatsuda/br-openspec@latest
+npm install -g @dynamicworks/br-openspec@latest
 ```
 
 ### pnpm
 
 ```bash
-pnpm add -g @fkmatsuda/br-openspec@latest
+pnpm add -g @dynamicworks/br-openspec@latest
 ```
 
 ### yarn
 
 ```bash
-yarn global add @fkmatsuda/br-openspec@latest
+yarn global add @dynamicworks/br-openspec@latest
 ```
 
 ### bun
 
 ```bash
-bun add -g @fkmatsuda/br-openspec@latest
+bun add -g @dynamicworks/br-openspec@latest
 ```
 
 ## Nix
@@ -35,13 +35,13 @@ bun add -g @fkmatsuda/br-openspec@latest
 Run BR-OpenSpec directly without installation:
 
 ```bash
-nix run github:fkmatsuda/BR-OpenSpec -- init
+nix run github:dynamicworks-com-br/BR-OpenSpec -- init
 ```
 
 Or install to your profile:
 
 ```bash
-nix profile install github:fkmatsuda/BR-OpenSpec
+nix profile install github:dynamicworks-com-br/BR-OpenSpec
 ```
 
 Or add to your development environment in `flake.nix`:
@@ -50,7 +50,7 @@ Or add to your development environment in `flake.nix`:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    openspec.url = "github:fkmatsuda/BR-OpenSpec";
+    openspec.url = "github:dynamicworks-com-br/BR-OpenSpec";
   };
 
   outputs = { nixpkgs, openspec, ... }: {

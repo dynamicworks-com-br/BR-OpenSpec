@@ -705,8 +705,8 @@ export class InitCommand {
 
     // Links
     console.log();
-    console.log(INIT_MESSAGES.learnMore(chalk.cyan('https://github.com/fkmatsuda/BR-OpenSpec')));
-    console.log(INIT_MESSAGES.feedback(chalk.cyan('https://github.com/fkmatsuda/BR-OpenSpec/issues')));
+    console.log(INIT_MESSAGES.learnMore(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec')));
+    console.log(INIT_MESSAGES.feedback(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec/issues')));
 
     // Restart instruction if any tools were configured
     if (results.createdTools.length > 0 || results.refreshedTools.length > 0) {
