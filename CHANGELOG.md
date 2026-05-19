@@ -1,5 +1,11 @@
 # @fission-ai/openspec
 
+## 2.0.0
+
+### Major Changes
+
+- [#6](https://github.com/dynamicworks-com-br/BR-OpenSpec/pull/6) [`62c7f92`](https://github.com/dynamicworks-com-br/BR-OpenSpec/commit/62c7f92137a059e030b5fc7552c93573a393518a) Thanks [@boligon](https://github.com/boligon)! - "feat: atualização de referências para o novo repositório"
+
 ## 1.3.1
 
 ### Patch Changes
