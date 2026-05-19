@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.repository == 'fkmatsuda/BR-OpenSpec'
+    if: github.repository == 'dynamicworks-com-br/BR-OpenSpec'
     runs-on: ubuntu-latest
     steps:
       # Generate GitHub App token first - used for checkout and changesets
@@ -57,4 +57,4 @@ jobs:
           publish: pnpm run release:ci
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          # npm authentication handled via OIDC trusted publishing (no token needed)
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
