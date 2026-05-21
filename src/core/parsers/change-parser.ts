@@ -2,6 +2,7 @@ import { MarkdownParser, Section } from './markdown-parser.js';
 import { Change, Delta, DeltaOperation, Requirement } from '../schemas/index.js';
 import path from 'path';
 import { promises as fs } from 'fs';
+import { CHANGE_PARSER_MESSAGES } from '../../messages/index.js';
 
 interface DeltaSection {
   operation: DeltaOperation;
@@ -23,11 +24,11 @@ export class ChangeParser extends MarkdownParser {
     const whatChanges = this.findSection(sections, 'What Changes')?.content || '';
     
     if (!why) {
-      throw new Error('Change must have a Why section');
+      throw new Error(CHANGE_PARSER_MESSAGES.mustHaveWhySection);
     }
     
     if (!whatChanges) {
-      throw new Error('Change must have a What Changes section');
+      throw new Error(CHANGE_PARSER_MESSAGES.mustHaveWhatChangesSection);
     }
 
     // Parse deltas from the What Changes section (simple format)
@@ -93,7 +94,7 @@ export class ChangeParser extends MarkdownParser {
         deltas.push({
           spec: specName,
           operation: 'ADDED' as DeltaOperation,
-          description: `Add requirement: ${req.text}`,
+          description: CHANGE_PARSER_MESSAGES.addRequirement(req.text),
           // Provide both single and plural forms for compatibility
           requirement: req,
           requirements: [req],
@@ -109,7 +110,7 @@ export class ChangeParser extends MarkdownParser {
         deltas.push({
           spec: specName,
           operation: 'MODIFIED' as DeltaOperation,
-          description: `Modify requirement: ${req.text}`,
+          description: CHANGE_PARSER_MESSAGES.modifyRequirement(req.text),
           requirement: req,
           requirements: [req],
         });
@@ -124,7 +125,7 @@ export class ChangeParser extends MarkdownParser {
         deltas.push({
           spec: specName,
           operation: 'REMOVED' as DeltaOperation,
-          description: `Remove requirement: ${req.text}`,
+          description: CHANGE_PARSER_MESSAGES.removeRequirement(req.text),
           requirement: req,
           requirements: [req],
         });
@@ -139,7 +140,7 @@ export class ChangeParser extends MarkdownParser {
         deltas.push({
           spec: specName,
           operation: 'RENAMED' as DeltaOperation,
-          description: `Rename requirement from "${rename.from}" to "${rename.to}"`,
+          description: CHANGE_PARSER_MESSAGES.renameRequirement(rename.from, rename.to),
           rename,
         });
       });

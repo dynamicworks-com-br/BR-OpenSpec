@@ -2,6 +2,7 @@ import path from 'path';
 import { FileSystemUtils } from './file-system.js';
 import { writeChangeMetadata, validateSchemaName } from './change-metadata.js';
 import { readProjectConfig } from '../core/project-config.js';
+import { CHANGE_UTILS_MESSAGES } from '../messages/index.js';
 
 const DEFAULT_SCHEMA = 'spec-driven';
 
@@ -51,37 +52,37 @@ export function validateChangeName(name: string): ValidationResult {
   const kebabCasePattern = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
   if (!name) {
-    return { valid: false, error: 'Change name cannot be empty' };
+    return { valid: false, error: CHANGE_UTILS_MESSAGES.nameEmpty };
   }
 
   if (!kebabCasePattern.test(name)) {
     // Provide specific error messages for common mistakes
     if (/[A-Z]/.test(name)) {
-      return { valid: false, error: 'Change name must be lowercase (use kebab-case)' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameMustBeLowercase };
     }
     if (/\s/.test(name)) {
-      return { valid: false, error: 'Change name cannot contain spaces (use hyphens instead)' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameNoSpaces };
     }
     if (/_/.test(name)) {
-      return { valid: false, error: 'Change name cannot contain underscores (use hyphens instead)' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameNoUnderscores };
     }
     if (name.startsWith('-')) {
-      return { valid: false, error: 'Change name cannot start with a hyphen' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameNoStartHyphen };
     }
     if (name.endsWith('-')) {
-      return { valid: false, error: 'Change name cannot end with a hyphen' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameNoEndHyphen };
     }
     if (/--/.test(name)) {
-      return { valid: false, error: 'Change name cannot contain consecutive hyphens' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameNoConsecutiveHyphens };
     }
     if (/[^a-z0-9-]/.test(name)) {
-      return { valid: false, error: 'Change name can only contain lowercase letters, numbers, and hyphens' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameOnlyAllowedChars };
     }
     if (/^[0-9]/.test(name)) {
-      return { valid: false, error: 'Change name must start with a letter' };
+      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameMustStartWithLetter };
     }
 
-    return { valid: false, error: 'Change name must follow kebab-case convention (e.g., add-auth, refactor-db)' };
+    return { valid: false, error: CHANGE_UTILS_MESSAGES.nameKebabCase };
   }
 
   return { valid: true };
@@ -143,7 +144,7 @@ export async function createChange(
 
   // Check if change already exists
   if (await FileSystemUtils.directoryExists(changeDir)) {
-    throw new Error(`Change '${name}' already exists at ${changeDir}`);
+    throw new Error(CHANGE_UTILS_MESSAGES.changeAlreadyExists(name, changeDir));
   }
 
   // Create the directory (including parent directories if needed)

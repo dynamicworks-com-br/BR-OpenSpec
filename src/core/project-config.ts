@@ -1,4 +1,4 @@
-import { PROJECT_CONFIG_MESSAGES } from '../messages/index.js';
+import { PROJECT_CONFIG_MESSAGES, PROJECT_CONFIG_SUGGEST_MESSAGES } from '../messages/index.js';
 import { existsSync, readFileSync, statSync } from 'fs';
 import path from 'path';
 import { parse as parseYaml } from 'yaml';
@@ -79,7 +79,7 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
     const raw = parseYaml(content);
 
     if (!raw || typeof raw !== 'object') {
-      console.warn(`openspec/config.yaml is not a valid YAML object`);
+      console.warn(PROJECT_CONFIG_SUGGEST_MESSAGES.configNotValidYaml);
       return null;
     }
 
@@ -156,7 +156,7 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
     // Return partial config even if some fields failed
     return Object.keys(config).length > 0 ? (config as ProjectConfig) : null;
   } catch (error) {
-    console.warn(`Failed to parse openspec/config.yaml:`, error);
+    console.warn(PROJECT_CONFIG_SUGGEST_MESSAGES.configFailedToParse, error);
     return null;
   }
 }
@@ -182,8 +182,7 @@ export function validateConfigRules(
     if (!validArtifactIds.has(artifactId)) {
       const validIds = Array.from(validArtifactIds).sort().join(', ');
       warnings.push(
-        `Unknown artifact ID in rules: "${artifactId}". ` +
-          `Valid IDs for schema "${schemaName}": ${validIds}`
+        PROJECT_CONFIG_SUGGEST_MESSAGES.unknownArtifactId(artifactId, schemaName, validIds)
       );
     }
   }
@@ -238,28 +237,28 @@ export function suggestSchemas(
   const builtIn = availableSchemas.filter((s) => s.isBuiltIn).map((s) => s.name);
   const projectLocal = availableSchemas.filter((s) => !s.isBuiltIn).map((s) => s.name);
 
-  let message = `Schema '${invalidSchemaName}' not found in openspec/config.yaml\n\n`;
+  let message = PROJECT_CONFIG_SUGGEST_MESSAGES.schemaNotFound(invalidSchemaName);
 
   if (suggestions.length > 0) {
-    message += `Did you mean one of these?\n`;
+    message += PROJECT_CONFIG_SUGGEST_MESSAGES.didYouMean;
     suggestions.forEach((s) => {
-      const type = s.isBuiltIn ? 'built-in' : 'project-local';
+      const type = PROJECT_CONFIG_SUGGEST_MESSAGES.schemaType(s.isBuiltIn);
       message += `  - ${s.name} (${type})\n`;
     });
     message += '\n';
   }
 
-  message += `Available schemas:\n`;
+  message += PROJECT_CONFIG_SUGGEST_MESSAGES.availableSchemas;
   if (builtIn.length > 0) {
-    message += `  Built-in: ${builtIn.join(', ')}\n`;
+    message += PROJECT_CONFIG_SUGGEST_MESSAGES.builtInSchemas(builtIn.join(', '));
   }
   if (projectLocal.length > 0) {
-    message += `  Project-local: ${projectLocal.join(', ')}\n`;
+    message += PROJECT_CONFIG_SUGGEST_MESSAGES.projectLocalSchemas(projectLocal.join(', '));
   } else {
-    message += `  Project-local: (none found)\n`;
+    message += PROJECT_CONFIG_SUGGEST_MESSAGES.noProjectLocalSchemas;
   }
 
-  message += `\nFix: Edit openspec/config.yaml and change 'schema: ${invalidSchemaName}' to a valid schema name`;
+  message += PROJECT_CONFIG_SUGGEST_MESSAGES.fixSuggestion(invalidSchemaName);
 
   return message;
 }

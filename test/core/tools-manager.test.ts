@@ -117,7 +117,7 @@ describe('tools-manager', () => {
       if (!tool) return; // Skip if all tools have skillsDir
 
       await expect(addTool(testDir, tool)).rejects.toThrow(
-        /does not support skill generation/
+        /não suporta geração de skills/
       );
     });
 

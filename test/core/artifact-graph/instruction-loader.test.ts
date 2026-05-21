@@ -193,7 +193,7 @@ describe('instruction-loader', () => {
       const context = loadChangeContext(tempDir, 'my-change');
 
       expect(() => generateInstructions(context, 'nonexistent')).toThrow(
-        "Artifact 'nonexistent' not found"
+        "Artefato 'nonexistent' não encontrado"
       );
     });
 
@@ -443,7 +443,7 @@ rules:
         generateInstructions(context, 'proposal', tempDir);
 
         expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Unknown artifact ID in rules: "invalid-artifact"')
+          expect.stringContaining('ID de artefato desconhecido nas regras: "invalid-artifact"')
         );
       });
 
@@ -475,7 +475,7 @@ rules:
           // Note: We may have gotten warnings from other tests, so check that
           // the count didn't increase by more than 1 from the first call
           const callCount = consoleWarnSpy.mock.calls.filter(call =>
-            call[0]?.includes('Unknown artifact ID in rules')
+            call[0]?.includes('ID de artefato desconhecido nas regras')
           ).length;
 
           expect(callCount).toBeGreaterThanOrEqual(1);

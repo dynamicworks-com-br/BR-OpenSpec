@@ -5,7 +5,7 @@
  * Shared by `openspec init` (via InitCommand) and `openspec tools`.
  */
 
-import { TOOLS_MESSAGES } from '../messages/index.js';
+import { TOOLS_MESSAGES, TOOLS_MANAGER_MESSAGES } from '../messages/index.js';
 import path from 'path';
 import * as fs from 'fs';
 import { createRequire } from 'module';
@@ -127,7 +127,7 @@ export async function addTool(
   tool: AIToolOption
 ): Promise<void> {
   if (!tool.skillsDir) {
-    throw new Error(`Tool '${tool.value}' does not support skill generation.`);
+    throw new Error(TOOLS_MANAGER_MESSAGES.toolDoesNotSupportSkills(tool.value));
   }
 
   const globalConfig = getGlobalConfig();

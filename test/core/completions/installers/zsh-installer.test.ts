@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import { ZshInstaller } from '../../../../src/core/completions/installers/zsh-installer.js';
+import { COMPLETION_MESSAGES } from '../../../../src/messages/index.js';
 
 describe('ZshInstaller', () => {
   let testHomeDir: string;
@@ -312,7 +313,7 @@ describe('ZshInstaller', () => {
       const result = await installer.uninstall();
 
       expect(result.success).toBe(false);
-      expect(result.message).toContain('not installed');
+      expect(result.message).toContain(COMPLETION_MESSAGES.zshNotInstalled);
     });
 
     it('should remove from correct location for Oh My Zsh', async () => {

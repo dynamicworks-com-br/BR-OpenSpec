@@ -8,6 +8,7 @@ import { BashInstaller } from './installers/bash-installer.js';
 import { FishInstaller } from './installers/fish-installer.js';
 import { PowerShellInstaller } from './installers/powershell-installer.js';
 import { SupportedShell } from '../../utils/shell-detection.js';
+import { COMPLETIONS_FACTORY_MESSAGES } from '../../messages/index.js';
 
 /**
  * Common installation result interface
@@ -59,7 +60,7 @@ export class CompletionFactory {
       case 'powershell':
         return new PowerShellGenerator();
       default:
-        throw new Error(`Unsupported shell: ${shell}`);
+        throw new Error(COMPLETIONS_FACTORY_MESSAGES.unsupportedShell(shell));
     }
   }
 
@@ -81,7 +82,7 @@ export class CompletionFactory {
       case 'powershell':
         return new PowerShellInstaller();
       default:
-        throw new Error(`Unsupported shell: ${shell}`);
+        throw new Error(COMPLETIONS_FACTORY_MESSAGES.unsupportedShell(shell));
     }
   }
 

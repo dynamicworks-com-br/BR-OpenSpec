@@ -257,7 +257,7 @@ rules:
 
         expect(config).toBeNull();
         expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to parse openspec/config.yaml'),
+          expect.stringContaining('Falha ao analisar openspec/config.yaml'),
           expect.anything()
         );
       });
@@ -271,7 +271,7 @@ rules:
 
         expect(config).toBeNull();
         expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('not a valid YAML object')
+          expect.stringContaining('não é um objeto YAML válido')
         );
       });
 
@@ -507,9 +507,9 @@ rules:
       const warnings = validateConfigRules(rules, validIds, 'spec-driven');
 
       expect(warnings).toHaveLength(2);
-      expect(warnings[0]).toContain('Unknown artifact ID in rules: "testplan"');
-      expect(warnings[0]).toContain('Valid IDs for schema "spec-driven": design, proposal, specs, tasks');
-      expect(warnings[1]).toContain('Unknown artifact ID in rules: "documentation"');
+      expect(warnings[0]).toContain('ID de artefato desconhecido nas regras: "testplan"');
+      expect(warnings[0]).toContain('IDs válidos para o schema "spec-driven": design, proposal, specs, tasks');
+      expect(warnings[1]).toContain('ID de artefato desconhecido nas regras: "documentation"');
     });
 
     it('should return warnings for all unknown artifact IDs', () => {
@@ -545,24 +545,24 @@ rules:
     it('should suggest close matches using fuzzy matching', () => {
       const message = suggestSchemas('spec-drven', availableSchemas); // Missing 'i'
 
-      expect(message).toContain("Schema 'spec-drven' not found");
-      expect(message).toContain('Did you mean one of these?');
-      expect(message).toContain('spec-driven (built-in)');
+      expect(message).toContain("Schema 'spec-drven' não encontrado");
+      expect(message).toContain('Você quis dizer algum destes?');
+      expect(message).toContain('spec-driven (nativo)');
     });
 
     it('should suggest custom-workflow for workflow typo', () => {
       const message = suggestSchemas('custom-workflo', availableSchemas);
 
-      expect(message).toContain('Did you mean one of these?');
+      expect(message).toContain('Você quis dizer algum destes?');
       expect(message).toContain('custom-workflow');
     });
 
     it('should list all available schemas', () => {
       const message = suggestSchemas('nonexistent', availableSchemas);
 
-      expect(message).toContain('Available schemas:');
-      expect(message).toContain('Built-in: spec-driven');
-      expect(message).toContain('Project-local: custom-workflow, team-process');
+      expect(message).toContain('Schemas disponíveis:');
+      expect(message).toContain('Nativos: spec-driven');
+      expect(message).toContain('Locais do projeto: custom-workflow, team-process');
     });
 
     it('should handle case when no project-local schemas exist', () => {
@@ -571,15 +571,15 @@ rules:
       ];
       const message = suggestSchemas('invalid', builtInOnly);
 
-      expect(message).toContain('Built-in: spec-driven');
-      expect(message).toContain('Project-local: (none found)');
+      expect(message).toContain('Nativos: spec-driven');
+      expect(message).toContain('Locais do projeto: (nenhum encontrado)');
     });
 
     it('should include fix instruction', () => {
       const message = suggestSchemas('wrong-schema', availableSchemas);
 
       expect(message).toContain(
-        "Fix: Edit openspec/config.yaml and change 'schema: wrong-schema' to a valid schema name"
+        "Correção: Edite openspec/config.yaml e altere 'schema: wrong-schema' para um nome de schema válido"
       );
     });
 
@@ -603,8 +603,8 @@ rules:
       const message = suggestSchemas('abcdefghijk', availableSchemas);
 
       // 'abcdefghijk' has large Levenshtein distance from all schemas
-      expect(message).not.toContain('Did you mean');
-      expect(message).toContain('Available schemas:');
+      expect(message).not.toContain('Você quis dizer');
+      expect(message).toContain('Schemas disponíveis:');
     });
   });
 });

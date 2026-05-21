@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PowerShellInstaller } from '../../../../src/core/completions/installers/powershell-installer.js';
+import { COMPLETION_MESSAGES } from '../../../../src/messages/index.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -380,7 +381,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.install(mockCompletionScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toContain('installed');
+      expect(result.message).toContain('instalado');
       expect(result.installedPath).toContain('BROpenSpecCompletion.ps1');
       expect(result.backupPath).toBeUndefined();
     });
@@ -411,7 +412,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.install(mockCompletionScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script is already installed (up to date)');
+      expect(result.message).toBe(COMPLETION_MESSAGES.powershellAlreadyInstalled);
       expect(result.backupPath).toBeUndefined();
     });
 
@@ -423,7 +424,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.install(updatedScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toContain('updated successfully');
+      expect(result.message).toContain(COMPLETION_MESSAGES.powershellUpdatedWithBackup.substring(0, 20));
       expect(result.backupPath).toBeDefined();
     });
 
@@ -448,7 +449,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
 
       expect(result.success).toBe(true);
       expect(result.profileConfigured).toBe(true);
-      expect(result.message).toContain('profile configured');
+      expect(result.message).toContain(COMPLETION_MESSAGES.powershellInstalledWithProfile.substring(0, 15));
       expect(result.instructions).toBeUndefined();
     });
 
@@ -484,7 +485,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.install(updatedScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toContain('backed up');
+      expect(result.message).toContain(COMPLETION_MESSAGES.powershellUpdatedWithBackup.substring(0, 15));
       expect(result.backupPath).toBeDefined();
     });
 
@@ -518,7 +519,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       await fs.chmod(targetDir, 0o755);
 
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Failed to install completion script');
+      expect(result.message).toContain('Falha ao instalar');
     });
 
     it('should handle empty completion script', async () => {
@@ -724,7 +725,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.uninstall();
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script uninstalled successfully');
+      expect(result.message).toBe(COMPLETION_MESSAGES.powershellUninstalled);
     });
 
     it('should remove the completion file', async () => {
@@ -754,7 +755,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.uninstall();
 
       expect(result.success).toBe(false);
-      expect(result.message).toBe('Completion script is not installed');
+      expect(result.message).toBe(COMPLETION_MESSAGES.powershellNotInstalled);
     });
 
     it('should accept yes option parameter', async () => {
@@ -764,7 +765,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.uninstall({ yes: true });
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script uninstalled successfully');
+      expect(result.message).toBe(COMPLETION_MESSAGES.powershellUninstalled);
     });
 
     it('should handle both script and config removal', async () => {
@@ -808,8 +809,8 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       // On others, the unlink fails which returns "Failed to uninstall"
       expect(result.success).toBe(false);
       expect(
-        result.message === 'Completion script is not installed' ||
-        result.message.includes('Failed to uninstall completion script')
+        result.message === COMPLETION_MESSAGES.powershellNotInstalled ||
+        result.message.includes('Falha ao desinstalar')
       ).toBe(true);
     });
 
@@ -817,7 +818,7 @@ Register-ArgumentCompleter -CommandName openspec -ScriptBlock $openspecCompleter
       const result = await installer.uninstall();
 
       expect(result.success).toBe(false);
-      expect(result.message).toBe('Completion script is not installed');
+      expect(result.message).toBe(COMPLETION_MESSAGES.powershellNotInstalled);
     });
   });
 

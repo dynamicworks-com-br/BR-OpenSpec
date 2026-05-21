@@ -95,7 +95,7 @@ artifacts:
     template: templates/other.md
 `;
       expect(() => parseSchema(yaml)).toThrow(SchemaValidationError);
-      expect(() => parseSchema(yaml)).toThrow(/Duplicate artifact ID: proposal/);
+      expect(() => parseSchema(yaml)).toThrow(/ID de artefato duplicado: proposal/);
     });
 
     it('should throw on invalid requires reference', () => {
@@ -111,7 +111,7 @@ artifacts:
       - nonexistent
 `;
       expect(() => parseSchema(yaml)).toThrow(SchemaValidationError);
-      expect(() => parseSchema(yaml)).toThrow(/Invalid dependency reference.*nonexistent/);
+      expect(() => parseSchema(yaml)).toThrow(/Referência de dependência inválida.*nonexistent/);
     });
 
     it('should detect self-referencing cycle', () => {
@@ -127,7 +127,7 @@ artifacts:
       - A
 `;
       expect(() => parseSchema(yaml)).toThrow(SchemaValidationError);
-      expect(() => parseSchema(yaml)).toThrow(/Cyclic dependency detected/);
+      expect(() => parseSchema(yaml)).toThrow(/Dependência cíclica detectada/);
     });
 
     it('should detect simple A → B → A cycle', () => {
@@ -149,7 +149,7 @@ artifacts:
       - A
 `;
       expect(() => parseSchema(yaml)).toThrow(SchemaValidationError);
-      expect(() => parseSchema(yaml)).toThrow(/Cyclic dependency detected/);
+      expect(() => parseSchema(yaml)).toThrow(/Dependência cíclica detectada/);
       expect(() => parseSchema(yaml)).toThrow(/→/);
     });
 
@@ -178,7 +178,7 @@ artifacts:
       - B
 `;
       expect(() => parseSchema(yaml)).toThrow(SchemaValidationError);
-      expect(() => parseSchema(yaml)).toThrow(/Cyclic dependency detected/);
+      expect(() => parseSchema(yaml)).toThrow(/Dependência cíclica detectada/);
       // Should contain all three in the cycle path
       const error = (() => {
         try {

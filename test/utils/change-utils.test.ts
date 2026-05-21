@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import { validateChangeName, createChange } from '../../src/utils/change-utils.js';
+import { CHANGE_UTILS_MESSAGES } from '../../src/messages/index.js';
 
 describe('validateChangeName', () => {
   describe('valid names', () => {
@@ -37,13 +38,13 @@ describe('validateChangeName', () => {
     it('should reject name with uppercase letters', () => {
       const result = validateChangeName('Add-Auth');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('lowercase');
+      expect(result.error).toContain('minúsculo');
     });
 
     it('should reject fully uppercase name', () => {
       const result = validateChangeName('ADD-AUTH');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('lowercase');
+      expect(result.error).toContain('minúsculo');
     });
   });
 
@@ -51,7 +52,7 @@ describe('validateChangeName', () => {
     it('should reject name with spaces', () => {
       const result = validateChangeName('add auth');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('spaces');
+      expect(result.error).toContain('espaços');
     });
   });
 
@@ -81,13 +82,13 @@ describe('validateChangeName', () => {
     it('should reject name with leading hyphen', () => {
       const result = validateChangeName('-add-auth');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('start with a hyphen');
+      expect(result.error).toContain('começar com hífen');
     });
 
     it('should reject name with trailing hyphen', () => {
       const result = validateChangeName('add-auth-');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('end with a hyphen');
+      expect(result.error).toContain('terminar com hífen');
     });
   });
 
@@ -95,7 +96,7 @@ describe('validateChangeName', () => {
     it('should reject name with double hyphens', () => {
       const result = validateChangeName('add--auth');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('consecutive hyphens');
+      expect(result.error).toContain('hífens consecutivos');
     });
   });
 
@@ -103,7 +104,7 @@ describe('validateChangeName', () => {
     it('should reject empty string', () => {
       const result = validateChangeName('');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('empty');
+      expect(result.error).toContain('vazio');
     });
   });
 });
@@ -150,7 +151,7 @@ describe('createChange', () => {
   describe('schema validation', () => {
     it('should throw error for unknown schema', async () => {
       await expect(createChange(testDir, 'add-auth', { schema: 'unknown-schema' })).rejects.toThrow(
-        /Unknown schema/
+        /Schema desconhecido/
       );
     });
   });
@@ -160,7 +161,7 @@ describe('createChange', () => {
       await createChange(testDir, 'add-auth');
 
       await expect(createChange(testDir, 'add-auth')).rejects.toThrow(
-        /already exists/
+        /já existe/
       );
     });
   });
@@ -168,19 +169,19 @@ describe('createChange', () => {
   describe('invalid name throws validation error', () => {
     it('should throw error for uppercase name', async () => {
       await expect(createChange(testDir, 'Add-Auth')).rejects.toThrow(
-        /lowercase/
+        /minúsculo/
       );
     });
 
     it('should throw error for name with spaces', async () => {
       await expect(createChange(testDir, 'add auth')).rejects.toThrow(
-        /spaces/
+        /espaços/
       );
     });
 
     it('should throw error for empty name', async () => {
       await expect(createChange(testDir, '')).rejects.toThrow(
-        /empty/
+        /vazio/
       );
     });
   });

@@ -16,7 +16,7 @@ import {
 } from './parsers/requirement-blocks.js';
 import { findMainSpecStructureIssues } from './parsers/spec-structure.js';
 import { Validator } from './validation/validator.js';
-import { ARCHIVE_MESSAGES } from '../messages/index.js';
+import { ARCHIVE_MESSAGES, SPECS_APPLY_MESSAGES } from '../messages/index.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -117,7 +117,7 @@ export async function buildUpdatedSpec(
     const name = normalizeRequirementName(add.name);
     if (addedNames.has(name)) {
       throw new Error(
-        `${specName} validation failed - duplicate requirement in ADDED for header "### Requirement: ${add.name}"`
+        SPECS_APPLY_MESSAGES.duplicateInSection(specName, 'ADDED', add.name)
       );
     }
     addedNames.add(name);
@@ -127,7 +127,7 @@ export async function buildUpdatedSpec(
     const name = normalizeRequirementName(mod.name);
     if (modifiedNames.has(name)) {
       throw new Error(
-        `${specName} validation failed - duplicate requirement in MODIFIED for header "### Requirement: ${mod.name}"`
+        SPECS_APPLY_MESSAGES.duplicateInSection(specName, 'MODIFIED', mod.name)
       );
     }
     modifiedNames.add(name);
@@ -137,7 +137,7 @@ export async function buildUpdatedSpec(
     const name = normalizeRequirementName(rem);
     if (removedNamesSet.has(name)) {
       throw new Error(
-        `${specName} validation failed - duplicate requirement in REMOVED for header "### Requirement: ${rem}"`
+        SPECS_APPLY_MESSAGES.duplicateInSection(specName, 'REMOVED', rem)
       );
     }
     removedNamesSet.add(name);
@@ -149,12 +149,12 @@ export async function buildUpdatedSpec(
     const toNorm = normalizeRequirementName(to);
     if (renamedFromSet.has(fromNorm)) {
       throw new Error(
-        `${specName} validation failed - duplicate FROM in RENAMED for header "### Requirement: ${from}"`
+        SPECS_APPLY_MESSAGES.duplicateFromInRenamed(specName, from)
       );
     }
     if (renamedToSet.has(toNorm)) {
       throw new Error(
-        `${specName} validation failed - duplicate TO in RENAMED for header "### Requirement: ${to}"`
+        SPECS_APPLY_MESSAGES.duplicateToInRenamed(specName, to)
       );
     }
     renamedFromSet.add(fromNorm);
@@ -176,27 +176,26 @@ export async function buildUpdatedSpec(
     const toNorm = normalizeRequirementName(to);
     if (modifiedNames.has(fromNorm)) {
       throw new Error(
-        `${specName} validation failed - when a rename exists, MODIFIED must reference the NEW header "### Requirement: ${to}"`
+        SPECS_APPLY_MESSAGES.renamedModifiedMustReferenceNew(specName, to)
       );
     }
     // Detect ADDED colliding with a RENAMED TO
     if (addedNames.has(toNorm)) {
       throw new Error(
-        `${specName} validation failed - RENAMED TO header collides with ADDED for "### Requirement: ${to}"`
+        SPECS_APPLY_MESSAGES.renamedToCollidesWithAdded(specName, to)
       );
     }
   }
   if (conflicts.length > 0) {
     const c = conflicts[0];
     throw new Error(
-      `${specName} validation failed - requirement present in multiple sections (${c.a} and ${c.b}) for header "### Requirement: ${c.name}"`
+      SPECS_APPLY_MESSAGES.requirementInMultipleSections(specName, c.a, c.b, c.name)
     );
   }
   const hasAnyDelta = plan.added.length + plan.modified.length + plan.removed.length + plan.renamed.length > 0;
   if (!hasAnyDelta) {
     throw new Error(
-      `Delta parsing found no operations for ${path.basename(path.dirname(update.source))}. ` +
-        `Provide ADDED/MODIFIED/REMOVED/RENAMED sections in change spec.`
+      SPECS_APPLY_MESSAGES.noDeltaOperations(path.basename(path.dirname(update.source)))
     );
   }
 
@@ -210,7 +209,7 @@ export async function buildUpdatedSpec(
     // REMOVED will be ignored with a warning since there's nothing to remove
     if (plan.modified.length > 0 || plan.renamed.length > 0) {
       throw new Error(
-        `${specName}: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.`
+        SPECS_APPLY_MESSAGES.targetSpecNotExists(specName)
       );
     }
     // Warn about REMOVED requirements being ignored for new specs
@@ -231,7 +230,7 @@ export async function buildUpdatedSpec(
       .map(issue => `line ${issue.line}: ${issue.message}`)
       .join('\n');
     throw new Error(
-      `${specName}: target spec is structurally invalid and cannot be updated until fixed:\n${details}`
+      SPECS_APPLY_MESSAGES.targetSpecStructurallyInvalid(specName, details)
     );
   }
 
@@ -248,10 +247,10 @@ export async function buildUpdatedSpec(
     const from = normalizeRequirementName(r.from);
     const to = normalizeRequirementName(r.to);
     if (!nameToBlock.has(from)) {
-      throw new Error(`${specName} RENAMED failed for header "### Requirement: ${r.from}" - source not found`);
+      throw new Error(SPECS_APPLY_MESSAGES.renamedFailedSourceNotFound(specName, r.from));
     }
     if (nameToBlock.has(to)) {
-      throw new Error(`${specName} RENAMED failed for header "### Requirement: ${r.to}" - target already exists`);
+      throw new Error(SPECS_APPLY_MESSAGES.renamedFailedTargetExists(specName, r.to));
     }
     const block = nameToBlock.get(from)!;
     const newHeader = `### Requirement: ${to}`;
@@ -273,7 +272,7 @@ export async function buildUpdatedSpec(
       // For new specs, REMOVED requirements are already warned about and ignored
       // For existing specs, missing requirements are an error
       if (!isNewSpec) {
-        throw new Error(`${specName} REMOVED failed for header "### Requirement: ${name}" - not found`);
+        throw new Error(SPECS_APPLY_MESSAGES.removedFailedNotFound(specName, name));
       }
       // Skip removal for new specs (already warned above)
       continue;
@@ -285,13 +284,13 @@ export async function buildUpdatedSpec(
   for (const mod of plan.modified) {
     const key = normalizeRequirementName(mod.name);
     if (!nameToBlock.has(key)) {
-      throw new Error(`${specName} MODIFIED failed for header "### Requirement: ${mod.name}" - not found`);
+      throw new Error(SPECS_APPLY_MESSAGES.modifiedFailedNotFound(specName, mod.name));
     }
     // Replace block with provided raw (ensure header line matches key)
     const modHeaderMatch = mod.raw.split('\n')[0].match(/^###\s*Requirement:\s*(.+)\s*$/);
     if (!modHeaderMatch || normalizeRequirementName(modHeaderMatch[1]) !== key) {
       throw new Error(
-        `${specName} MODIFIED failed for header "### Requirement: ${mod.name}" - header mismatch in content`
+        SPECS_APPLY_MESSAGES.modifiedFailedHeaderMismatch(specName, mod.name)
       );
     }
     nameToBlock.set(key, mod);
@@ -301,7 +300,7 @@ export async function buildUpdatedSpec(
   for (const add of plan.added) {
     const key = normalizeRequirementName(add.name);
     if (nameToBlock.has(key)) {
-      throw new Error(`${specName} ADDED failed for header "### Requirement: ${add.name}" - already exists`);
+      throw new Error(SPECS_APPLY_MESSAGES.addedFailedAlreadyExists(specName, add.name));
     }
     nameToBlock.set(key, add);
   }
@@ -362,11 +361,11 @@ export async function writeUpdatedSpec(
   await fs.writeFile(update.target, rebuilt);
 
   const specName = path.basename(path.dirname(update.target));
-  console.log(`Applying changes to openspec/specs/${specName}/spec.md:`);
-  if (counts.added) console.log(`  + ${counts.added} added`);
-  if (counts.modified) console.log(`  ~ ${counts.modified} modified`);
-  if (counts.removed) console.log(`  - ${counts.removed} removed`);
-  if (counts.renamed) console.log(`  → ${counts.renamed} renamed`);
+  console.log(SPECS_APPLY_MESSAGES.applyingChangesTo(specName));
+  if (counts.added) console.log(SPECS_APPLY_MESSAGES.countAdded(counts.added));
+  if (counts.modified) console.log(SPECS_APPLY_MESSAGES.countModified(counts.modified));
+  if (counts.removed) console.log(SPECS_APPLY_MESSAGES.countRemoved(counts.removed));
+  if (counts.renamed) console.log(SPECS_APPLY_MESSAGES.countRenamed(counts.renamed));
 }
 
 /**
@@ -374,7 +373,7 @@ export async function writeUpdatedSpec(
  */
 export function buildSpecSkeleton(specFolderName: string, changeName: string): string {
   const titleBase = specFolderName;
-  return `# ${titleBase} Specification\n\n## Purpose\nTBD - created by archiving change ${changeName}. Update Purpose after archive.\n\n## Requirements\n`;
+  return `# ${titleBase} Specification\n\n## Purpose\n${SPECS_APPLY_MESSAGES.skeletonPurpose(changeName)}\n\n## Requirements\n`;
 }
 
 /**
@@ -401,10 +400,10 @@ export async function applySpecs(
   try {
     const stat = await fs.stat(changeDir);
     if (!stat.isDirectory()) {
-      throw new Error(`Change '${changeName}' not found.`);
+      throw new Error(SPECS_APPLY_MESSAGES.changeNotFound(changeName));
     }
   } catch {
-    throw new Error(`Change '${changeName}' not found.`);
+    throw new Error(SPECS_APPLY_MESSAGES.changeNotFound(changeName));
   }
 
   // Find specs to update
@@ -442,7 +441,7 @@ export async function applySpecs(
           .filter((i) => i.level === 'ERROR')
           .map((i) => `  ✗ ${i.message}`)
           .join('\n');
-        throw new Error(`Validation errors in rebuilt spec for ${specName}:\n${errors}`);
+        throw new Error(SPECS_APPLY_MESSAGES.validationErrorsInRebuiltSpec(specName, errors));
       }
     }
   }
@@ -461,18 +460,18 @@ export async function applySpecs(
       await fs.writeFile(p.update.target, p.rebuilt);
 
       if (!options.silent) {
-        console.log(`Applying changes to openspec/specs/${capability}/spec.md:`);
-        if (p.counts.added) console.log(`  + ${p.counts.added} added`);
-        if (p.counts.modified) console.log(`  ~ ${p.counts.modified} modified`);
-        if (p.counts.removed) console.log(`  - ${p.counts.removed} removed`);
-        if (p.counts.renamed) console.log(`  → ${p.counts.renamed} renamed`);
+        console.log(SPECS_APPLY_MESSAGES.applyingChangesTo(capability));
+        if (p.counts.added) console.log(SPECS_APPLY_MESSAGES.countAdded(p.counts.added));
+        if (p.counts.modified) console.log(SPECS_APPLY_MESSAGES.countModified(p.counts.modified));
+        if (p.counts.removed) console.log(SPECS_APPLY_MESSAGES.countRemoved(p.counts.removed));
+        if (p.counts.renamed) console.log(SPECS_APPLY_MESSAGES.countRenamed(p.counts.renamed));
       }
     } else if (!options.silent) {
-      console.log(`Would apply changes to openspec/specs/${capability}/spec.md:`);
-      if (p.counts.added) console.log(`  + ${p.counts.added} added`);
-      if (p.counts.modified) console.log(`  ~ ${p.counts.modified} modified`);
-      if (p.counts.removed) console.log(`  - ${p.counts.removed} removed`);
-      if (p.counts.renamed) console.log(`  → ${p.counts.renamed} renamed`);
+      console.log(SPECS_APPLY_MESSAGES.wouldApplyChangesTo(capability));
+      if (p.counts.added) console.log(SPECS_APPLY_MESSAGES.countAdded(p.counts.added));
+      if (p.counts.modified) console.log(SPECS_APPLY_MESSAGES.countModified(p.counts.modified));
+      if (p.counts.removed) console.log(SPECS_APPLY_MESSAGES.countRemoved(p.counts.removed));
+      if (p.counts.renamed) console.log(SPECS_APPLY_MESSAGES.countRenamed(p.counts.renamed));
     }
 
     capabilities.push({

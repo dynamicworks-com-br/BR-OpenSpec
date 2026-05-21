@@ -35,10 +35,7 @@ export class PowerShellInstaller {
     }
     // UTF-16 BE BOM: FE FF — not natively supported by Node
     if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) {
-      throw new Error(
-        'File is encoded as UTF-16 BE which is not supported. ' +
-          'Please re-save as UTF-8 or UTF-16 LE, then retry.',
-      );
+      throw new Error(COMPLETION_MESSAGES.powershellUtf16BEUnsupported);
     }
     // UTF-8 BOM: EF BB BF
     if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
@@ -301,10 +298,10 @@ export class PowerShellInstaller {
           return {
             success: true,
             installedPath: targetPath,
-            message: 'Completion script is already installed (up to date)',
+            message: COMPLETION_MESSAGES.powershellAlreadyInstalled,
             instructions: [
-              'The completion script is already installed and up to date.',
-              'If completions are not working, try restarting PowerShell or run: . $PROFILE',
+              COMPLETION_MESSAGES.powershellAlreadyInstalledDetail,
+              COMPLETION_MESSAGES.powershellAlreadyInstalledHint,
             ],
           };
         }
@@ -347,12 +344,12 @@ export class PowerShellInstaller {
       let message: string;
       if (isUpdate) {
         message = backupPath
-          ? 'Completion script updated successfully (previous version backed up)'
-          : 'Completion script updated successfully';
+          ? COMPLETION_MESSAGES.powershellUpdatedWithBackup
+          : COMPLETION_MESSAGES.powershellUpdated;
       } else {
         message = profileConfigured
-          ? 'Completion script installed and PowerShell profile configured successfully'
-          : 'Completion script installed successfully for PowerShell';
+          ? COMPLETION_MESSAGES.powershellInstalledWithProfile
+          : COMPLETION_MESSAGES.powershellInstalled;
       }
 
       return {
@@ -366,7 +363,7 @@ export class PowerShellInstaller {
     } catch (error) {
       return {
         success: false,
-        message: `Failed to install completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.powershellFailedToInstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -381,16 +378,16 @@ export class PowerShellInstaller {
     const profilePath = this.getProfilePath();
 
     return [
-      'Completion script installed successfully.',
+      COMPLETION_MESSAGES.powershellScriptInstalled,
       '',
-      `To enable completions, add the following to your PowerShell profile (${profilePath}):`,
+      COMPLETION_MESSAGES.powershellEnableCompletions(profilePath),
       '',
-      '  # Source BR-OpenSpec completions',
+      `  ${COMPLETION_MESSAGES.powershellSourceComment}`,
       `  if (Test-Path "${installedPath}") {`,
       `      . "${installedPath}"`,
       '  }',
       '',
-      'Then restart PowerShell or run: . $PROFILE',
+      COMPLETION_MESSAGES.powershellThenRestart,
     ];
   }
 
@@ -411,7 +408,7 @@ export class PowerShellInstaller {
       } catch {
         return {
           success: false,
-          message: 'Completion script is not installed',
+          message: COMPLETION_MESSAGES.powershellNotInstalled,
         };
       }
 
@@ -423,12 +420,12 @@ export class PowerShellInstaller {
 
       return {
         success: true,
-        message: 'Completion script uninstalled successfully',
+        message: COMPLETION_MESSAGES.powershellUninstalled,
       };
     } catch (error) {
       return {
         success: false,
-        message: `Failed to uninstall completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.powershellFailedToUninstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }

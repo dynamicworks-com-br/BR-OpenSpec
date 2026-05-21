@@ -184,7 +184,7 @@ artifacts:
 `;
       fs.writeFileSync(path.join(userSchemaDir, 'schema.yaml'), cyclicSchema);
 
-      expect(() => resolveSchema('spec-driven')).toThrow(/Cyclic dependency/);
+      expect(() => resolveSchema('spec-driven')).toThrow(/Dependência cíclica/);
     });
 
     it('should detect invalid requires references in user override schemas', () => {
@@ -205,7 +205,7 @@ artifacts:
 `;
       fs.writeFileSync(path.join(userSchemaDir, 'schema.yaml'), invalidRefSchema);
 
-      expect(() => resolveSchema('spec-driven')).toThrow(/does not exist/);
+      expect(() => resolveSchema('spec-driven')).toThrow(/não existe/);
     });
 
     it('should throw SchemaLoadError on YAML syntax errors', () => {

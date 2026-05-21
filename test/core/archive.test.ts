@@ -122,7 +122,7 @@ Then expected result happens`;
       const updatedContent = await fs.readFile(mainSpecPath, 'utf-8');
       expect(updatedContent).toContain('# test-capability Specification');
       expect(updatedContent).toContain('## Purpose');
-      expect(updatedContent).toContain(`created by archiving change ${changeName}`);
+      expect(updatedContent).toContain(`criado ao arquivar alteração ${changeName}`);
       expect(updatedContent).toContain('## Requirements');
       expect(updatedContent).toContain('### Requirement: The system SHALL provide test capability');
       expect(updatedContent).toContain('#### Scenario: Basic test');
@@ -203,7 +203,7 @@ Modified content.`;
       
       // Verify error message mentions MODIFIED not allowed for new specs
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('new-capability: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.')
+        expect.stringContaining('new-capability: spec alvo não existe; somente requisitos ADDED são permitidos para specs novos. Operações MODIFIED e RENAMED requerem um spec existente.')
       );
       expect(console.log).toHaveBeenCalledWith('Abortado. Nenhum arquivo foi alterado.');
       
@@ -241,7 +241,7 @@ New feature description.
       
       // Verify error message mentions RENAMED not allowed for new specs
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('another-capability: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.')
+        expect.stringContaining('another-capability: spec alvo não existe; somente requisitos ADDED são permitidos para specs novos. Operações MODIFIED e RENAMED requerem um spec existente.')
       );
       expect(console.log).toHaveBeenCalledWith('Abortado. Nenhum arquivo foi alterado.');
       
@@ -609,7 +609,7 @@ The system SHALL do B differently.
       await archiveCommand.execute(changeName, { yes: true, noValidate: true });
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('delta-target: target spec is structurally invalid and cannot be updated until fixed:')
+        expect.stringContaining('delta-target: spec alvo é estruturalmente inválido e não pode ser atualizado até ser corrigido:')
       );
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('Requirement header "### Requirement: B" appears outside the main ## Requirements section.')
@@ -661,7 +661,7 @@ new body`;
       expect(unchanged).toBe(mainContent);
       // Assert error message format and abort notice
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('delta validation failed')
+        expect.stringContaining('validação falhou')
       );
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('Abortado. Nenhum arquivo foi alterado.')

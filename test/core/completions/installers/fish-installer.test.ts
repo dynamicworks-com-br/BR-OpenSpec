@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FishInstaller } from '../../../../src/core/completions/installers/fish-installer.js';
+import { COMPLETION_MESSAGES } from '../../../../src/messages/index.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -87,12 +88,12 @@ complete -c openspec -a 'init' -d 'Initialize BR-OpenSpec'
       const result = await installer.install(mockCompletionScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script installed successfully for Fish');
+      expect(result.message).toBe(COMPLETION_MESSAGES.fishInstalled);
       expect(result.installedPath).toBe(path.join(testHomeDir, '.config', 'fish', 'completions', 'openspec.fish'));
       expect(result.backupPath).toBeUndefined();
       expect(result.instructions).toHaveLength(2);
-      expect(result.instructions![0]).toContain('Fish automatically loads completions');
-      expect(result.instructions![1]).toContain('Completions are available immediately');
+      expect(result.instructions![0]).toContain(COMPLETION_MESSAGES.fishAutoLoadsDir);
+      expect(result.instructions![1]).toContain(COMPLETION_MESSAGES.fishAvailableImmediately);
     });
 
     it('should create parent directories if they do not exist', async () => {
@@ -120,8 +121,8 @@ complete -c openspec -a 'init' -d 'Initialize BR-OpenSpec'
       const result = await installer.install(mockCompletionScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script is already installed (up to date)');
-      expect(result.instructions![0]).toContain('already installed and up to date');
+      expect(result.message).toBe(COMPLETION_MESSAGES.fishAlreadyInstalled);
+      expect(result.instructions![0]).toContain(COMPLETION_MESSAGES.fishAlreadyInstalledDetail);
       expect(result.backupPath).toBeUndefined();
     });
 
@@ -142,7 +143,7 @@ complete -c openspec -a 'validate' -d 'Validate specs'
       const result = await installer.install(updatedScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toContain('updated successfully');
+      expect(result.message).toContain(COMPLETION_MESSAGES.fishUpdatedWithBackup.substring(0, 20));
       expect(result.backupPath).toBeDefined();
       expect(result.backupPath).toMatch(/\.backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}/);
     });
@@ -174,7 +175,7 @@ complete -c openspec -a 'validate' -d 'Validate specs'
       const result = await installer.install(updatedScript);
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script updated successfully (previous version backed up)');
+      expect(result.message).toBe(COMPLETION_MESSAGES.fishUpdatedWithBackup);
       expect(result.backupPath).toBeDefined();
     });
 
@@ -216,7 +217,7 @@ complete -c openspec -a 'validate' -d 'Validate specs'
       expect(result.instructions).toBeDefined();
       expect(result.instructions).toHaveLength(2);
       expect(result.instructions![0]).toContain('~/.config/fish/completions/');
-      expect(result.instructions![1]).toContain('no shell restart needed');
+      expect(result.instructions![1]).toContain(COMPLETION_MESSAGES.fishAvailableImmediately);
     });
 
     it('should handle empty completion script', async () => {
@@ -257,7 +258,7 @@ complete -c openspec -a 'init'
       const result = await installer.uninstall();
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script uninstalled successfully');
+      expect(result.message).toBe(COMPLETION_MESSAGES.fishUninstalled);
     });
 
     it('should remove the completion file', async () => {
@@ -274,7 +275,7 @@ complete -c openspec -a 'init'
       const result = await installer.uninstall();
 
       expect(result.success).toBe(false);
-      expect(result.message).toBe('Completion script is not installed');
+      expect(result.message).toBe(COMPLETION_MESSAGES.fishNotInstalled);
     });
 
     it('should accept yes option parameter', async () => {
@@ -283,7 +284,7 @@ complete -c openspec -a 'init'
       const result = await installer.uninstall({ yes: true });
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Completion script uninstalled successfully');
+      expect(result.message).toBe(COMPLETION_MESSAGES.fishUninstalled);
     });
 
     // Skip on Windows: fs.chmod() on directories doesn't restrict write access on Windows
@@ -304,8 +305,8 @@ complete -c openspec -a 'init'
       // which returns "not installed" rather than "failed to uninstall"
       expect(result.success).toBe(false);
       expect(
-        result.message === 'Completion script is not installed' ||
-        result.message.includes('Failed to uninstall completion script')
+        result.message === COMPLETION_MESSAGES.fishNotInstalled ||
+        result.message.includes('Falha ao desinstalar')
       ).toBe(true);
     });
 
@@ -314,7 +315,7 @@ complete -c openspec -a 'init'
       const result = await installer.uninstall();
 
       expect(result.success).toBe(false);
-      expect(result.message).toBe('Completion script is not installed');
+      expect(result.message).toBe(COMPLETION_MESSAGES.fishNotInstalled);
     });
   });
 

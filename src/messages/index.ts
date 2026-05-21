@@ -717,6 +717,41 @@ export const COMPLETION_MESSAGES = {
   warningCouldNotRemoveLegacy: (path: string, err: string) => `Aviso: Não foi possível remover arquivo legado ${path}: ${err}`,
   powershellCompletionHeader: '# Script de autocompletar PowerShell para a CLI do BR-OpenSpec',
   powershellCompletionNote: '# Gerado automaticamente - não edite manualmente',
+
+  // Fish installer messages
+  fishAlreadyInstalled: 'Script de autocomplete já está instalado (atualizado)',
+  fishAlreadyInstalledDetail: 'O script de autocomplete já está instalado e atualizado.',
+  fishAutoLoadsHint: 'O Fish carrega automaticamente os scripts de autocomplete - devem estar disponíveis imediatamente.',
+  fishUpdatedWithBackup: 'Script de autocomplete atualizado com sucesso (versão anterior salva em backup)',
+  fishUpdated: 'Script de autocomplete atualizado com sucesso',
+  fishInstalled: 'Script de autocomplete instalado com sucesso para Fish',
+  fishAutoLoadsDir: 'O Fish carrega automaticamente os scripts de autocomplete de ~/.config/fish/completions/',
+  fishAvailableImmediately: 'Os autocompletes estão disponíveis imediatamente - sem necessidade de reiniciar o shell.',
+  fishFailedToInstall: (error: string) => `Falha ao instalar script de autocomplete: ${error}`,
+  fishNotInstalled: 'Script de autocomplete não está instalado',
+  fishUninstalled: 'Script de autocomplete desinstalado com sucesso',
+  fishFailedToUninstall: (error: string) => `Falha ao desinstalar script de autocomplete: ${error}`,
+
+  // PowerShell installer messages
+  powershellUtf16BEUnsupported: 'Arquivo codificado em UTF-16 BE não é suportado. Salve novamente como UTF-8 ou UTF-16 LE e tente novamente.',
+  powershellAlreadyInstalled: 'Script de autocomplete já está instalado (atualizado)',
+  powershellAlreadyInstalledDetail: 'O script de autocomplete já está instalado e atualizado.',
+  powershellAlreadyInstalledHint: 'Se o autocomplete não estiver funcionando, tente reiniciar o PowerShell ou execute: . $PROFILE',
+  powershellUpdatedWithBackup: 'Script de autocomplete atualizado com sucesso (versão anterior salva em backup)',
+  powershellUpdated: 'Script de autocomplete atualizado com sucesso',
+  powershellInstalledWithProfile: 'Script de autocomplete instalado e perfil do PowerShell configurado com sucesso',
+  powershellInstalled: 'Script de autocomplete instalado com sucesso para PowerShell',
+  powershellFailedToInstall: (error: string) => `Falha ao instalar script de autocomplete: ${error}`,
+  powershellScriptInstalled: 'Script de autocomplete instalado com sucesso.',
+  powershellEnableCompletions: (profilePath: string) => `Para ativar o autocomplete, adicione o seguinte ao seu perfil PowerShell (${profilePath}):`,
+  powershellSourceComment: '# Carrega os autocompletes do BR-OpenSpec',
+  powershellThenRestart: 'Depois reinicie o PowerShell ou execute: . $PROFILE',
+  powershellNotInstalled: 'Script de autocomplete não está instalado',
+  powershellUninstalled: 'Script de autocomplete desinstalado com sucesso',
+  powershellFailedToUninstall: (error: string) => `Falha ao desinstalar script de autocomplete: ${error}`,
+
+  // Zsh installer (missing)
+  zshNotInstalled: 'Script de autocomplete não está instalado',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2040,4 +2075,146 @@ Use markdown claro com:
 
 export const TELEMETRY_MESSAGES = {
   firstRunNotice: 'Aviso: o BR-OpenSpec coleta estatísticas de uso anônimas. Para optar por não participar, defina OPENSPEC_TELEMETRY=0',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Parser — Change Parser (src/core/parsers/change-parser.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const CHANGE_PARSER_MESSAGES = {
+  mustHaveWhySection: 'A alteração deve ter uma seção Why',
+  mustHaveWhatChangesSection: 'A alteração deve ter uma seção What Changes',
+  addRequirement: (text: string) => `Adicionar requisito: ${text}`,
+  modifyRequirement: (text: string) => `Modificar requisito: ${text}`,
+  removeRequirement: (text: string) => `Remover requisito: ${text}`,
+  renameRequirement: (from: string, to: string) => `Renomear requisito de "${from}" para "${to}"`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Specs Apply (src/core/specs-apply.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const SPECS_APPLY_MESSAGES = {
+  duplicateInSection: (specName: string, section: string, reqName: string) =>
+    `${specName} validação falhou - requisito duplicado em ${section} para cabeçalho "### Requirement: ${reqName}"`,
+  duplicateFromInRenamed: (specName: string, reqName: string) =>
+    `${specName} validação falhou - FROM duplicado em RENAMED para cabeçalho "### Requirement: ${reqName}"`,
+  duplicateToInRenamed: (specName: string, reqName: string) =>
+    `${specName} validação falhou - TO duplicado em RENAMED para cabeçalho "### Requirement: ${reqName}"`,
+  renamedModifiedMustReferenceNew: (specName: string, toName: string) =>
+    `${specName} validação falhou - quando existe um rename, MODIFIED deve referenciar o NOVO cabeçalho "### Requirement: ${toName}"`,
+  renamedToCollidesWithAdded: (specName: string, toName: string) =>
+    `${specName} validação falhou - cabeçalho RENAMED TO colide com ADDED para "### Requirement: ${toName}"`,
+  requirementInMultipleSections: (specName: string, sectionA: string, sectionB: string, reqName: string) =>
+    `${specName} validação falhou - requisito presente em múltiplas seções (${sectionA} e ${sectionB}) para cabeçalho "### Requirement: ${reqName}"`,
+  noDeltaOperations: (capability: string) =>
+    `Análise de delta não encontrou operações para ${capability}. Forneça seções ADDED/MODIFIED/REMOVED/RENAMED no spec da change.`,
+  targetSpecNotExists: (specName: string) =>
+    `${specName}: spec alvo não existe; somente requisitos ADDED são permitidos para specs novos. Operações MODIFIED e RENAMED requerem um spec existente.`,
+  targetSpecStructurallyInvalid: (specName: string, details: string) =>
+    `${specName}: spec alvo é estruturalmente inválido e não pode ser atualizado até ser corrigido:\n${details}`,
+  renamedFailedSourceNotFound: (specName: string, reqName: string) =>
+    `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - origem não encontrada`,
+  renamedFailedTargetExists: (specName: string, reqName: string) =>
+    `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - destino já existe`,
+  removedFailedNotFound: (specName: string, reqName: string) =>
+    `${specName} REMOVED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
+  modifiedFailedNotFound: (specName: string, reqName: string) =>
+    `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
+  modifiedFailedHeaderMismatch: (specName: string, reqName: string) =>
+    `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - incompatibilidade de cabeçalho no conteúdo`,
+  addedFailedAlreadyExists: (specName: string, reqName: string) =>
+    `${specName} ADDED falhou para cabeçalho "### Requirement: ${reqName}" - já existe`,
+  applyingChangesTo: (specPath: string) => `Aplicando alterações em openspec/specs/${specPath}/spec.md:`,
+  wouldApplyChangesTo: (specPath: string) => `Aplicaria alterações em openspec/specs/${specPath}/spec.md:`,
+  countAdded: (n: number) => `  + ${n} adicionado(s)`,
+  countModified: (n: number) => `  ~ ${n} modificado(s)`,
+  countRemoved: (n: number) => `  - ${n} removido(s)`,
+  countRenamed: (n: number) => `  → ${n} renomeado(s)`,
+  skeletonPurpose: (changeName: string) => `A definir - criado ao arquivar alteração ${changeName}. Atualize o Purpose após o arquivamento.`,
+  changeNotFound: (changeName: string) => `Alteração '${changeName}' não encontrada.`,
+  validationErrorsInRebuiltSpec: (specName: string, errors: string) =>
+    `Erros de validação na especificação reconstruída para ${specName}:\n${errors}`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Project Config (src/core/project-config.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const PROJECT_CONFIG_SUGGEST_MESSAGES = {
+  configNotValidYaml: 'openspec/config.yaml não é um objeto YAML válido',
+  configFailedToParse: 'Falha ao analisar openspec/config.yaml:',
+  unknownArtifactId: (artifactId: string, schemaName: string, validIds: string) =>
+    `ID de artefato desconhecido nas regras: "${artifactId}". IDs válidos para o schema "${schemaName}": ${validIds}`,
+  schemaNotFound: (schemaName: string) => `Schema '${schemaName}' não encontrado em openspec/config.yaml\n\n`,
+  didYouMean: 'Você quis dizer algum destes?\n',
+  schemaType: (isBuiltIn: boolean) => isBuiltIn ? 'nativo' : 'local do projeto',
+  availableSchemas: 'Schemas disponíveis:\n',
+  builtInSchemas: (schemas: string) => `  Nativos: ${schemas}\n`,
+  projectLocalSchemas: (schemas: string) => `  Locais do projeto: ${schemas}\n`,
+  noProjectLocalSchemas: '  Locais do projeto: (nenhum encontrado)\n',
+  fixSuggestion: (invalidName: string) => `\nCorreção: Edite openspec/config.yaml e altere 'schema: ${invalidName}' para um nome de schema válido`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Tools Manager (src/core/tools-manager.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const TOOLS_MANAGER_MESSAGES = {
+  toolDoesNotSupportSkills: (toolValue: string) => `A ferramenta '${toolValue}' não suporta geração de skills.`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Artifact Graph (src/core/artifact-graph/)
+// ═══════════════════════════════════════════════════════════
+
+export const ARTIFACT_GRAPH_MESSAGES = {
+  invalidSchema: (errors: string) => `Schema inválido: ${errors}`,
+  duplicateArtifactId: (id: string) => `ID de artefato duplicado: ${id}`,
+  invalidDependencyReference: (artifactId: string, ref: string) =>
+    `Referência de dependência inválida no artefato '${artifactId}': '${ref}' não existe`,
+  cyclicDependency: (cycle: string) => `Dependência cíclica detectada: ${cycle}`,
+  templateNotFound: (path: string) => `Template não encontrado: ${path}`,
+  failedToReadTemplate: (error: string) => `Falha ao ler template: ${error}`,
+  artifactNotFound: (artifactId: string, schemaName: string) =>
+    `Artefato '${artifactId}' não encontrado no schema '${schemaName}'`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Utils — Change Metadata (src/utils/change-metadata.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const CHANGE_METADATA_MESSAGES = {
+  failedToWriteMetadata: (error: string) => `Falha ao escrever metadados: ${error}`,
+  failedToReadMetadata: (error: string) => `Falha ao ler metadados: ${error}`,
+  invalidMetadata: (error: string) => `Metadados inválidos: ${error}`,
+  invalidYaml: (error: string) => `YAML inválido no arquivo de metadados: ${error}`,
+  unknownSchema: (schema: string, available: string) =>
+    `Schema desconhecido '${schema}'. Disponíveis: ${available}`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Utils — Change Utils (src/utils/change-utils.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const CHANGE_UTILS_MESSAGES = {
+  changeAlreadyExists: (name: string, dir: string) => `A alteração '${name}' já existe em ${dir}`,
+  nameEmpty: 'O nome da alteração não pode estar vazio',
+  nameMustBeLowercase: 'O nome da alteração deve ser minúsculo (use kebab-case)',
+  nameNoSpaces: 'O nome da alteração não pode conter espaços (use hífens)',
+  nameNoUnderscores: 'O nome da alteração não pode conter underscores (use hífens)',
+  nameNoStartHyphen: 'O nome da alteração não pode começar com hífen',
+  nameNoEndHyphen: 'O nome da alteração não pode terminar com hífen',
+  nameNoConsecutiveHyphens: 'O nome da alteração não pode conter hífens consecutivos',
+  nameOnlyAllowedChars: 'O nome da alteração pode conter apenas letras minúsculas, números e hífens',
+  nameMustStartWithLetter: 'O nome da alteração deve começar com uma letra',
+  nameKebabCase: 'O nome da alteração deve seguir a convenção kebab-case (ex: add-auth, refactor-db)',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Completions Factory (src/core/completions/factory.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const COMPLETIONS_FACTORY_MESSAGES = {
+  unsupportedShell: (shell: string) => `Shell não suportado: ${shell}`,
 };

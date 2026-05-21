@@ -430,7 +430,7 @@ export class ZshInstaller {
       if (!scriptRemoved && !zshrcWasPresent) {
         return {
           success: false,
-          message: 'Completion script is not installed',
+          message: COMPLETION_MESSAGES.zshNotInstalled,
         };
       }
 

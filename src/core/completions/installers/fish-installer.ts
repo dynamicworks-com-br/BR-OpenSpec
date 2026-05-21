@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+import { COMPLETION_MESSAGES } from '../../../messages/index.js';
 import { InstallationResult } from '../factory.js';
 
 /**
@@ -62,10 +63,10 @@ export class FishInstaller {
           return {
             success: true,
             installedPath: targetPath,
-            message: 'Completion script is already installed (up to date)',
+            message: COMPLETION_MESSAGES.fishAlreadyInstalled,
             instructions: [
-              'The completion script is already installed and up to date.',
-              'Fish automatically loads completions - they should be available immediately.',
+              COMPLETION_MESSAGES.fishAlreadyInstalledDetail,
+              COMPLETION_MESSAGES.fishAutoLoadsHint,
             ],
           };
         }
@@ -90,10 +91,10 @@ export class FishInstaller {
       let message: string;
       if (isUpdate) {
         message = backupPath
-          ? 'Completion script updated successfully (previous version backed up)'
-          : 'Completion script updated successfully';
+          ? COMPLETION_MESSAGES.fishUpdatedWithBackup
+          : COMPLETION_MESSAGES.fishUpdated;
       } else {
-        message = 'Completion script installed successfully for Fish';
+        message = COMPLETION_MESSAGES.fishInstalled;
       }
 
       return {
@@ -102,14 +103,14 @@ export class FishInstaller {
         backupPath,
         message,
         instructions: [
-          'Fish automatically loads completions from ~/.config/fish/completions/',
-          'Completions are available immediately - no shell restart needed.',
+          COMPLETION_MESSAGES.fishAutoLoadsDir,
+          COMPLETION_MESSAGES.fishAvailableImmediately,
         ],
       };
     } catch (error) {
       return {
         success: false,
-        message: `Failed to install completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.fishFailedToInstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -131,7 +132,7 @@ export class FishInstaller {
       } catch {
         return {
           success: false,
-          message: 'Completion script is not installed',
+          message: COMPLETION_MESSAGES.fishNotInstalled,
         };
       }
 
@@ -140,12 +141,12 @@ export class FishInstaller {
 
       return {
         success: true,
-        message: 'Completion script uninstalled successfully',
+        message: COMPLETION_MESSAGES.fishUninstalled,
       };
     } catch (error) {
       return {
         success: false,
-        message: `Failed to uninstall completion script: ${error instanceof Error ? error.message : String(error)}`,
+        message: COMPLETION_MESSAGES.fishFailedToUninstall(error instanceof Error ? error.message : String(error)),
       };
     }
   }

@@ -4,7 +4,7 @@ import { getSchemaDir, resolveSchema } from './resolver.js';
 import { ArtifactGraph } from './graph.js';
 import { detectCompleted } from './state.js';
 import { resolveSchemaForChange } from '../../utils/change-metadata.js';
-import { WORKFLOW_MESSAGES } from '../../messages/index.js';
+import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
 import { readProjectConfig, validateConfigRules } from '../project-config.js';
 import type { Artifact, CompletedSet } from './types.js';
@@ -143,7 +143,7 @@ export function loadTemplate(
 
   if (!fs.existsSync(templatePathOnDisk)) {
     throw new TemplateLoadError(
-      `Template not found: ${templatePathOnDisk}`,
+      ARTIFACT_GRAPH_MESSAGES.templateNotFound(templatePathOnDisk),
       templatePathOnDisk
     );
   }
@@ -155,7 +155,7 @@ export function loadTemplate(
   } catch (err) {
     const ioError = err instanceof Error ? err : new Error(String(err));
     throw new TemplateLoadError(
-      `Failed to read template: ${ioError.message}`,
+      ARTIFACT_GRAPH_MESSAGES.failedToReadTemplate(ioError.message),
       fullPath
     );
   }
@@ -221,7 +221,7 @@ export function generateInstructions(
 ): ArtifactInstructions {
   const artifact = context.graph.getArtifact(artifactId);
   if (!artifact) {
-    throw new Error(`Artifact '${artifactId}' not found in schema '${context.schemaName}'`);
+    throw new Error(ARTIFACT_GRAPH_MESSAGES.artifactNotFound(artifactId, context.schemaName));
   }
 
   const templateContent = loadTemplate(context.schemaName, artifact.template, context.projectRoot);

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { SchemaYamlSchema, type SchemaYaml, type Artifact } from './types.js';
+import { ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 
 export class SchemaValidationError extends Error {
   constructor(message: string) {
@@ -27,7 +28,7 @@ export function parseSchema(yamlContent: string): SchemaYaml {
   const result = SchemaYamlSchema.safeParse(parsed);
   if (!result.success) {
     const errors = result.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-    throw new SchemaValidationError(`Invalid schema: ${errors}`);
+    throw new SchemaValidationError(ARTIFACT_GRAPH_MESSAGES.invalidSchema(errors));
   }
 
   const schema = result.data;
@@ -51,7 +52,7 @@ function validateNoDuplicateIds(artifacts: Artifact[]): void {
   const seen = new Set<string>();
   for (const artifact of artifacts) {
     if (seen.has(artifact.id)) {
-      throw new SchemaValidationError(`Duplicate artifact ID: ${artifact.id}`);
+      throw new SchemaValidationError(ARTIFACT_GRAPH_MESSAGES.duplicateArtifactId(artifact.id));
     }
     seen.add(artifact.id);
   }
@@ -67,7 +68,7 @@ function validateRequiresReferences(artifacts: Artifact[]): void {
     for (const req of artifact.requires) {
       if (!validIds.has(req)) {
         throw new SchemaValidationError(
-          `Invalid dependency reference in artifact '${artifact.id}': '${req}' does not exist`
+          ARTIFACT_GRAPH_MESSAGES.invalidDependencyReference(artifact.id, req)
         );
       }
     }
@@ -117,7 +118,7 @@ function validateNoCycles(artifacts: Artifact[]): void {
     if (!visited.has(artifact.id)) {
       const cycle = dfs(artifact.id);
       if (cycle) {
-        throw new SchemaValidationError(`Cyclic dependency detected: ${cycle}`);
+        throw new SchemaValidationError(ARTIFACT_GRAPH_MESSAGES.cyclicDependency(cycle));
       }
     }
   }

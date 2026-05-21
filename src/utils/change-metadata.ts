@@ -4,6 +4,7 @@ import * as yaml from 'yaml';
 import { ChangeMetadataSchema, type ChangeMetadata } from '../core/artifact-graph/types.js';
 import { listSchemas } from '../core/artifact-graph/resolver.js';
 import { readProjectConfig } from '../core/project-config.js';
+import { CHANGE_METADATA_MESSAGES } from '../messages/index.js';
 
 const METADATA_FILENAME = '.openspec.yaml';
 
@@ -36,7 +37,7 @@ export function validateSchemaName(
   const availableSchemas = listSchemas(projectRoot);
   if (!availableSchemas.includes(schemaName)) {
     throw new Error(
-      `Unknown schema '${schemaName}'. Available: ${availableSchemas.join(', ')}`
+      CHANGE_METADATA_MESSAGES.unknownSchema(schemaName, availableSchemas.join(', '))
     );
   }
   return schemaName;
@@ -64,7 +65,7 @@ export function writeChangeMetadata(
   const parseResult = ChangeMetadataSchema.safeParse(metadata);
   if (!parseResult.success) {
     throw new ChangeMetadataError(
-      `Invalid metadata: ${parseResult.error.message}`,
+      CHANGE_METADATA_MESSAGES.invalidMetadata(parseResult.error.message),
       metaPath
     );
   }
@@ -76,7 +77,7 @@ export function writeChangeMetadata(
   } catch (err) {
     const ioError = err instanceof Error ? err : new Error(String(err));
     throw new ChangeMetadataError(
-      `Failed to write metadata: ${ioError.message}`,
+      CHANGE_METADATA_MESSAGES.failedToWriteMetadata(ioError.message),
       metaPath,
       ioError
     );
@@ -107,7 +108,7 @@ export function readChangeMetadata(
   } catch (err) {
     const ioError = err instanceof Error ? err : new Error(String(err));
     throw new ChangeMetadataError(
-      `Failed to read metadata: ${ioError.message}`,
+      CHANGE_METADATA_MESSAGES.failedToReadMetadata(ioError.message),
       metaPath,
       ioError
     );
@@ -119,7 +120,7 @@ export function readChangeMetadata(
   } catch (err) {
     const parseError = err instanceof Error ? err : new Error(String(err));
     throw new ChangeMetadataError(
-      `Invalid YAML in metadata file: ${parseError.message}`,
+      CHANGE_METADATA_MESSAGES.invalidYaml(parseError.message),
       metaPath,
       parseError
     );
@@ -129,7 +130,7 @@ export function readChangeMetadata(
   const parseResult = ChangeMetadataSchema.safeParse(parsed);
   if (!parseResult.success) {
     throw new ChangeMetadataError(
-      `Invalid metadata: ${parseResult.error.message}`,
+      CHANGE_METADATA_MESSAGES.invalidMetadata(parseResult.error.message),
       metaPath
     );
   }
@@ -138,7 +139,7 @@ export function readChangeMetadata(
   const availableSchemas = listSchemas(projectRoot);
   if (!availableSchemas.includes(parseResult.data.schema)) {
     throw new ChangeMetadataError(
-      `Unknown schema '${parseResult.data.schema}'. Available: ${availableSchemas.join(', ')}`,
+      CHANGE_METADATA_MESSAGES.unknownSchema(parseResult.data.schema, availableSchemas.join(', ')),
       metaPath
     );
   }
