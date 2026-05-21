@@ -174,7 +174,7 @@ artifacts:
 `;
 
       expect(() => parseSchema(content)).toThrow(SchemaValidationError);
-      expect(() => parseSchema(content)).toThrow(/[Cc]yclic/);
+      expect(() => parseSchema(content)).toThrow(/cíclica/);
     });
 
     it('should detect unknown dependency reference', async () => {

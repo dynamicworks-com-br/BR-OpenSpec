@@ -207,7 +207,7 @@ complete -c openspec -a 'validate' -d 'Validate specs'
       await fs.chmod(restrictedDir, 0o755);
 
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Failed to install completion script');
+      expect(result.message).toContain('Falha ao instalar script de autocomplete');
     });
 
     it('should provide appropriate instructions for Fish', async () => {

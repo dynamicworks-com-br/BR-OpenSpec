@@ -368,7 +368,7 @@ describe('artifact-workflow CLI commands', () => {
       const result = await runCLI(['new', 'change', 'existing-change'], { cwd: tempDir });
       expect(result.exitCode).toBe(1);
       const output = getOutput(result);
-      expect(output).toContain('exists');
+      expect(output).toContain('já existe');
     });
 
     it('errors when name argument is missing', async () => {
