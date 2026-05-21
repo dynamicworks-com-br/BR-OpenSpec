@@ -1,5 +1,11 @@
 # @fission-ai/openspec
 
+## 2.0.1
+
+### Patch Changes
+
+- [#8](https://github.com/dynamicworks-com-br/BR-OpenSpec/pull/8) [`ecc781e`](https://github.com/dynamicworks-com-br/BR-OpenSpec/commit/ecc781e6dc2502a1e202a82bdb5cbad8ab9bcab3) Thanks [@boligon](https://github.com/boligon)! - Centraliza strings hardcoded em inglês no catálogo de mensagens pt-BR
+
 ## 2.0.0
 
 ### Major Changes
