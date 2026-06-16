@@ -23,6 +23,7 @@ For workflow patterns and when to use each command, see [Workflows](workflows.md
 | `/opsx:continue` | Create the next artifact based on dependencies |
 | `/opsx:ff` | Fast-forward: create all planning artifacts at once |
 | `/opsx:verify` | Validate implementation matches artifacts |
+| `/opsx:code-review` | Review diffs, branches, PRs, or files with project context |
 | `/opsx:sync` | Merge delta specs into main specs |
 | `/opsx:bulk-archive` | Archive multiple changes at once |
 | `/opsx:onboard` | Guided tutorial through the complete workflow |
@@ -380,6 +381,33 @@ AI:  Verifying add-dark-mode...
 - Warnings don't block archive but indicate potential issues
 - Good for reviewing AI's work before committing
 - Can reveal drift between artifacts and implementation
+
+---
+
+### `/opsx:code-review`
+
+Review changed code with project-specific context. Unlike `/opsx:verify`, this command can review a working tree, staged diff, branch, PR, or explicit files even when there is no OpenSpec change.
+
+**Syntax:**
+```
+/opsx:code-review [target]
+```
+
+**Arguments:**
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `target` | No | Branch, PR, diff, working tree, staged changes, file path, or review scope |
+
+**What it does:**
+- Reads project guidance such as README, AGENTS.md, OpenSpec config, docs, manifests, and CI files
+- Infers stack and validation commands from local files
+- Uses related OpenSpec artifacts as extra context when available
+- Reports findings first, ordered by severity with file/line references
+- Does not modify files unless you explicitly ask for fixes
+
+**Tips:**
+- Use before committing, opening a PR, or merging AI-generated changes
+- Use `/opsx:verify` instead when the goal is specifically to validate a named OpenSpec change against its artifacts
 
 ---
 

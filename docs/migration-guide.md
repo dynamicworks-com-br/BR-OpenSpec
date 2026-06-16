@@ -297,6 +297,7 @@ Command availability is profile-dependent:
 | `/opsx:continue` | Create the next artifact (one at a time) |
 | `/opsx:ff` | Fast-forward—create planning artifacts at once |
 | `/opsx:verify` | Validate implementation matches specs |
+| `/opsx:code-review` | Review diffs, branches, PRs, or files with project context |
 | `/opsx:sync` | Preview/spec-merge without archiving |
 | `/opsx:bulk-archive` | Archive multiple changes at once |
 | `/opsx:onboard` | Guided end-to-end onboarding workflow |

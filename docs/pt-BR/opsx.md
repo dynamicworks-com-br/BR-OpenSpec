@@ -63,7 +63,7 @@ openspec init
 
 Isso cria skills em `.claude/skills/` (ou equivalente) que assistentes de codificação com IA detectam automaticamente.
 
-Por padrão, o BR-OpenSpec usa o perfil de fluxo de trabalho `core` (`propose`, `explore`, `apply`, `archive`). Se você quiser os comandos de fluxo de trabalho expandido (`new`, `continue`, `ff`, `verify`, `sync`, `bulk-archive`, `onboard`), configure-os com `openspec config profile` e aplique com `openspec update`.
+Por padrão, o BR-OpenSpec usa o perfil de fluxo de trabalho `core` (`propose`, `explore`, `apply`, `archive`). Se você quiser os comandos de fluxo de trabalho expandido (`new`, `continue`, `ff`, `verify`, `code-review`, `sync`, `bulk-archive`, `onboard`), configure-os com `openspec config profile` e aplique com `openspec update`.
 
 Durante a configuração, você será solicitado a criar uma **configuração de projeto** (`openspec/config.yaml`). Isso é opcional, mas recomendado.
 
@@ -162,6 +162,7 @@ rules:
 | `/opsx:ff` | Avança rapidamente os artefatos de planejamento (fluxo de trabalho expandido) |
 | `/opsx:apply` | Implementa tarefas, atualizando artefatos conforme necessário |
 | `/opsx:verify` | Valida a implementação contra os artefatos (fluxo de trabalho expandido) |
+| `/opsx:code-review` | Revisa diffs, branches, PRs ou arquivos com contexto do projeto (fluxo de trabalho expandido) |
 | `/opsx:sync` | Sincroniza specs delta com a principal (fluxo de trabalho expandido, opcional) |
 | `/opsx:archive` | Arquiva quando concluído |
 | `/opsx:bulk-archive` | Arquiva múltiplas mudanças concluídas (fluxo de trabalho expandido) |
