@@ -163,7 +163,7 @@ openspec tools --remove windsurf
 
 ## Notas de Uso
 
-**Seleção de modelo**: O BR-OpenSpec funciona melhor com modelos de alto raciocínio. Recomendamos Opus 4.5 e GPT 5.2 tanto para planejamento quanto para implementação.
+**Seleção de modelo**: O BR-OpenSpec funciona melhor com modelos de alto raciocínio. Recomendamos Codex 5.5 e Opus 4.8 tanto para planejamento quanto para implementação.
 
 **Higiene de contexto**: O BR-OpenSpec se beneficia de uma janela de contexto limpa. Limpe seu contexto antes de iniciar a implementação e mantenha uma boa higiene de contexto ao longo da sua sessão.
 
