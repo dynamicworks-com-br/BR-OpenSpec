@@ -128,7 +128,7 @@ oldCoreProfileSyncHint: 'Execute `openspec config profile core` e depois `opensp
 (`openspec config profile core` e `openspec update` permanecem como comandos técnicos.)
 
 ### C7 — Recomendação de modelos high-reasoning  *(T8 — depende de Decisão D3)*
-- `README.md` (≈linha 164) e `README.pt-BR.md` (≈linha 166): trocar `Opus 4.5 e GPT 5.2` → `Codex 5.5 e Opus 4.7`, **preservando** branding/tradução. (Nomes de produto copiados verbatim.) Não há ocorrência em `docs/`.
+- `README.md` (≈linha 164) e `README.pt-BR.md` (≈linha 166): trocar `Opus 4.5 e GPT 5.2` → `Codex 5.5 e Opus 4.8`, **preservando** branding/tradução. (Nomes de produto copiados verbatim.) Não há ocorrência em `docs/`.
 
 ### C8 — Documentação não-workspace  *(T9)*
 - **Bun/Node** (`a974c67`): nota na seção `### bun` de `docs/installation.md` + `docs/pt-BR/installation.md` (Bun instala globalmente, mas roda sobre Node.js ≥ 20.19.0 no `PATH`). Substituir `OpenSpec` → `BR-OpenSpec`.
