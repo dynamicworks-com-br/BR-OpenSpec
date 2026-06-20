@@ -97,7 +97,7 @@ openspec init
 
 Now tell your AI: `/opsx:propose <what-you-want-to-build>`
 
-If you want the expanded workflow (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:sync`, `/opsx:bulk-archive`, `/opsx:onboard`), select it with `openspec config profile` and apply with `openspec update`.
+If you want the expanded workflow (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:bulk-archive`, `/opsx:onboard`), select it with `openspec config profile` and apply with `openspec update`.
 
 > [!NOTE]
 > Not sure if your tool is supported? [View the full list](docs/supported-tools.md) – we support 25+ tools and growing.
@@ -114,6 +114,13 @@ If you want the expanded workflow (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/
 → **[Concepts](docs/concepts.md)**: how it all fits<br>
 → **[Multi-Language](docs/multi-language.md)**: multi-language support<br>
 → **[Customization](docs/customization.md)**: make it yours
+
+
+## Community schemas
+
+Third-party schema bundles distributed via standalone repositories — these provide opinionated workflows that integrate BR-OpenSpec with other tools, similar to how [github/spec-kit's community extension catalog](https://github.com/github/spec-kit/tree/main/extensions) handles tool integrations.
+
+→ **[Browse the catalog](docs/customization.md#community-schemas)** in the customization docs.
 
 
 ## Why BR-OpenSpec?
@@ -161,9 +168,11 @@ openspec tools --remove windsurf
 
 ## Usage Notes
 
-**Model selection**: BR-OpenSpec works best with high-reasoning models. We recommend Opus 4.5 and GPT 5.2 for both planning and implementation.
+**Model selection**: BR-OpenSpec works best with high-reasoning models. We recommend Codex 5.5 and Opus 4.8 for both planning and implementation.
 
 **Context hygiene**: BR-OpenSpec benefits from a clean context window. Clear your context before starting implementation and maintain good context hygiene throughout your session.
+
+**Spec keywords stay in English**: BR-OpenSpec is PT-BR first, but the spec format is a protocol read by the tooling. Structural markers (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) and normative/scenario keywords (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — plus `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) are always written in English and UPPERCASE; only the descriptive text is in Portuguese. Translating these keywords breaks `openspec validate`. See the full list in [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
 
 ## Contributing
 

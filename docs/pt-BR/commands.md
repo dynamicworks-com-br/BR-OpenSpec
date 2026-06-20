@@ -13,6 +13,7 @@ Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflo
 | `/opsx:propose` | Criar uma mudança e gerar artefatos de planejamento em um único passo |
 | `/opsx:explore` | Explorar ideias antes de se comprometer com uma mudança |
 | `/opsx:apply` | Implementar tarefas da mudança |
+| `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:archive` | Arquivar uma mudança concluída |
 
 ### Comandos de Fluxo de Trabalho Expandido (seleção de workflow personalizado)
@@ -24,7 +25,6 @@ Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflo
 | `/opsx:ff` | Fast-forward: criar todos os artefatos de planejamento de uma vez |
 | `/opsx:verify` | Validar se a implementação corresponde aos artefatos |
 | `/opsx:code-review` | Revisar diffs, branches, PRs ou arquivos com contexto do projeto |
-| `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:bulk-archive` | Arquivar múltiplas mudanças de uma vez |
 | `/opsx:onboard` | Tutorial guiado pelo fluxo de trabalho completo |
 
@@ -55,14 +55,14 @@ Criar uma nova mudança e gerar artefatos de planejamento em um único passo. Es
 
 **Exemplo:**
 ```text
-You: /opsx:propose add-dark-mode
+Você: /opsx:propose add-dark-mode
 
-AI:  Created openspec/changes/add-dark-mode/
-     ✓ proposal.md
-     ✓ specs/ui/spec.md
-     ✓ design.md
-     ✓ tasks.md
-     Ready for implementation. Run /opsx:apply.
+IA:   Criado openspec/changes/add-dark-mode/
+      ✓ proposal.md
+      ✓ specs/ui/spec.md
+      ✓ design.md
+      ✓ tasks.md
+      Pronto para implementação. Execute /opsx:apply.
 ```
 
 **Dicas:**
@@ -94,27 +94,27 @@ Explorar ideias, investigar problemas e esclarecer requisitos antes de se compro
 
 **Exemplo:**
 ```text
-You: /opsx:explore
+Você: /opsx:explore
 
-AI:  What would you like to explore?
+IA:   O que você gostaria de explorar?
 
-You: How should we handle authentication for the mobile app?
+Você: Como devemos tratar a autenticação para o app mobile?
 
-AI:  Let me investigate your current auth setup...
-     [Analyzes codebase]
+IA:   Deixe-me investigar a sua configuração de autenticação atual...
+      [Analisa a base de código]
 
-     I see you're using session-based auth for the web app.
-     For mobile, we have three main options:
+      Vejo que você está usando autenticação baseada em sessão no app web.
+      Para mobile, temos três opções principais:
 
-     1. JWT tokens (stateless, works offline)
-     2. OAuth2 (if you need third-party login)
-     3. Extend current sessions (simpler, but requires connectivity)
+      1. Tokens JWT (sem estado, funciona offline)
+      2. OAuth2 (se você precisa de login de terceiros)
+      3. Estender as sessões atuais (mais simples, mas exige conectividade)
 
-     Your API already has CORS configured. Which direction interests you?
+      Sua API já tem CORS configurado. Qual direção interessa a você?
 
-You: Let's go with JWT. Can we start a change for that?
+Você: Vamos com JWT. Podemos iniciar uma mudança para isso?
 
-AI:  Ready when you are. Run /opsx:propose add-jwt-auth to begin.
+IA:   Quando você quiser. Execute /opsx:propose add-jwt-auth para começar.
 ```
 
 **Dicas:**
@@ -151,18 +151,18 @@ Este comando faz parte do conjunto de fluxo de trabalho expandido (não incluíd
 **O que cria:**
 ```
 openspec/changes/<change-name>/
-└── .openspec.yaml    # Change metadata (schema, created date)
+└── .openspec.yaml    # Metadados da mudança (schema, data de criação)
 ```
 
 **Exemplo:**
 ```
-You: /opsx:new add-dark-mode
+Você: /opsx:new add-dark-mode
 
-AI:  Created openspec/changes/add-dark-mode/
-     Schema: spec-driven
+IA:   Criado openspec/changes/add-dark-mode/
+      Schema: spec-driven
 
-     Ready to create: proposal
-     Use /opsx:continue to create it, or /opsx:ff to create all artifacts.
+      Pronto para criar: proposal
+      Use /opsx:continue para criá-lo, ou /opsx:ff para criar todos os artefatos.
 ```
 
 **Dicas:**
@@ -195,24 +195,24 @@ Criar o próximo artefato na cadeia de dependências. Cria um artefato de cada v
 
 **Exemplo:**
 ```
-You: /opsx:continue
+Você: /opsx:continue
 
-AI:  Change: add-dark-mode
+IA:   Mudança: add-dark-mode
 
-     Artifact status:
-     ✓ proposal    (done)
-     ◆ specs       (ready)
-     ◆ design      (ready)
-     ○ tasks       (blocked - needs: specs)
+      Status dos artefatos:
+      ✓ proposal    (concluído)
+      ◆ specs       (pronto)
+      ◆ design      (pronto)
+      ○ tasks       (bloqueado - precisa de: specs)
 
-     Creating specs...
+      Criando specs...
 
-     [Reads proposal.md, creates specs based on requirements]
+      [Lê proposal.md, cria specs com base nos requisitos]
 
-     ✓ Created openspec/changes/add-dark-mode/specs/ui/spec.md
+      ✓ Criado openspec/changes/add-dark-mode/specs/ui/spec.md
 
-     Now available: tasks
-     Run /opsx:continue to create the next artifact.
+      Agora disponível: tasks
+      Execute /opsx:continue para criar o próximo artefato.
 ```
 
 **Dicas:**
@@ -245,17 +245,17 @@ Avançar rapidamente pela criação de artefatos. Cria todos os artefatos de pla
 
 **Exemplo:**
 ```
-You: /opsx:ff add-dark-mode
+Você: /opsx:ff add-dark-mode
 
-AI:  Fast-forwarding add-dark-mode...
+IA:   Avançando rapidamente add-dark-mode...
 
-     ✓ Creating proposal.md
-     ✓ Creating specs/ui/spec.md
-     ✓ Creating design.md
-     ✓ Creating tasks.md
+      ✓ Criando proposal.md
+      ✓ Criando specs/ui/spec.md
+      ✓ Criando design.md
+      ✓ Criando tasks.md
 
-     All planning artifacts complete!
-     Ready for implementation. Run /opsx:apply to begin.
+      Todos os artefatos de planejamento concluídos!
+      Pronto para implementação. Execute /opsx:apply para começar.
 ```
 
 **Dicas:**
@@ -288,25 +288,25 @@ Implementar tarefas da mudança. Percorre a lista de tarefas, escrevendo código
 
 **Exemplo:**
 ```
-You: /opsx:apply
+Você: /opsx:apply
 
-AI:  Implementing add-dark-mode...
+IA:   Implementando add-dark-mode...
 
-     Reading tasks.md:
-     - [ ] 1.1 Create ThemeContext
-     - [ ] 1.2 Add CSS custom properties
-     - [ ] 1.3 Implement localStorage persistence
+      Lendo tasks.md:
+      - [ ] 1.1 Criar ThemeContext
+      - [ ] 1.2 Adicionar propriedades CSS personalizadas
+      - [ ] 1.3 Implementar persistência com localStorage
 
-     Working on 1.1: Create ThemeContext...
-     [Creates src/context/ThemeContext.tsx]
+      Trabalhando em 1.1: Criar ThemeContext...
+      [Cria src/context/ThemeContext.tsx]
 
-     ✓ 1.1 Complete
+      ✓ 1.1 Concluído
 
-     Working on 1.2: Add CSS custom properties...
-     [Updates src/styles/globals.css]
+      Trabalhando em 1.2: Adicionar propriedades CSS personalizadas...
+      [Atualiza src/styles/globals.css]
 
-     ✓ 1.2 Complete
-     ...
+      ✓ 1.2 Concluído
+      ...
 ```
 
 **Dicas:**
@@ -346,34 +346,34 @@ Validar que a implementação corresponde aos artefatos da mudança. Verifica co
 
 **Exemplo:**
 ```
-You: /opsx:verify
+Você: /opsx:verify
 
-AI:  Verifying add-dark-mode...
+IA:   Verificando add-dark-mode...
 
-     COMPLETENESS
-     ✓ All 8 tasks in tasks.md are checked
-     ✓ All requirements in specs have corresponding code
-     ⚠ Scenario "System preference detection" has no test coverage
+      COMPLETUDE
+      ✓ Todas as 8 tarefas em tasks.md estão marcadas
+      ✓ Todos os requisitos nas specs têm código correspondente
+      ⚠ O cenário "Detecção da preferência do sistema" não tem cobertura de testes
 
-     CORRECTNESS
-     ✓ Implementation matches spec intent
-     ✓ Edge cases from scenarios are handled
-     ✓ Error states match spec definitions
+      CORREÇÃO
+      ✓ A implementação corresponde à intenção da spec
+      ✓ Casos extremos dos cenários são tratados
+      ✓ Estados de erro correspondem às definições da spec
 
-     COHERENCE
-     ✓ Design decisions reflected in code structure
-     ✓ Naming conventions consistent with design.md
-     ⚠ Design mentions "CSS variables" but implementation uses Tailwind classes
+      COERÊNCIA
+      ✓ Decisões de design refletidas na estrutura do código
+      ✓ Convenções de nomenclatura consistentes com design.md
+      ⚠ O design menciona "variáveis CSS", mas a implementação usa classes do Tailwind
 
-     SUMMARY
-     ─────────────────────────────
-     Critical issues: 0
-     Warnings: 2
-     Ready to archive: Yes (with warnings)
+      RESUMO
+      ─────────────────────────────
+      Problemas críticos: 0
+      Avisos: 2
+      Pronto para arquivar: Sim (com avisos)
 
-     Recommendations:
-     1. Add test for system preference detection
-     2. Update design.md to reflect Tailwind usage, or refactor to use CSS variables
+      Recomendações:
+      1. Adicionar teste para a detecção de preferência do sistema
+      2. Atualizar design.md para refletir o uso do Tailwind, ou refatorar para usar variáveis CSS
 ```
 
 **Dicas:**
@@ -434,21 +434,21 @@ Revisar código alterado com contexto específico do projeto. Diferente do `/ops
 
 **Exemplo:**
 ```text
-You: /opsx:sync
+Você: /opsx:sync
 
-AI:  Syncing add-dark-mode delta specs...
+IA:   Sincronizando as delta specs de add-dark-mode...
 
-     Reading: openspec/changes/add-dark-mode/specs/ui/spec.md
-     Target:  openspec/specs/ui/spec.md
+      Lendo:  openspec/changes/add-dark-mode/specs/ui/spec.md
+      Destino: openspec/specs/ui/spec.md
 
-     Changes to apply:
-     ✓ ADDED: Theme Selection requirement (2 scenarios)
-     ✓ ADDED: Accessibility requirement (1 scenario)
+      Alterações a aplicar:
+      ✓ ADDED: requisito Theme Selection (2 cenários)
+      ✓ ADDED: requisito Accessibility (1 cenário)
 
-     Merging...
-     ✓ openspec/specs/ui/spec.md updated
+      Mesclando...
+      ✓ openspec/specs/ui/spec.md atualizado
 
-     Change remains active. Run /opsx:archive when ready to complete.
+      A mudança permanece ativa. Execute /opsx:archive quando estiver pronto para concluir.
 ```
 
 **Quando usar manualmente:**
@@ -491,25 +491,25 @@ Arquivar uma mudança concluída. Finaliza a mudança e a move para a pasta de h
 
 **Exemplo:**
 ```text
-You: /opsx:archive
+Você: /opsx:archive
 
-AI:  Archiving add-dark-mode...
+IA:   Arquivando add-dark-mode...
 
-     Artifact status:
-     ✓ proposal.md exists
-     ✓ specs/ exists
-     ✓ design.md exists
-     ✓ tasks.md exists (8/8 tasks complete)
+      Status dos artefatos:
+      ✓ proposal.md existe
+      ✓ specs/ existe
+      ✓ design.md existe
+      ✓ tasks.md existe (8/8 tarefas concluídas)
 
-     Delta specs: Not yet synced
-     → Sync now? (recommended)
+      Delta specs: Ainda não sincronizadas
+      → Sincronizar agora? (recomendado)
 
-You: Yes
+Você: Sim
 
-AI:  ✓ Synced specs to openspec/specs/ui/spec.md
-     ✓ Moved to openspec/changes/archive/2025-01-24-add-dark-mode/
+IA:   ✓ Specs sincronizadas com openspec/specs/ui/spec.md
+      ✓ Movido para openspec/changes/archive/2025-01-24-add-dark-mode/
 
-     Change archived successfully.
+      Mudança arquivada com sucesso.
 ```
 
 **Dicas:**
@@ -543,29 +543,29 @@ Arquivar múltiplas mudanças concluídas de uma vez. Lida com conflitos de spec
 
 **Exemplo:**
 ```
-You: /opsx:bulk-archive
+Você: /opsx:bulk-archive
 
-AI:  Found 3 completed changes:
-     - add-dark-mode (8/8 tasks complete)
-     - fix-login-bug (3/3 tasks complete)
-     - update-footer (2/2 tasks complete)
+IA:   Encontradas 3 mudanças concluídas:
+      - add-dark-mode (8/8 tarefas concluídas)
+      - fix-login-bug (3/3 tarefas concluídas)
+      - update-footer (2/2 tarefas concluídas)
 
-     Checking for spec conflicts...
-     ⚠ add-dark-mode and update-footer both touch specs/ui/
+      Verificando conflitos de specs...
+      ⚠ add-dark-mode e update-footer tocam ambas em specs/ui/
 
-     Inspecting codebase to resolve...
-     Both changes are implemented. Will merge in chronological order:
-     1. add-dark-mode (created Jan 20)
-     2. update-footer (created Jan 22)
+      Inspecionando a base de código para resolver...
+      Ambas as mudanças estão implementadas. Serão mescladas em ordem cronológica:
+      1. add-dark-mode (criada em 20 de jan)
+      2. update-footer (criada em 22 de jan)
 
-     Archive all 3 changes?
+      Arquivar as 3 mudanças?
 
-You: Yes
+Você: Sim
 
-AI:  ✓ Archived add-dark-mode
-     ✓ Archived fix-login-bug
-     ✓ Archived update-footer
-     Specs merged: add-dark-mode → update-footer
+IA:   ✓ add-dark-mode arquivada
+      ✓ fix-login-bug arquivada
+      ✓ update-footer arquivada
+      Specs mescladas: add-dark-mode → update-footer
 ```
 
 **Dicas:**
@@ -608,24 +608,24 @@ Integração guiada pelo fluxo de trabalho completo do BR-OpenSpec. Um tutorial 
 
 **Exemplo:**
 ```
-You: /opsx:onboard
+Você: /opsx:onboard
 
-AI:  Bem-vindo ao BR-OpenSpec!
+IA:   Bem-vindo ao BR-OpenSpec!
 
-     I'll walk you through the complete workflow using your actual codebase.
-     We'll find something small to improve, create a proper change for it,
-     implement it, and archive it.
+      Vou guiá-lo pelo fluxo de trabalho completo usando a sua própria base de código.
+      Vamos encontrar algo pequeno para melhorar, criar uma mudança adequada para isso,
+      implementá-la e arquivá-la.
 
-     Let me scan your codebase for opportunities...
+      Deixe-me escanear a sua base de código em busca de oportunidades...
 
-     [Analyzes codebase]
+      [Analisa a base de código]
 
-     I found a few things we could work on:
-     1. Add input validation to the contact form
-     2. Improve error messages in the auth flow
-     3. Add loading states to async buttons
+      Encontrei algumas coisas em que poderíamos trabalhar:
+      1. Adicionar validação de entrada ao formulário de contato
+      2. Melhorar as mensagens de erro no fluxo de autenticação
+      3. Adicionar estados de carregamento aos botões assíncronos
 
-     Which interests you? (or suggest something else)
+      Qual interessa a você? (ou sugira outra coisa)
 ```
 
 **Dicas:**
@@ -646,7 +646,7 @@ Diferentes ferramentas de IA usam sintaxes de comando ligeiramente diferentes. U
 | Cursor | `/opsx-propose`, `/opsx-apply` |
 | Windsurf | `/opsx-propose`, `/opsx-apply` |
 | Copilot (IDE) | `/opsx-propose`, `/opsx-apply` |
-| Kimi Code CLI | Invocações baseadas em skills como `/skill:openspec-propose`, `/skill:openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
+| Kimi CLI | Invocações baseadas em skills como `/skill:openspec-propose`, `/skill:openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
 | Trae | Invocações baseadas em skills como `/openspec-propose`, `/openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
 
 A intenção é a mesma em todas as ferramentas, mas como os comandos são exibidos pode variar por integração.

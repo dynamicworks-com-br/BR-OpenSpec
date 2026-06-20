@@ -13,9 +13,10 @@ Por padrão, o BR-OpenSpec usa o perfil `core`, que inclui:
 - `propose`
 - `explore`
 - `apply`
+- `sync`
 - `archive`
 
-Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `verify`, `code-review`, `sync`, `bulk-archive`, `onboard`) via `openspec config profile` e depois executar `openspec update`.
+Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`) via `openspec config profile` e depois executar `openspec update`.
 
 ## Referência de Diretórios das Ferramentas
 
@@ -40,8 +41,10 @@ Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `ve
 | iFlow (`iflow`) | `.iflow/skills/openspec-*/SKILL.md` | `.iflow/commands/opsx-<id>.md` |
 | Junie (`junie`) | `.junie/skills/openspec-*/SKILL.md` | `.junie/commands/opsx-<id>.md` |
 | Kilo Code (`kilocode`) | `.kilocode/skills/openspec-*/SKILL.md` | `.kilocode/workflows/opsx-<id>.md` |
-| Kimi Code CLI (`kimi`) | `.kimi/skills/openspec-*/SKILL.md` | Não gerado (use invocações `/skill:openspec-*` ou `/flow:openspec-*` baseadas em skill) |
+| Kimi CLI (`kimi`) | `.kimi/skills/openspec-*/SKILL.md` | Não gerado (sem adaptador de comando; use invocações `/skill:openspec-*` baseadas em skill) |
 | Kiro (`kiro`) | `.kiro/skills/openspec-*/SKILL.md` | `.kiro/prompts/opsx-<id>.prompt.md` |
+| Lingma (`lingma`) | `.lingma/skills/openspec-*/SKILL.md` | `.lingma/commands/opsx/<id>.md` |
+| Mistral Vibe (`vibe`) | `.vibe/skills/openspec-*/SKILL.md` | Não gerado (sem adaptador de comando; use invocações `/openspec-*` baseadas em skill) |
 | OpenCode (`opencode`) | `.opencode/skills/openspec-*/SKILL.md` | `.opencode/commands/opsx-<id>.md` |
 | Pi (`pi`) | `.pi/skills/openspec-*/SKILL.md` | `.pi/prompts/opsx-<id>.md` |
 | Qoder (`qoder`) | `.qoder/skills/openspec-*/SKILL.md` | `.qoder/commands/opsx/<id>.md` |
@@ -72,13 +75,13 @@ openspec init --tools none
 openspec init --profile core
 ```
 
-**IDs de ferramentas disponíveis (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `windsurf`
+**IDs de ferramentas disponíveis (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
 
 ## Instalação Dependente de Fluxo de Trabalho
 
 O BR-OpenSpec instala artefatos de fluxo de trabalho com base nos fluxos selecionados:
 
-- **Perfil core (padrão):** `propose`, `explore`, `apply`, `archive`
+- **Perfil core (padrão):** `propose`, `explore`, `apply`, `sync`, `archive`
 - **Seleção personalizada:** qualquer subconjunto de todos os IDs de fluxo de trabalho:
   `propose`, `explore`, `new`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`, `code-review`, `onboard`
 

@@ -1,19 +1,19 @@
 ## Context
 
-<!-- Background and current state -->
+<!-- Contexto e estado atual -->
 
 ## Goals / Non-Goals
 
 **Goals:**
-<!-- What this design aims to achieve -->
+<!-- O que este design pretende alcançar -->
 
 **Non-Goals:**
-<!-- What is explicitly out of scope -->
+<!-- O que está explicitamente fora de escopo -->
 
 ## Decisions
 
-<!-- Key design decisions and rationale -->
+<!-- Principais decisões de design e suas justificativas -->
 
 ## Risks / Trade-offs
 
-<!-- Known risks and trade-offs -->
+<!-- Riscos e trade-offs conhecidos -->

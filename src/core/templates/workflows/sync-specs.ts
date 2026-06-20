@@ -83,7 +83,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 ## ADDED Requirements
 
 ### Requirement: New Feature
-O sistema DEVERÁ fazer algo novo.
+The system SHALL do something new.
 
 #### Scenario: Basic case
 - **WHEN** user does X
@@ -222,7 +222,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 ## ADDED Requirements
 
 ### Requirement: New Feature
-O sistema DEVERÁ fazer algo novo.
+The system SHALL do something new.
 
 #### Scenario: Basic case
 - **WHEN** user does X

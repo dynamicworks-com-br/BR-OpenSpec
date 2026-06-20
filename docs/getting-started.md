@@ -9,7 +9,7 @@ BR-OpenSpec helps you and your AI coding assistant agree on what to build before
 **Default quick path (core profile):**
 
 ```text
-/opsx:propose ──► /opsx:apply ──► /opsx:archive
+/opsx:propose ──► /opsx:apply ──► /opsx:sync ──► /opsx:archive
 ```
 
 **Expanded path (custom workflow selection):**
@@ -18,7 +18,7 @@ BR-OpenSpec helps you and your AI coding assistant agree on what to build before
 /opsx:new ──► /opsx:ff or /opsx:continue ──► /opsx:apply ──► /opsx:verify ──► /opsx:archive
 ```
 
-The default global profile is `core`, which includes `propose`, `explore`, `apply`, and `archive`. You can enable the expanded workflow commands with `openspec config profile` and then `openspec update`.
+The default global profile is `core`, which includes `propose`, `explore`, `apply`, `sync`, and `archive`. You can enable the expanded workflow commands with `openspec config profile` and then `openspec update`.
 
 ## What BR-OpenSpec Creates
 

@@ -1,0 +1,24 @@
+{
+  "$comment": "Marcador do ponto de sincronização do fork BR-OpenSpec com o upstream. Atualizado pelo comando /sync:upstream. lastSyncedCommit é o ponto de PARTIDA da próxima sincronização (git log <lastSyncedCommit>..upstream/main).",
+  "upstreamRepo": "Fission-AI/OpenSpec",
+  "upstreamRemote": "upstream",
+  "upstreamBranch": "main",
+  "lastSyncedCommit": "1b06fddd59d8e592d5b5794a1970b22867e85b1f",
+  "lastSyncedVersion": "v1.4.1",
+  "lastSyncedDate": "2026-06-19",
+  "deferred": [
+    "Subsistema workspace beta (src/core/workspace, src/core/context-store, src/core/planning-home, src/commands/workspace, initiative) — ver §9 de PLANO-sync-upstream-20260619.md"
+  ],
+  "history": [
+    {
+      "date": "2026-06-19",
+      "fromCommit": "3c7a05c5dc88b2397c478805890b55ed392b19e8",
+      "toCommit": "1b06fddd59d8e592d5b5794a1970b22867e85b1f",
+      "toVersion": "v1.4.1",
+      "branch": "sync/upstream_20260619",
+      "tag": "synced/upstream-v1.4.1",
+      "scope": "Bloco A (código estável: correções, Mistral Vibe, /opsx:sync no core, docs). Subsistema workspace beta adiado.",
+      "plan": "PLANO-sync-upstream-20260619.md"
+    }
+  ]
+}

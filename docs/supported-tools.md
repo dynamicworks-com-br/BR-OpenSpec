@@ -13,9 +13,10 @@ By default, BR-OpenSpec uses the `core` profile, which includes:
 - `propose`
 - `explore`
 - `apply`
+- `sync`
 - `archive`
 
-You can enable expanded workflows (`new`, `continue`, `ff`, `verify`, `code-review`, `sync`, `bulk-archive`, `onboard`) via `openspec config profile`, then run `openspec update`.
+You can enable expanded workflows (`new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`) via `openspec config profile`, then run `openspec update`.
 
 ## Tool Directory Reference
 
@@ -40,8 +41,10 @@ You can enable expanded workflows (`new`, `continue`, `ff`, `verify`, `code-revi
 | iFlow (`iflow`) | `.iflow/skills/openspec-*/SKILL.md` | `.iflow/commands/opsx-<id>.md` |
 | Junie (`junie`) | `.junie/skills/openspec-*/SKILL.md` | `.junie/commands/opsx-<id>.md` |
 | Kilo Code (`kilocode`) | `.kilocode/skills/openspec-*/SKILL.md` | `.kilocode/workflows/opsx-<id>.md` |
-| Kimi Code CLI (`kimi`) | `.kimi/skills/openspec-*/SKILL.md` | Not generated (use skill-based `/skill:openspec-*` or `/flow:openspec-*` invocations) |
+| Kimi CLI (`kimi`) | `.kimi/skills/openspec-*/SKILL.md` | Not generated (no command adapter; use skill-based `/skill:openspec-*` invocations) |
 | Kiro (`kiro`) | `.kiro/skills/openspec-*/SKILL.md` | `.kiro/prompts/opsx-<id>.prompt.md` |
+| Lingma (`lingma`) | `.lingma/skills/openspec-*/SKILL.md` | `.lingma/commands/opsx/<id>.md` |
+| Mistral Vibe (`vibe`) | `.vibe/skills/openspec-*/SKILL.md` | Not generated (no command adapter; use skill-based `/openspec-*` invocations) |
 | OpenCode (`opencode`) | `.opencode/skills/openspec-*/SKILL.md` | `.opencode/commands/opsx-<id>.md` |
 | Pi (`pi`) | `.pi/skills/openspec-*/SKILL.md` | `.pi/prompts/opsx-<id>.md` |
 | Qoder (`qoder`) | `.qoder/skills/openspec-*/SKILL.md` | `.qoder/commands/opsx/<id>.md` |
@@ -72,13 +75,13 @@ openspec init --tools none
 openspec init --profile core
 ```
 
-**Available tool IDs (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `windsurf`
+**Available tool IDs (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
 
 ## Workflow-Dependent Installation
 
 BR-OpenSpec installs workflow artifacts based on selected workflows:
 
-- **Core profile (default):** `propose`, `explore`, `apply`, `archive`
+- **Core profile (default):** `propose`, `explore`, `apply`, `sync`, `archive`
 - **Custom selection:** any subset of all workflow IDs:
   `propose`, `explore`, `new`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`, `code-review`, `onboard`
 

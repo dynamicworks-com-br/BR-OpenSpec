@@ -1,23 +1,23 @@
 ## Why
 
-<!-- Explain the motivation for this change. What problem does this solve? Why now? -->
+<!-- Explique a motivação desta mudança. Qual problema ela resolve? Por que agora? -->
 
 ## What Changes
 
-<!-- Describe what will change. Be specific about new capabilities, modifications, or removals. -->
+<!-- Descreva o que vai mudar. Seja específico sobre novas capacidades, modificações ou remoções. -->
 
 ## Capabilities
 
 ### New Capabilities
-<!-- Capabilities being introduced. Replace <name> with kebab-case identifier (e.g., user-auth, data-export, api-rate-limiting). Each creates specs/<name>/spec.md -->
-- `<name>`: <brief description of what this capability covers>
+<!-- Capacidades sendo introduzidas. Substitua <name> por um identificador kebab-case (ex.: user-auth, data-export, api-rate-limiting). Cada uma cria specs/<name>/spec.md -->
+- `<name>`: <descrição breve do que esta capacidade abrange>
 
 ### Modified Capabilities
-<!-- Existing capabilities whose REQUIREMENTS are changing (not just implementation).
-     Only list here if spec-level behavior changes. Each needs a delta spec file.
-     Use existing spec names from openspec/specs/. Leave empty if no requirement changes. -->
-- `<existing-name>`: <what requirement is changing>
+<!-- Capacidades existentes cujos REQUIREMENTS estão mudando (não apenas a implementação).
+     Liste aqui somente se o comportamento em nível de spec mudar. Cada uma precisa de um arquivo de spec delta.
+     Use nomes de spec existentes de openspec/specs/. Deixe vazio se nenhum requisito mudar. -->
+- `<existing-name>`: <qual requisito está mudando>
 
 ## Impact
 
-<!-- Affected code, APIs, dependencies, systems -->
+<!-- Código, APIs, dependências e sistemas afetados -->

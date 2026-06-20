@@ -1,4 +1,4 @@
-# @fission-ai/openspec
+# @dynamicworks/br-openspec
 
 ## 2.0.1
 

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-BR-OpenSpec is an AI-native system for spec-driven development. It is a Node.js CLI tool (published as `@fkmatsuda/br-openspec` on npm) that helps teams align on what to build before writing code. Each change gets its own folder with a proposal, specs, design, and tasks. BR-OpenSpec generates AI assistant integrations (skills, slash commands, and config files) for 25+ tools including Claude Code, Cursor, GitHub Copilot, Gemini CLI, Codex, and many others.
+BR-OpenSpec is an AI-native system for spec-driven development. It is a Node.js CLI tool (published as `@dynamicworks/br-openspec` on npm) that helps teams align on what to build before writing code. Each change gets its own folder with a proposal, specs, design, and tasks. BR-OpenSpec generates AI assistant integrations (skills, slash commands, and config files) for 25+ tools including Claude Code, Cursor, GitHub Copilot, Gemini CLI, Codex, and many others.
 
 The project uses its own spec-driven workflow. You will find active changes under `openspec/changes/` and archived changes under `openspec/changes/archive/`. The project's own specs live in `openspec/specs/`.
 
@@ -141,9 +141,9 @@ docs/            # Markdown documentation (English + pt-BR)
 
 ## Deployment & Distribution
 
-- **npm**: Published as `@fkmatsuda/br-openspec`
+- **npm**: Published as `@dynamicworks/br-openspec`
 - **Nix**: `flake.nix` provides packages, apps, and dev shells for `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, `aarch64-darwin`
-- **Global install**: `npm install -g @fkmatsuda/br-openspec@latest`
+- **Global install**: `npm install -g @dynamicworks/br-openspec@latest`
 - **Entry points**:
   - CLI: `bin/openspec.js` → `dist/cli/index.js`
   - Library: `dist/index.js` / `dist/index.d.ts`
@@ -254,4 +254,17 @@ An upstream sync workflow template is available at `src/core/templates/workflows
 
 ### Key Principle
 
-**Never leave English user-facing strings in `src/` after a sync.** All messages displayed to Brazilian users must be in `pt-BR`, centralized in `src/messages/index.ts`, and tested.
+**Never leave English user-facing strings in `src/` after a sync.** All messages displayed to Brazilian users must be in `pt-BR`, centralized in `src/messages/index.ts`, and tested — **except for the reserved terms below**.
+
+### Reserved English Terms (Never Translate)
+
+BR-OpenSpec is PT-BR first, but the spec/change format is a protocol parsed by the tooling (`src/core/parsers/`, `src/core/validation/`). The structural markers and normative keywords are part of that protocol and MUST stay in English, in UPPERCASE, even inside Portuguese prose or examples. Only descriptive content (names, descriptions, narrative) is translated.
+
+- **RFC 2119 keywords:** `MUST`, `MUST NOT`, `REQUIRED`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `RECOMMENDED`, `MAY`, `OPTIONAL`.
+- **Delta/spec section headers:** `## ADDED Requirements`, `## MODIFIED Requirements`, `## REMOVED Requirements`, `## RENAMED Requirements`, `## Requirements`, `### Requirement:`, `#### Scenario:`.
+- **Scenario clauses (Gherkin):** `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`.
+- **RENAMED helpers:** `FROM`, `TO`.
+- **Change-document section headers parsed/validated by the tooling:** `## Why`, `## What Changes` (the parser extracts them by name via `findSection` and the validator requires them).
+- **Artifact-scaffold section headings** (in `schemas/<schema>/templates/*.md` and the section names in `schema.yaml`): the heading *structure* of proposal/design/spec/tasks (e.g., `## Capabilities`, `### New/Modified Capabilities`, `## Impact`, `## Context`, `## Goals / Non-Goals`, `## Decisions`, task-group numbering) stays in English. Since `## Why`/`## What Changes` are protocol-locked, keeping the sibling headings English too avoids mixed-language documents and keeps the structure aligned with upstream. Only the **guidance** under them (HTML comments and descriptive prose) is translated to pt-BR. (This applies to artifact scaffolds — ordinary documentation headings in `docs/` and `README` ARE translated.)
+
+**Rule of thumb:** any UPPERCASE word that expresses a normative rule, a delta operation (ADD/REMOVE/RENAME), or a scenario clause — and any section heading the tooling parses or validates — stays in English. Translating these breaks `openspec validate` and spec/change parsing. Everything else that the Brazilian developer reads or writes (CLI strings, workflow-template prose, and the guidance/comments in `schemas/<schema>/schema.yaml` and `schemas/<schema>/templates/*.md`) IS translated to pt-BR. The same reserved-terms note is duplicated at the top of `src/messages/index.ts`.

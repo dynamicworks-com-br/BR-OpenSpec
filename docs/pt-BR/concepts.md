@@ -7,10 +7,10 @@ Este guia explica as ideias centrais do BR-OpenSpec e como elas se encaixam. Par
 O BR-OpenSpec é construído em torno de quatro princípios:
 
 ```
-fluid not rigid         — no phase gates, work on what makes sense
-iterative not waterfall — learn as you build, refine as you go
-easy not complex        — lightweight setup, minimal ceremony
-brownfield-first        — works with existing codebases, not just greenfield
+fluido não rígido       — sem fases obrigatórias, trabalhe no que fizer sentido
+iterativo não waterfall — aprenda enquanto constrói, refine conforme avança
+fácil não complexo      — configuração leve, cerimônia mínima
+brownfield-first        — funciona com bases de código existentes, não só projetos do zero
 ```
 
 ### Por Que Esses Princípios Importam
@@ -35,7 +35,7 @@ O BR-OpenSpec organiza seu trabalho em duas áreas principais:
 │   │       specs/        │      │         changes/              │   │
 │   │                     │      │                               │   │
 │   │  Fonte de verdade   │◄─────│  Modificações propostas       │   │
-│   │  Como seu sistema   │ merge│  Cada mudança = uma pasta     │   │
+│   │  Como seu sistema   │mescla│  Cada mudança = uma pasta     │   │
 │   │  funciona agora     │      │  Contém artefatos + deltas    │   │
 │   │                     │      │                               │   │
 │   └─────────────────────┘      └───────────────────────────────┘   │
@@ -58,13 +58,13 @@ As specs descrevem o comportamento do seu sistema usando requisitos e cenários 
 ```
 openspec/specs/
 ├── auth/
-│   └── spec.md           # Authentication behavior
+│   └── spec.md           # Comportamento de autenticação
 ├── payments/
-│   └── spec.md           # Payment processing
+│   └── spec.md           # Processamento de pagamentos
 ├── notifications/
-│   └── spec.md           # Notification system
+│   └── spec.md           # Sistema de notificações
 └── ui/
-    └── spec.md           # UI behavior and themes
+    └── spec.md           # Comportamento e temas da UI
 ```
 
 Organize as specs por domínio — agrupamentos lógicos que fazem sentido para o seu sistema. Padrões comuns:
@@ -81,7 +81,7 @@ Uma spec contém requisitos, e cada requisito possui cenários:
 # Auth Specification
 
 ## Purpose
-Authentication and session management for the application.
+Autenticação e gerenciamento de sessão da aplicação.
 
 ## Requirements
 
@@ -187,13 +187,13 @@ Uma mudança é uma modificação proposta ao seu sistema, empacotada como uma p
 
 ```
 openspec/changes/add-dark-mode/
-├── proposal.md           # Why and what
-├── design.md             # How (technical approach)
-├── tasks.md              # Implementation checklist
-├── .openspec.yaml        # Change metadata (optional)
+├── proposal.md           # Por que e o quê
+├── design.md             # Como (abordagem técnica)
+├── tasks.md              # Checklist de implementação
+├── .openspec.yaml        # Metadados da mudança (opcional)
 └── specs/                # Delta specs
     └── ui/
-        └── spec.md       # What's changing in ui/spec.md
+        └── spec.md       # O que está mudando em ui/spec.md
 ```
 
 Cada mudança é autocontida. Ela possui:
@@ -416,19 +416,19 @@ name: spec-driven
 artifacts:
   - id: proposal
     generates: proposal.md
-    requires: []              # No dependencies, can create first
+    requires: []              # Sem dependências, pode criar primeiro
 
   - id: specs
     generates: specs/**/*.md
-    requires: [proposal]      # Needs proposal before creating
+    requires: [proposal]      # Precisa da proposta antes de criar
 
   - id: design
     generates: design.md
-    requires: [proposal]      # Can create in parallel with specs
+    requires: [proposal]      # Pode criar em paralelo com specs
 
   - id: tasks
     generates: tasks.md
-    requires: [specs, design] # Needs both specs and design first
+    requires: [specs, design] # Precisa de specs e design primeiro
 ```
 
 **Os artefatos formam um grafo de dependências:**
@@ -471,10 +471,10 @@ Ideal para: A maioria dos trabalhos de funcionalidade em que você quer concorda
 Crie schemas personalizados para o fluxo de trabalho da sua equipe:
 
 ```bash
-# Create from scratch
+# Criar do zero
 openspec schema init research-first
 
-# Or fork an existing one
+# Ou bifurcar um existente
 openspec schema fork spec-driven research-first
 ```
 
@@ -486,15 +486,15 @@ name: research-first
 artifacts:
   - id: research
     generates: research.md
-    requires: []           # Do research first
+    requires: []           # Faça a pesquisa primeiro
 
   - id: proposal
     generates: proposal.md
-    requires: [research]   # Proposal informed by research
+    requires: [research]   # Proposta embasada pela pesquisa
 
   - id: tasks
     generates: tasks.md
-    requires: [proposal]   # Skip specs/design, go straight to tasks
+    requires: [proposal]   # Pule specs/design, vá direto para tarefas
 ```
 
 Consulte [Personalização](customization.md) para detalhes completos sobre como criar e usar schemas personalizados.
@@ -515,7 +515,7 @@ openspec/
 └── changes/                         │
     └── add-2fa/                     │
         ├── proposal.md              │
-        ├── design.md                │ merge
+        ├── design.md                │ mescla
         ├── tasks.md                 │
         └── specs/                   │
             └── auth/                │
@@ -562,15 +562,15 @@ openspec/
 │                           FLUXO DO OPENSPEC                                  │
 │                                                                              │
 │   ┌────────────────┐                                                         │
-│   │  1. INICIAR    │  /opsx:propose (core) or /opsx:new (expanded)           │
+│   │  1. INICIAR    │  /opsx:propose (núcleo) ou /opsx:new (expandido)        │
 │   │     MUDANÇA    │                                                         │
 │   └───────┬────────┘                                                         │
 │           │                                                                  │
 │           ▼                                                                  │
 │   ┌────────────────┐                                                         │
-│   │  2. CRIAR      │  /opsx:ff or /opsx:continue (expanded workflow)         │
-│   │     ARTEFATOS  │  Creates proposal → specs → design → tasks              │
-│   │                │  (based on schema dependencies)                         │
+│   │  2. CRIAR      │  /opsx:ff ou /opsx:continue (fluxo expandido)           │
+│   │     ARTEFATOS  │  Cria proposta → specs → design → tarefas               │
+│   │                │  (com base nas dependências do schema)                  │
 │   └───────┬────────┘                                                         │
 │           │                                                                  │
 │           ▼                                                                  │
@@ -582,7 +582,7 @@ openspec/
 │           │                                                                  │
 │           ▼                                                                  │
 │   ┌────────────────┐                                                         │
-│   │  4. VERIFICAR  │  /opsx:verify (optional)                                │
+│   │  4. VERIFICAR  │  /opsx:verify (opcional)                                │
 │   │     TRABALHO   │  Verifique se a implementação corresponde às specs      │
 │   └───────┬────────┘                                                         │
 │           │                                                                  │

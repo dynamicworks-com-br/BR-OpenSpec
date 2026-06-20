@@ -3,6 +3,28 @@
  *
  * Este módulo reúne todas as mensagens exibidas ao usuário para facilitar
  * manutenção, revisão e consistência linguística.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ TERMOS RESERVADOS — NÃO TRADUZIR
+ * ─────────────────────────────────────────────────────────────────────────
+ * O BR-OpenSpec é PT-BR first, mas o FORMATO de spec é um protocolo lido pelo
+ * parser e pelo validador. Os marcadores estruturais e as palavras-chave
+ * normativas DEVEM permanecer em inglês e em CAIXA ALTA. Só o conteúdo
+ * descritivo (nomes, descrições, prosa) é escrito em português.
+ *
+ * - Palavras-chave normativas (RFC 2119): MUST, MUST NOT, REQUIRED, SHALL,
+ *   SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, OPTIONAL.
+ * - Cabeçalhos de delta/spec: "## ADDED Requirements", "## MODIFIED Requirements",
+ *   "## REMOVED Requirements", "## RENAMED Requirements", "## Requirements",
+ *   "### Requirement:", "#### Scenario:".
+ * - Cláusulas de cenário (Gherkin): WHEN, THEN, AND, GIVEN, ELSE.
+ * - Auxiliares de RENAMED: FROM, TO.
+ *
+ * Regra geral: qualquer palavra em CAIXA ALTA que represente uma regra, uma
+ * operação de delta (ADD/REMOVE/RENAME) ou uma cláusula de cenário fica em
+ * inglês. Traduzir esses termos quebra o parsing/validação dos specs.
+ * Ver também AGENTS.md ("Termos reservados em inglês").
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -862,6 +884,8 @@ export const UPDATE_MESSAGES = {
   it: 'ela',
   them: 'elas',
   extraWorkflowsNote: (count: number) => `Nota: ${count} fluxos de trabalho extras não estão no perfil (use \`openspec config profile\` para gerenciar)`,
+  oldCoreProfileSyncNote: 'Nota: o perfil core agora inclui o fluxo de trabalho sync. Seu perfil personalizado está mantendo o conjunto antigo de fluxos de trabalho do core.',
+  oldCoreProfileSyncHint: 'Execute `openspec config profile core` e depois `openspec update` para adicionar o sync.',
   cleaningLegacy: 'Limpando arquivos legados...',
   legacyCleaned: 'Arquivos legados limpos',
   forceLegacyHint: '⚠ Execute com --force para limpar automaticamente arquivos legados, ou execute de forma interativa.',
@@ -910,11 +934,21 @@ export const VALIDATOR_MESSAGES = {
   unknownError: 'Erro desconhecido',
   duplicateRequirementAdded: (name: string) => `Requisito duplicado em ADDED: "${name}"`,
   missingRequirementTextAdded: (name: string) => `ADDED "${name}" está sem texto de requisito`,
-  missingShallOrMustAdded: (name: string) => `ADDED "${name}" deve conter SHALL ou MUST`,
+  missingShallOrMustAdded: (name: string, keywordInHeader = false) => {
+    const base = `ADDED "${name}" deve conter SHALL ou MUST`;
+    return keywordInHeader
+      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
+      : base;
+  },
   missingScenarioAdded: (name: string) => `ADDED "${name}" deve incluir pelo menos um cenário`,
   duplicateRequirementModified: (name: string) => `Requisito duplicado em MODIFIED: "${name}"`,
   missingRequirementTextModified: (name: string) => `MODIFIED "${name}" está sem texto de requisito`,
-  missingShallOrMustModified: (name: string) => `MODIFIED "${name}" deve conter SHALL ou MUST`,
+  missingShallOrMustModified: (name: string, keywordInHeader = false) => {
+    const base = `MODIFIED "${name}" deve conter SHALL ou MUST`;
+    return keywordInHeader
+      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
+      : base;
+  },
   missingScenarioModified: (name: string) => `MODIFIED "${name}" deve incluir pelo menos um cenário`,
   duplicateRequirementRemoved: (name: string) => `Requisito duplicado em REMOVED: "${name}"`,
   duplicateFromRenamed: (name: string) => `FROM duplicado em RENAMED: "${name}"`,
@@ -1405,11 +1439,11 @@ Aqui está um rascunho de proposal:
 
 ---
 
-## Por Que
+## Why
 
 [1-2 frases explicando o problema/oportunidade]
 
-## O Que Muda
+## What Changes
 
 [Bullet points do que será diferente]
 
@@ -1473,21 +1507,21 @@ Aqui está o spec:
 
 ---
 
-## Requisitos ADICIONADOS
+## ADDED Requirements
 
-### Requisito: <Nome>
+### Requirement: <Nome>
 
-<Descrição do que o sistema deve fazer>
+O sistema SHALL <descrição do que o sistema deve fazer>
 
-#### Cenário: <Nome do cenário>
+#### Scenario: <Nome do cenário>
 
-- **QUANDO** <condição de gatilho>
-- **ENTÃO** <resultado esperado>
-- **E** <resultado adicional se necessário>
+- **WHEN** <condição de gatilho>
+- **THEN** <resultado esperado>
+- **AND** <resultado adicional se necessário>
 
 ---
 
-Este formato - QUANDO/ENTÃO/E - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste.
+Este formato - WHEN/THEN/AND - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste. Os marcadores estruturais (ADDED Requirements, Requirement, Scenario) e as palavras-chave (WHEN/THEN/AND, SHALL/MUST) ficam SEMPRE em inglês — é o protocolo que o parser e o validador reconhecem. Apenas o conteúdo descritivo é escrito em português.
 \`\`\`
 
 Salve em \`openspec/changes/<nome>/specs/<capability>/spec.md\`.

@@ -489,7 +489,7 @@ apply:
       });
       expect(result.exitCode).toBe(0);
       // Should show the instruction from spec-driven schema apply block
-      expect(result.stdout).toContain('work through pending tasks');
+      expect(result.stdout).toContain('execute as tarefas pendentes');
     });
 
     it('shows all_done state when all tasks are complete', async () => {

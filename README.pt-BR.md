@@ -97,7 +97,7 @@ openspec init
 
 Agora diga à sua IA: `/opsx:propose <o-que-você-quer-construir>`
 
-Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:sync`, `/opsx:bulk-archive`, `/opsx:onboard`), selecione-o com `openspec config profile` e aplique com `openspec update`.
+Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:bulk-archive`, `/opsx:onboard`), selecione-o com `openspec config profile` e aplique com `openspec update`.
 
 > [!NOTE]
 > Não tem certeza se sua ferramenta é suportada? [Veja a lista completa](docs/pt-BR/supported-tools.md) – suportamos mais de 25 ferramentas e crescendo.
@@ -114,6 +114,13 @@ Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/
 → **[Conceitos](docs/pt-BR/concepts.md)**: como tudo se encaixa<br>
 → **[Multi-Idioma](docs/pt-BR/multi-language.md)**: suporte a múltiplos idiomas<br>
 → **[Personalização](docs/pt-BR/customization.md)**: faça do seu jeito
+
+
+## Schemas da comunidade
+
+Bundles de schema de terceiros distribuídos em repositórios independentes — oferecem fluxos de trabalho opinativos que integram o BR-OpenSpec a outras ferramentas, de forma semelhante a como o [catálogo de extensões da comunidade do github/spec-kit](https://github.com/github/spec-kit/tree/main/extensions) trata integrações de ferramentas.
+
+→ **[Veja o catálogo](docs/pt-BR/customization.md#schemas-da-comunidade)** na documentação de personalização.
 
 
 ## Por que o BR-OpenSpec?
@@ -163,9 +170,11 @@ openspec tools --remove windsurf
 
 ## Notas de Uso
 
-**Seleção de modelo**: O BR-OpenSpec funciona melhor com modelos de alto raciocínio. Recomendamos Opus 4.5 e GPT 5.2 tanto para planejamento quanto para implementação.
+**Seleção de modelo**: O BR-OpenSpec funciona melhor com modelos de alto raciocínio. Recomendamos Codex 5.5 e Opus 4.8 tanto para planejamento quanto para implementação.
 
 **Higiene de contexto**: O BR-OpenSpec se beneficia de uma janela de contexto limpa. Limpe seu contexto antes de iniciar a implementação e mantenha uma boa higiene de contexto ao longo da sua sessão.
+
+**Palavras-chave do formato de spec ficam em inglês**: O BR-OpenSpec é PT-BR first, mas o formato de spec é um protocolo lido pelas ferramentas. Os marcadores estruturais (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) e as palavras-chave normativas/de cenário (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — além de `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) são sempre escritas em inglês e em CAIXA ALTA; apenas o texto descritivo fica em português. Traduzir essas palavras-chave quebra o `openspec validate`. Veja a lista completa em [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
 
 ## Contribuindo
 
