@@ -289,6 +289,9 @@ jobs:
         env:
           CHANGESET_FILES: ${{ steps.changed-changesets.outputs.files }}
         run: |
+          # CHANGESET_FILES is echoed for visibility/debugging only; it is not
+          # consumed by the validation. `changeset status` detects changesets
+          # independently via its own `--since=origin/main` flag.
           echo "Validating changed changesets:"
           printf '%s\n' "$CHANGESET_FILES"
           pnpm exec changeset status --since=origin/main
