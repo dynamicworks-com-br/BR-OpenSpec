@@ -243,7 +243,7 @@ IA:   Verificando add-auth...
       COMPLETUDE
       ✓ Todas as 12 tarefas em tasks.md estão marcadas
       ✓ Todos os requisitos nas specs têm código correspondente
-      ⚠ Cenário "Session timeout after inactivity" não está testado
+      ⚠ Cenário "Tempo de sessão esgotado por inatividade" não está testado
 
       CORREÇÃO
       ✓ A implementação corresponde à intenção da spec

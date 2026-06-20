@@ -10,8 +10,8 @@ Adicione uma instrução de idioma ao seu `openspec/config.yaml`:
 schema: spec-driven
 
 context: |
-  Language: Portuguese (pt-BR)
-  All artifacts must be written in Brazilian Portuguese.
+  Idioma: Português (pt-BR)
+  Todos os artefatos devem ser escritos em português do Brasil.
 
   # Seu outro contexto de projeto abaixo...
   Tech stack: TypeScript, React, Node.js
@@ -25,8 +25,8 @@ Pronto. Todos os artefatos gerados agora estarão em português.
 
 ```yaml
 context: |
-  Language: Portuguese (pt-BR)
-  All artifacts must be written in Brazilian Portuguese.
+  Idioma: Português (pt-BR)
+  Todos os artefatos devem ser escritos em português do Brasil.
 ```
 
 ### Espanhol
@@ -77,10 +77,10 @@ Decida como tratar a terminologia técnica:
 
 ```yaml
 context: |
-  Language: Japanese
-  Write in Japanese, but:
-  - Keep technical terms like "API", "REST", "GraphQL" in English
-  - Code examples and file paths remain in English
+  Idioma: Japonês
+  Escreva em japonês, mas:
+  - Mantenha termos técnicos como "API", "REST", "GraphQL" em inglês
+  - Exemplos de código e caminhos de arquivo permanecem em inglês
 ```
 
 ### Combinar com Outro Contexto
@@ -91,8 +91,8 @@ As configurações de idioma funcionam junto com o restante do contexto do seu p
 schema: spec-driven
 
 context: |
-  Language: Portuguese (pt-BR)
-  All artifacts must be written in Brazilian Portuguese.
+  Idioma: Português (pt-BR)
+  Todos os artefatos devem ser escritos em português do Brasil.
 
   Tech stack: TypeScript, React 18, Node.js 20
   Database: PostgreSQL with Prisma ORM

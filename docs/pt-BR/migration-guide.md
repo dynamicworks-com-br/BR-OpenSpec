@@ -98,34 +98,34 @@ openspec init
 O comando init detecta arquivos legados e guia você pelo processo de limpeza:
 
 ```
-Upgrading to the new BR-OpenSpec
+Atualizando para o novo BR-OpenSpec
 
-BR-OpenSpec now uses agent skills, the emerging standard across coding
-agents. This simplifies your setup while keeping everything working
-as before.
+O BR-OpenSpec agora usa agent skills, o padrão emergente entre os
+agentes de codificação. Isso simplifica sua configuração mantendo
+tudo funcionando como antes.
 
-Files to remove
-No user content to preserve:
+Arquivos a remover
+Nenhum conteúdo de usuário a preservar:
   • .claude/commands/openspec/
   • openspec/AGENTS.md
 
-Files to update
-BR-OpenSpec markers will be removed, your content preserved:
+Arquivos a atualizar
+Os marcadores do BR-OpenSpec serão removidos, seu conteúdo preservado:
   • CLAUDE.md
   • AGENTS.md
 
-Needs your attention
+Precisa da sua atenção
   • openspec/project.md
-    We won't delete this file. It may contain useful project context.
+    Não vamos excluir este arquivo. Ele pode conter contexto útil do projeto.
 
-    The new openspec/config.yaml has a "context:" section for planning
-    context. This is included in every BR-OpenSpec request and works more
-    reliably than the old project.md approach.
+    O novo openspec/config.yaml tem uma seção "context:" para contexto de
+    planejamento. Ele é incluído em cada requisição do BR-OpenSpec e funciona
+    de forma mais confiável que a antiga abordagem do project.md.
 
-    Review project.md, move any useful content to config.yaml's context
-    section, then delete the file when ready.
+    Revise o project.md, mova qualquer conteúdo útil para a seção context do
+    config.yaml e depois exclua o arquivo quando estiver pronto.
 
-? Upgrade and clean up legacy files? (Y/n)
+? Atualizar e limpar os arquivos legados? (Y/n)
 ```
 
 **O que acontece quando você diz sim:**
@@ -165,17 +165,17 @@ O antigo `openspec/project.md` era um arquivo markdown de formato livre para con
 ### Antes (project.md)
 
 ```markdown
-# Project Context
+# Contexto do Projeto
 
-This is a TypeScript monorepo using React and Node.js.
-We use Jest for testing and follow strict ESLint rules.
-Our API is RESTful and documented in docs/api.md.
+Este é um monorepo TypeScript usando React e Node.js.
+Usamos Jest para testes e seguimos regras estritas do ESLint.
+Nossa API é RESTful e documentada em docs/api.md.
 
-## Conventions
+## Convenções
 
-- All public APIs must maintain backwards compatibility
-- New features should include tests
-- Use Given/When/Then format for specifications
+- Todas as APIs públicas devem manter compatibilidade retroativa
+- Novas funcionalidades devem incluir testes
+- Use o formato Given/When/Then para especificações
 ```
 
 ### Depois (config.yaml)
@@ -185,18 +185,18 @@ schema: spec-driven
 
 context: |
   Tech stack: TypeScript, React, Node.js
-  Testing: Jest with React Testing Library
-  API: RESTful, documented in docs/api.md
-  We maintain backwards compatibility for all public APIs
+  Testes: Jest com React Testing Library
+  API: RESTful, documentada em docs/api.md
+  Mantemos compatibilidade retroativa para todas as APIs públicas
 
 rules:
   proposal:
-    - Include rollback plan for risky changes
+    - Inclua plano de rollback para mudanças arriscadas
   specs:
-    - Use Given/When/Then format for scenarios
-    - Reference existing patterns before inventing new ones
+    - Use o formato Given/When/Then para cenários
+    - Referencie padrões existentes antes de inventar novos
   design:
-    - Include sequence diagrams for complex flows
+    - Inclua diagramas de sequência para fluxos complexos
 ```
 
 ### Principais Diferenças
@@ -238,17 +238,17 @@ Ao migrar, seja seletivo. Pergunte a si mesmo: "A IA precisa disso para *cada* r
 2. **Adicione seu contexto** (seja conciso—isso vai em cada requisição):
    ```yaml
    context: |
-     Your project background goes here.
-     Focus on what the AI genuinely needs to know.
+     O panorama do seu projeto vai aqui.
+     Foque no que a IA genuinamente precisa saber.
    ```
 
 3. **Adicione regras por artefato** (opcional):
    ```yaml
    rules:
      proposal:
-       - Your proposal-specific guidance
+       - Sua orientação específica de proposal
      specs:
-       - Your spec-writing rules
+       - Suas regras de escrita de specs
    ```
 
 4. **Exclua o project.md** depois de ter movido tudo o que é útil.
@@ -338,24 +338,24 @@ O fluxo de trabalho legado forçava uma progressão linear:
 
 ```
 ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│   PLANNING   │ ───► │ IMPLEMENTING │ ───► │   ARCHIVING  │
-│    PHASE     │      │    PHASE     │      │    PHASE     │
+│ PLANEJAMENTO │ ───► │ IMPLEMENTAÇÃO│ ───► │  ARQUIVAMENTO│
+│     FASE     │      │     FASE     │      │     FASE     │
 └──────────────┘      └──────────────┘      └──────────────┘
 
-If you're in implementation and realize the design is wrong?
-Too bad. Phase gates don't let you go back easily.
+Está na implementação e percebe que o design está errado?
+Que pena. Os portões de fase não deixam você voltar facilmente.
 ```
 
 O OPSX usa ações, não fases:
 
 ```
          ┌───────────────────────────────────────────────┐
-         │           ACTIONS (not phases)                │
+         │           AÇÕES (não fases)                   │
          │                                               │
          │     new ◄──► continue ◄──► apply ◄──► archive │
          │      │          │           │             │   │
          │      └──────────┴───────────┴─────────────┘   │
-         │                    any order                  │
+         │                qualquer ordem                 │
          └───────────────────────────────────────────────┘
 ```
 
@@ -365,7 +365,7 @@ Os artefatos formam um grafo dirigido. As dependências são habilitadores, não
 
 ```
                         proposal
-                       (root node)
+                        (nó raiz)
                             │
               ┌─────────────┴─────────────┐
               │                           │
@@ -443,26 +443,26 @@ openspec status --change add-my-feature
 ### Estrutura do config.yaml
 
 ```yaml
-# Required: Default schema for new changes
+# Obrigatório: schema padrão para novas mudanças
 schema: spec-driven
 
-# Optional: Project context (max 50KB)
-# Injected into ALL artifact instructions
+# Opcional: contexto do projeto (máx. 50KB)
+# Injetado em TODAS as instruções de artefato
 context: |
-  Your project background, tech stack,
-  conventions, and constraints.
+  O panorama do seu projeto, tech stack,
+  convenções e restrições.
 
-# Optional: Per-artifact rules
-# Only injected into matching artifacts
+# Opcional: regras por artefato
+# Injetadas apenas nos artefatos correspondentes
 rules:
   proposal:
-    - Include rollback plan
+    - Inclua plano de rollback
   specs:
-    - Use Given/When/Then format
+    - Use o formato Given/When/Then
   design:
-    - Document fallback strategies
+    - Documente estratégias de fallback
   tasks:
-    - Break into 2-hour maximum chunks
+    - Divida em blocos de no máximo 2 horas
 ```
 
 ### Resolução de Schema
@@ -506,7 +506,7 @@ Consulte [Customização](customization.md) para detalhes.
 
 ## Solução de Problemas
 
-### "Legacy files detected in non-interactive mode"
+### "Arquivos legados detectados em modo não interativo" ("Legacy files detected in non-interactive mode")
 
 Você está executando em um ambiente CI ou não interativo. Use:
 
@@ -518,7 +518,7 @@ openspec init --force
 
 Reinicie sua IDE. As skills são detectadas na inicialização.
 
-### "Unknown artifact ID in rules"
+### "ID de artefato desconhecido em rules" ("Unknown artifact ID in rules")
 
 Verifique se as chaves de `rules:` correspondem aos IDs de artefatos do seu schema:
 

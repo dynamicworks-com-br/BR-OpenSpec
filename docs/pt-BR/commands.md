@@ -151,7 +151,7 @@ Este comando faz parte do conjunto de fluxo de trabalho expandido (não incluíd
 **O que cria:**
 ```
 openspec/changes/<change-name>/
-└── .openspec.yaml    # Change metadata (schema, created date)
+└── .openspec.yaml    # Metadados da mudança (schema, data de criação)
 ```
 
 **Exemplo:**
@@ -293,16 +293,16 @@ Você: /opsx:apply
 IA:   Implementando add-dark-mode...
 
       Lendo tasks.md:
-      - [ ] 1.1 Create ThemeContext
-      - [ ] 1.2 Add CSS custom properties
-      - [ ] 1.3 Implement localStorage persistence
+      - [ ] 1.1 Criar ThemeContext
+      - [ ] 1.2 Adicionar propriedades CSS personalizadas
+      - [ ] 1.3 Implementar persistência com localStorage
 
-      Trabalhando em 1.1: Create ThemeContext...
+      Trabalhando em 1.1: Criar ThemeContext...
       [Cria src/context/ThemeContext.tsx]
 
       ✓ 1.1 Concluído
 
-      Trabalhando em 1.2: Add CSS custom properties...
+      Trabalhando em 1.2: Adicionar propriedades CSS personalizadas...
       [Atualiza src/styles/globals.css]
 
       ✓ 1.2 Concluído
@@ -353,7 +353,7 @@ IA:   Verificando add-dark-mode...
       COMPLETUDE
       ✓ Todas as 8 tarefas em tasks.md estão marcadas
       ✓ Todos os requisitos nas specs têm código correspondente
-      ⚠ O cenário "System preference detection" não tem cobertura de testes
+      ⚠ O cenário "Detecção da preferência do sistema" não tem cobertura de testes
 
       CORREÇÃO
       ✓ A implementação corresponde à intenção da spec

@@ -77,7 +77,7 @@ openspec --version
 Após instalar, inicialize o BR-OpenSpec no seu projeto:
 
 ```bash
-cd your-project
+cd seu-projeto
 openspec init
 ```
 

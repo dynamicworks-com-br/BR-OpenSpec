@@ -194,9 +194,9 @@ openspec list --json
 **Saída (texto):**
 
 ```
-Active changes:
-  add-dark-mode     UI theme switching support
-  fix-login-bug     Session timeout handling
+Mudanças ativas:
+  add-dark-mode     Suporte a alternância de tema da UI
+  fix-login-bug     Tratamento de timeout de sessão
 ```
 
 ---
@@ -318,12 +318,12 @@ openspec validate --all --strict --concurrency 12
 **Saída (texto):**
 
 ```
-Validating add-dark-mode...
-  ✓ proposal.md valid
-  ✓ specs/ui/spec.md valid
-  ⚠ design.md: missing "Technical Approach" section
+Validando add-dark-mode...
+  ✓ proposal.md válido
+  ✓ specs/ui/spec.md válido
+  ⚠ design.md: seção "Technical Approach" ausente
 
-1 warning found
+1 aviso encontrado
 ```
 
 **Saída (JSON):**
@@ -336,7 +336,7 @@ Validating add-dark-mode...
       {
         "name": "add-dark-mode",
         "valid": true,
-        "warnings": ["design.md: missing 'Technical Approach' section"]
+        "warnings": ["design.md: seção 'Technical Approach' ausente"]
       }
     ]
   },
@@ -435,14 +435,14 @@ openspec status --change add-dark-mode --json
 **Saída (texto):**
 
 ```
-Change: add-dark-mode
+Mudança: add-dark-mode
 Schema: spec-driven
-Progress: 2/4 artifacts complete
+Progresso: 2/4 artefatos concluídos
 
 [x] proposal
 [ ] design
 [x] specs
-[-] tasks (blocked by: design)
+[-] tasks (bloqueado por: design)
 ```
 
 **Saída (JSON):**
@@ -578,15 +578,15 @@ openspec schemas
 **Saída:**
 
 ```
-Available schemas:
+Schemas disponíveis:
 
   spec-driven (package)
-    The default spec-driven development workflow
-    Flow: proposal → specs → design → tasks
+    O fluxo de trabalho padrão de desenvolvimento orientado a specs
+    Fluxo: proposal → specs → design → tasks
 
   my-custom (project)
-    Custom workflow for this project
-    Flow: research → proposal → tasks
+    Fluxo de trabalho personalizado para este projeto
+    Fluxo: research → proposal → tasks
 ```
 
 ---
@@ -628,7 +628,7 @@ openspec schema init research-first
 
 # Não interativo com artefatos específicos
 openspec schema init rapid \
-  --description "Rapid iteration workflow" \
+  --description "Fluxo de trabalho de iteração rápida" \
   --artifacts "proposal,tasks" \
   --default
 ```
@@ -742,8 +742,8 @@ openspec schema which spec-driven
 **Saída:**
 
 ```
-spec-driven resolves from: package
-  Source: /usr/local/lib/node_modules/@dynamicworks/br-openspec/schemas/spec-driven
+spec-driven resolvido a partir de: package
+  Origem: /usr/local/lib/node_modules/@dynamicworks/br-openspec/schemas/spec-driven
 ```
 
 **Precedência de schemas:**
@@ -793,7 +793,7 @@ openspec config get telemetry.enabled
 openspec config set telemetry.enabled false
 
 # Definir um valor de string explicitamente
-openspec config set user.name "My Name" --string
+openspec config set user.name "Meu Nome" --string
 
 # Remover uma configuração personalizada
 openspec config unset user.name
@@ -827,12 +827,12 @@ Na lista de verificação de fluxos de trabalho, `[x]` significa que o fluxo de 
 ```bash
 # Atualização apenas de entrega
 openspec config profile
-# escolha: Change delivery only
-# escolha a entrega: Skills only
+# escolha: Change delivery only (Alterar apenas a entrega)
+# escolha a entrega: Skills only (Apenas skills)
 
 # Atualização apenas de fluxos de trabalho
 openspec config profile
-# escolha: Change workflows only
+# escolha: Change workflows only (Alterar apenas os fluxos de trabalho)
 # alterne os fluxos de trabalho na lista de verificação e confirme
 ```
 
@@ -865,8 +865,8 @@ openspec feedback <message> [options]
 **Exemplo:**
 
 ```bash
-openspec feedback "Add support for custom artifact types" \
-  --body "I'd like to define my own artifact types beyond the built-in ones."
+openspec feedback "Adicionar suporte a tipos de artefato personalizados" \
+  --body "Gostaria de definir meus próprios tipos de artefato além dos embutidos."
 ```
 
 ---
