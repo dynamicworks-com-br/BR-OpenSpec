@@ -1,8 +1,8 @@
 ## ADDED Requirements
 
-### Requirement: <!-- requirement name -->
-<!-- requirement text -->
+### Requirement: <!-- nome do requisito -->
+<!-- texto do requisito -->
 
-#### Scenario: <!-- scenario name -->
-- **WHEN** <!-- condition -->
-- **THEN** <!-- expected outcome -->
+#### Scenario: <!-- nome do cenário -->
+- **WHEN** <!-- condição -->
+- **THEN** <!-- resultado esperado -->

@@ -1,9 +1,9 @@
-## 1. <!-- Task Group Name -->
+## 1. <!-- Nome do Grupo de Tarefas -->
 
-- [ ] 1.1 <!-- Task description -->
-- [ ] 1.2 <!-- Task description -->
+- [ ] 1.1 <!-- Descrição da tarefa -->
+- [ ] 1.2 <!-- Descrição da tarefa -->
 
-## 2. <!-- Task Group Name -->
+## 2. <!-- Nome do Grupo de Tarefas -->
 
-- [ ] 2.1 <!-- Task description -->
-- [ ] 2.2 <!-- Task description -->
+- [ ] 2.1 <!-- Descrição da tarefa -->
+- [ ] 2.2 <!-- Descrição da tarefa -->

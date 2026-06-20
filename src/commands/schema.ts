@@ -930,76 +930,76 @@ function createDefaultTemplate(artifactId: string): string {
     case 'proposal':
       return `## Why
 
-<!-- Describe the motivation for this change -->
+<!-- Descreva a motivação para esta mudança -->
 
 ## What Changes
 
-<!-- Describe what will change -->
+<!-- Descreva o que vai mudar -->
 
 ## Capabilities
 
 ### New Capabilities
-<!-- List new capabilities -->
+<!-- Liste as novas capabilities -->
 
 ### Modified Capabilities
-<!-- List modified capabilities -->
+<!-- Liste as capabilities modificadas -->
 
 ## Impact
 
-<!-- Describe the impact on existing functionality -->
+<!-- Descreva o impacto sobre a funcionalidade existente -->
 `;
 
     case 'specs':
       return `## ADDED Requirements
 
-### Requirement: Example requirement
+### Requirement: Requisito de exemplo
 
-Description of the requirement.
+Descrição do requisito.
 
-#### Scenario: Example scenario
-- **WHEN** some condition
-- **THEN** some outcome
+#### Scenario: Cenário de exemplo
+- **WHEN** alguma condição
+- **THEN** algum resultado
 `;
 
     case 'design':
       return `## Context
 
-<!-- Background and context -->
+<!-- Contexto e antecedentes -->
 
 ## Goals / Non-Goals
 
 **Goals:**
-<!-- List goals -->
+<!-- Liste os objetivos -->
 
 **Non-Goals:**
-<!-- List non-goals -->
+<!-- Liste os não-objetivos -->
 
 ## Decisions
 
-### 1. Decision Name
+### 1. Nome da Decisão
 
-Description and rationale.
+Descrição e justificativa.
 
 **Alternatives considered:**
-- Alternative 1: Rejected because...
+- Alternativa 1: Rejeitada porque...
 
 ## Risks / Trade-offs
 
-<!-- List risks and trade-offs -->
+<!-- Liste os riscos e trade-offs -->
 `;
 
     case 'tasks':
       return `## Implementation Tasks
 
-- [ ] Task 1
-- [ ] Task 2
-- [ ] Task 3
+- [ ] Tarefa 1
+- [ ] Tarefa 2
+- [ ] Tarefa 3
 `;
 
     default:
       return `## ${artifactId}
 
-<!-- Add content here -->
+<!-- Adicione o conteúdo aqui -->
 `;
   }
 }

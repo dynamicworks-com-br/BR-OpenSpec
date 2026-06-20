@@ -4,61 +4,61 @@ description: Fluxo de trabalho BR-OpenSpec padrão - proposta → specs → desi
 artifacts:
   - id: proposal
     generates: proposal.md
-    description: Initial proposal document outlining the change
+    description: Documento de proposta inicial que descreve a mudança
     template: proposal.md
     instruction: |
-      Create the proposal document that establishes WHY this change is needed.
+      Crie o documento de proposta que estabelece o WHY (por que) esta mudança é necessária.
 
-      Sections:
-      - **Why**: 1-2 sentences on the problem or opportunity. What problem does this solve? Why now?
-      - **What Changes**: Bullet list of changes. Be specific about new capabilities, modifications, or removals. Mark breaking changes with **BREAKING**.
-      - **Capabilities**: Identify which specs will be created or modified:
-        - **New Capabilities**: List capabilities being introduced. Each becomes a new `specs/<name>/spec.md`. Use kebab-case names (e.g., `user-auth`, `data-export`).
-        - **Modified Capabilities**: List existing capabilities whose REQUIREMENTS are changing. Only include if spec-level behavior changes (not just implementation details). Each needs a delta spec file. Check `openspec/specs/` for existing spec names. Leave empty if no requirement changes.
-      - **Impact**: Affected code, APIs, dependencies, or systems.
+      Seções:
+      - **Why**: 1-2 frases sobre o problema ou oportunidade. Qual problema isso resolve? Por que agora?
+      - **What Changes**: Lista de marcadores das mudanças. Seja específico sobre novas capabilities, modificações ou remoções. Marque mudanças incompatíveis com **BREAKING**.
+      - **Capabilities**: Identifique quais specs serão criadas ou modificadas:
+        - **New Capabilities**: Liste as capabilities sendo introduzidas. Cada uma vira um novo `specs/<name>/spec.md`. Use nomes em kebab-case (ex.: `user-auth`, `data-export`).
+        - **Modified Capabilities**: Liste as capabilities existentes cujos REQUIREMENTS estão mudando. Inclua apenas se o comportamento no nível da spec mudar (não apenas detalhes de implementação). Cada uma precisa de um arquivo de spec delta. Verifique `openspec/specs/` para os nomes de spec existentes. Deixe vazio se não houver mudança de requirement.
+      - **Impact**: Código, APIs, dependências ou sistemas afetados.
 
-      IMPORTANT: The Capabilities section is critical. It creates the contract between
-      proposal and specs phases. Research existing specs before filling this in.
-      Each capability listed here will need a corresponding spec file.
+      IMPORTANTE: A seção Capabilities é crítica. Ela cria o contrato entre
+      as fases de proposta e specs. Pesquise as specs existentes antes de preenchê-la.
+      Cada capability listada aqui precisará de um arquivo de spec correspondente.
 
-      Keep it concise (1-2 pages). Focus on the "why" not the "how" -
-      implementation details belong in design.md.
+      Mantenha conciso (1-2 páginas). Foque no "porquê", não no "como" -
+      detalhes de implementação pertencem ao design.md.
 
-      This is the foundation - specs, design, and tasks all build on this.
+      Esta é a fundação - specs, design e tarefas se baseiam nela.
     requires: []
 
   - id: specs
     generates: "specs/**/*.md"
-    description: Detailed specifications for the change
+    description: Especificações detalhadas da mudança
     template: spec.md
     instruction: |
-      Create specification files that define WHAT the system should do.
+      Crie arquivos de especificação que definam o WHAT (o que) o sistema deve fazer.
 
-      Create one spec file per capability listed in the proposal's Capabilities section.
-      - New capabilities: use the exact kebab-case name from the proposal (specs/<capability>/spec.md).
-      - Modified capabilities: use the existing spec folder name from openspec/specs/<capability>/ when creating the delta spec at specs/<capability>/spec.md.
+      Crie um arquivo de spec por capability listada na seção Capabilities da proposta.
+      - Novas capabilities: use o nome exato em kebab-case da proposta (specs/<capability>/spec.md).
+      - Capabilities modificadas: use o nome da pasta de spec existente em openspec/specs/<capability>/ ao criar a spec delta em specs/<capability>/spec.md.
 
-      Delta operations (use ## headers):
-      - **ADDED Requirements**: New capabilities
-      - **MODIFIED Requirements**: Changed behavior - MUST include full updated content
-      - **REMOVED Requirements**: Deprecated features - MUST include **Reason** and **Migration**
-      - **RENAMED Requirements**: Name changes only - use FROM:/TO: format
+      Operações de delta (use cabeçalhos ##):
+      - **ADDED Requirements**: Novas capabilities
+      - **MODIFIED Requirements**: Comportamento alterado - MUST incluir o conteúdo atualizado completo
+      - **REMOVED Requirements**: Recursos descontinuados - MUST incluir **Reason** e **Migration**
+      - **RENAMED Requirements**: Apenas mudanças de nome - use o formato FROM:/TO:
 
-      Format requirements:
-      - Each requirement: `### Requirement: <name>` followed by description
-      - Use SHALL/MUST for normative requirements (avoid should/may)
-      - Each scenario: `#### Scenario: <name>` with WHEN/THEN format
-      - **CRITICAL**: Scenarios MUST use exactly 4 hashtags (`####`). Using 3 hashtags or bullets will fail silently.
-      - Every requirement MUST have at least one scenario.
+      Requisitos de formato:
+      - Cada requirement: `### Requirement: <name>` seguido de descrição
+      - Use SHALL/MUST para requisitos normativos (evite should/may)
+      - Cada cenário: `#### Scenario: <name>` no formato WHEN/THEN
+      - **CRITICAL**: Os cenários MUST usar exatamente 4 cerquilhas (`####`). Usar 3 cerquilhas ou marcadores falha silenciosamente.
+      - Todo requirement MUST ter pelo menos um cenário.
 
-      MODIFIED requirements workflow:
-      1. Locate the existing requirement in openspec/specs/<capability>/spec.md
-      2. Copy the ENTIRE requirement block (from `### Requirement:` through all scenarios)
-      3. Paste under `## MODIFIED Requirements` and edit to reflect new behavior
-      4. Ensure header text matches exactly (whitespace-insensitive)
+      Fluxo de trabalho de requirements MODIFIED:
+      1. Localize o requirement existente em openspec/specs/<capability>/spec.md
+      2. Copie o bloco INTEIRO do requirement (de `### Requirement:` até todos os cenários)
+      3. Cole sob `## MODIFIED Requirements` e edite para refletir o novo comportamento
+      4. Garanta que o texto do cabeçalho corresponda exatamente (ignorando espaços em branco)
 
-      Common pitfall: Using MODIFIED with partial content loses detail at archive time.
-      If adding new concerns without changing existing behavior, use ADDED instead.
+      Armadilha comum: Usar MODIFIED com conteúdo parcial perde detalhe no momento do arquivamento.
+      Se estiver adicionando novas preocupações sem alterar o comportamento existente, use ADDED.
 
       Example:
       ```
@@ -78,53 +78,53 @@ artifacts:
       **Migration**: Use new export endpoint at /api/v2/export
       ```
 
-      Specs should be testable - each scenario is a potential test case.
+      As specs devem ser testáveis - cada cenário é um possível caso de teste.
     requires:
       - proposal
 
   - id: design
     generates: design.md
-    description: Technical design document with implementation details
+    description: Documento de design técnico com detalhes de implementação
     template: design.md
     instruction: |
-      Create the design document that explains HOW to implement the change.
+      Crie o documento de design que explica o HOW (como) implementar a mudança.
 
-      When to include design.md (create only if any apply):
-      - Cross-cutting change (multiple services/modules) or new architectural pattern
-      - New external dependency or significant data model changes
-      - Security, performance, or migration complexity
-      - Ambiguity that benefits from technical decisions before coding
+      Quando incluir design.md (crie apenas se algum se aplicar):
+      - Mudança transversal (múltiplos serviços/módulos) ou novo padrão arquitetural
+      - Nova dependência externa ou mudanças significativas no modelo de dados
+      - Complexidade de segurança, desempenho ou migração
+      - Ambiguidade que se beneficia de decisões técnicas antes de codificar
 
-      Sections:
-      - **Context**: Background, current state, constraints, stakeholders
-      - **Goals / Non-Goals**: What this design achieves and explicitly excludes
-      - **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.
-      - **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] → Mitigation
-      - **Migration Plan**: Steps to deploy, rollback strategy (if applicable)
-      - **Open Questions**: Outstanding decisions or unknowns to resolve
+      Seções:
+      - **Context**: Histórico, estado atual, restrições, partes interessadas
+      - **Goals / Non-Goals**: O que este design alcança e o que explicitamente exclui
+      - **Decisions**: Principais escolhas técnicas com justificativa (por que X em vez de Y?). Inclua as alternativas consideradas para cada decisão.
+      - **Risks / Trade-offs**: Limitações conhecidas, coisas que podem dar errado. Formato: [Risco] → Mitigação
+      - **Migration Plan**: Passos para implantar, estratégia de rollback (se aplicável)
+      - **Open Questions**: Decisões pendentes ou incógnitas a resolver
 
-      Focus on architecture and approach, not line-by-line implementation.
-      Reference the proposal for motivation and specs for requirements.
+      Foque na arquitetura e na abordagem, não na implementação linha a linha.
+      Referencie a proposta para a motivação e as specs para os requirements.
 
-      Good design docs explain the "why" behind technical decisions.
+      Bons documentos de design explicam o "porquê" por trás das decisões técnicas.
     requires:
       - proposal
 
   - id: tasks
     generates: tasks.md
-    description: Implementation checklist with trackable tasks
+    description: Checklist de implementação com tarefas rastreáveis
     template: tasks.md
     instruction: |
-      Create the task list that breaks down the implementation work.
+      Crie a lista de tarefas que detalha o trabalho de implementação.
 
-      **IMPORTANT: Follow the template below exactly.** The apply phase parses
-      checkbox format to track progress. Tasks not using `- [ ]` won't be tracked.
+      **IMPORTANTE: Siga o template abaixo exatamente.** A fase de apply faz o parse
+      do formato de checkbox para acompanhar o progresso. Tarefas que não usam `- [ ]` não serão rastreadas.
 
-      Guidelines:
-      - Group related tasks under ## numbered headings
-      - Each task MUST be a checkbox: `- [ ] X.Y Task description`
-      - Tasks should be small enough to complete in one session
-      - Order tasks by dependency (what must be done first?)
+      Diretrizes:
+      - Agrupe tarefas relacionadas sob cabeçalhos numerados ##
+      - Cada tarefa MUST ser um checkbox: `- [ ] X.Y Descrição da tarefa`
+      - As tarefas devem ser pequenas o suficiente para serem concluídas em uma sessão
+      - Ordene as tarefas por dependência (o que precisa ser feito primeiro?)
 
       Example:
       ```
@@ -139,8 +139,8 @@ artifacts:
       - [ ] 2.2 Add CSV formatting utilities
       ```
 
-      Reference specs for what needs to be built, design for how to build it.
-      Each task should be verifiable - you know when it's done.
+      Referencie as specs para o que precisa ser construído e o design para como construir.
+      Cada tarefa deve ser verificável - você sabe quando ela está concluída.
     requires:
       - specs
       - design
@@ -149,5 +149,5 @@ apply:
   requires: [tasks]
   tracks: tasks.md
   instruction: |
-    Read context files, work through pending tasks, mark complete as you go.
-    Pause if you hit blockers or need clarification.
+    Leia os arquivos de contexto, execute as tarefas pendentes e marque como concluídas conforme avança.
+    Pause se encontrar bloqueios ou precisar de esclarecimentos.
