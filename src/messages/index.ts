@@ -1439,11 +1439,11 @@ Aqui está um rascunho de proposal:
 
 ---
 
-## Por Que
+## Why
 
 [1-2 frases explicando o problema/oportunidade]
 
-## O Que Muda
+## What Changes
 
 [Bullet points do que será diferente]
 
