@@ -297,6 +297,7 @@ A disponibilidade de comandos depende do perfil:
 | `/opsx:continue` | Criar o próximo artefato (um de cada vez) |
 | `/opsx:ff` | Fast-forward—criar artefatos de planejamento de uma vez |
 | `/opsx:verify` | Validar se a implementação corresponde às specs |
+| `/opsx:code-review` | Revisar diffs, branches, PRs ou arquivos com contexto do projeto |
 | `/opsx:sync` | Visualizar/mesclar specs sem arquivar |
 | `/opsx:bulk-archive` | Arquivar múltiplas mudanças de uma vez |
 | `/opsx:onboard` | Fluxo de trabalho de integração guiado de ponta a ponta |

@@ -46,7 +46,7 @@ Fluxo típico:
 
 ### Workflow Expandido/Completo (seleção personalizada)
 
-Se você quiser comandos explícitos de scaffold e construção (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:sync`, `/opsx:bulk-archive`, `/opsx:onboard`), habilite-os com:
+Se você quiser comandos explícitos de scaffold e construção (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:code-review`, `/opsx:sync`, `/opsx:bulk-archive`, `/opsx:onboard`), habilite-os com:
 
 ```bash
 openspec config profile

@@ -83,6 +83,10 @@ const WORKFLOW_PROMPT_META: Record<string, WorkflowPromptMeta> = {
     name: CONFIG_MESSAGES.workflowVerifyName,
     description: CONFIG_MESSAGES.workflowVerifyDesc,
   },
+  'code-review': {
+    name: CONFIG_MESSAGES.workflowCodeReviewName,
+    description: CONFIG_MESSAGES.workflowCodeReviewDesc,
+  },
   onboard: {
     name: CONFIG_MESSAGES.workflowOnboardName,
     description: CONFIG_MESSAGES.workflowOnboardDesc,

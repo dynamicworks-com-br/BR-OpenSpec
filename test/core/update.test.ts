@@ -182,6 +182,7 @@ Old instructions content
         'openspec-sync-specs',
         'openspec-bulk-archive-change',
         'openspec-verify-change',
+        'openspec-code-review',
       ];
 
       for (const skillName of nonCoreSkillNames) {
@@ -243,7 +244,7 @@ Old instructions content
       }
 
       // Verify non-core commands are NOT created
-      const nonCoreCommandIds = ['new', 'continue', 'ff', 'sync', 'bulk-archive', 'verify'];
+      const nonCoreCommandIds = ['new', 'continue', 'ff', 'sync', 'bulk-archive', 'verify', 'code-review'];
       for (const cmdId of nonCoreCommandIds) {
         const cmdFile = path.join(commandsDir, `${cmdId}.md`);
         const exists = await FileSystemUtils.fileExists(cmdFile);

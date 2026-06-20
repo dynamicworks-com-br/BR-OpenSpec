@@ -21,6 +21,7 @@ export const SKILL_NAMES = [
   'openspec-archive-change',
   'openspec-bulk-archive-change',
   'openspec-verify-change',
+  'openspec-code-review',
   'openspec-onboard',
   'openspec-propose',
 ] as const;
@@ -40,6 +41,7 @@ export const COMMAND_IDS = [
   'archive',
   'bulk-archive',
   'verify',
+  'code-review',
   'onboard',
   'propose',
 ] as const;

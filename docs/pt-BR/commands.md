@@ -23,6 +23,7 @@ Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflo
 | `/opsx:continue` | Criar o próximo artefato com base nas dependências |
 | `/opsx:ff` | Fast-forward: criar todos os artefatos de planejamento de uma vez |
 | `/opsx:verify` | Validar se a implementação corresponde aos artefatos |
+| `/opsx:code-review` | Revisar diffs, branches, PRs ou arquivos com contexto do projeto |
 | `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:bulk-archive` | Arquivar múltiplas mudanças de uma vez |
 | `/opsx:onboard` | Tutorial guiado pelo fluxo de trabalho completo |
@@ -380,6 +381,33 @@ AI:  Verifying add-dark-mode...
 - Avisos não bloqueiam o arquivamento, mas indicam possíveis problemas
 - Bom para revisar o trabalho da IA antes de confirmar
 - Pode revelar divergências entre os artefatos e a implementação
+
+---
+
+### `/opsx:code-review`
+
+Revisar código alterado com contexto específico do projeto. Diferente do `/opsx:verify`, este comando pode revisar working tree, staged diff, branch, PR ou arquivos explícitos mesmo quando não existe uma change OpenSpec.
+
+**Sintaxe:**
+```
+/opsx:code-review [target]
+```
+
+**Argumentos:**
+| Argumento | Obrigatório | Descrição |
+|----------|----------|-------------|
+| `target` | Não | Branch, PR, diff, working tree, staged changes, caminho de arquivo ou escopo da review |
+
+**O que faz:**
+- Lê orientações do projeto como README, AGENTS.md, configuração OpenSpec, docs, manifests e CI
+- Infere stack e comandos de validação a partir dos arquivos locais
+- Usa artefatos OpenSpec relacionados como contexto extra quando disponíveis
+- Reporta findings primeiro, ordenados por severidade com referências de arquivo/linha
+- Não modifica arquivos a menos que você peça explicitamente correções
+
+**Dicas:**
+- Use antes de commitar, abrir PR ou mesclar mudanças geradas por IA
+- Use `/opsx:verify` quando o objetivo for validar uma change OpenSpec nomeada contra seus artefatos
 
 ---
 

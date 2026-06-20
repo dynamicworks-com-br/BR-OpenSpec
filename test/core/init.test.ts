@@ -108,6 +108,7 @@ describe('InitCommand', () => {
         'openspec-sync-specs',
         'openspec-bulk-archive-change',
         'openspec-verify-change',
+        'openspec-code-review',
       ];
 
       for (const skillName of nonCoreSkillNames) {
@@ -142,6 +143,7 @@ describe('InitCommand', () => {
         'opsx/sync.md',
         'opsx/bulk-archive.md',
         'opsx/verify.md',
+        'opsx/code-review.md',
       ];
 
       for (const cmdName of nonCoreCommandNames) {

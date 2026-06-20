@@ -15,7 +15,7 @@ Por padrão, o BR-OpenSpec usa o perfil `core`, que inclui:
 - `apply`
 - `archive`
 
-Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `verify`, `sync`, `bulk-archive`, `onboard`) via `openspec config profile` e depois executar `openspec update`.
+Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `verify`, `code-review`, `sync`, `bulk-archive`, `onboard`) via `openspec config profile` e depois executar `openspec update`.
 
 ## Referência de Diretórios das Ferramentas
 
@@ -80,7 +80,7 @@ O BR-OpenSpec instala artefatos de fluxo de trabalho com base nos fluxos selecio
 
 - **Perfil core (padrão):** `propose`, `explore`, `apply`, `archive`
 - **Seleção personalizada:** qualquer subconjunto de todos os IDs de fluxo de trabalho:
-  `propose`, `explore`, `new`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`, `onboard`
+  `propose`, `explore`, `new`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`, `code-review`, `onboard`
 
 Em outras palavras, a quantidade de skills/comandos depende do perfil e do modo de entrega, não é fixa.
 
@@ -98,6 +98,7 @@ Quando selecionadas pela configuração de perfil/fluxo de trabalho, o BR-OpenSp
 - `openspec-archive-change`
 - `openspec-bulk-archive-change`
 - `openspec-verify-change`
+- `openspec-code-review`
 - `openspec-onboard`
 
 Veja [Comandos](../commands.md) para o comportamento dos comandos e [CLI](../cli.md) para as opções de `init`/`update`.
