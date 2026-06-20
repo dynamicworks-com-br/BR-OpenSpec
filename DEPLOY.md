@@ -119,7 +119,7 @@ O deploy para npm usa **OIDC** (OpenID Connect) — não precisa de token `NPM_T
 
 #### Configuração no npm
 
-1. Acesse [npmjs.com](https://www.npmjs.com/) → seu pacote `@fkmatsuda/br-openspec`
+1. Acesse [npmjs.com](https://www.npmjs.com/) → seu pacote `@dynamicworks/br-openspec`
 2. Vá em **Settings → Publish with provenance**
 3. Configure **Trusted Publishers**:
    - **Link to GitHub**: `fkmatsuda/BR-OpenSpec`
@@ -191,7 +191,7 @@ Antes de fazer merge para `main` e disparar o release:
 
 ### "npm ERR! 403 Forbidden" no publish
 
-- Verifique se o pacote `@fkmatsuda/br-openspec` existe no npm
+- Verifique se o pacote `@dynamicworks/br-openspec` existe no npm
 - Verifique se o Trusted Publisher está configurado corretamente
 - Verifique se a versão no `package.json` é nova (não publicada antes)
 
