@@ -1,5 +1,29 @@
 # @dynamicworks/br-openspec
 
+## 2.1.0
+
+### Minor Changes
+
+- [#13](https://github.com/dynamicworks-com-br/BR-OpenSpec/pull/13) [`5554f68`](https://github.com/dynamicworks-com-br/BR-OpenSpec/commit/5554f68ef0c0ffd33fa4bf2f8db957de511a2a99) Thanks [@lvcas-dotcom](https://github.com/lvcas-dotcom)! - Adiciona o workflow /opsx:code-review para realizar revisão de código
+
+- [#15](https://github.com/dynamicworks-com-br/BR-OpenSpec/pull/15) [`46fe742`](https://github.com/dynamicworks-com-br/BR-OpenSpec/commit/46fe742a036107b62e099cf3042b62def69f2444) Thanks [@fkmatsuda](https://github.com/fkmatsuda)! - Sincroniza com o upstream Fission-AI/OpenSpec v1.4.1.
+
+  ### Novos recursos
+
+  - **Suporte ao Mistral Vibe** — o `openspec init` passa a configurar o Mistral Vibe como ferramenta baseada em skills usando `.vibe/skills/`.
+  - **Workflow de sync no perfil padrão** — o perfil `core` agora inclui o workflow de sincronização, então novas instalações já geram as skills e os comandos `/opsx:sync`.
+
+  ### Correções
+
+  - **Cabeçalhos de requisito sem distinção de maiúsculas/minúsculas** — os cabeçalhos `### Requirement:` passam a ser interpretados independentemente da capitalização (e sem espaço após `###`), evitando falhas de parsing.
+  - **Conclusão de comandos no zsh com Oh My Zsh** — o tab completion deixa de duplicar o `compinit` sob o Oh My Zsh; a auto-configuração do `.zshrc` ocorre apenas no Zsh padrão.
+  - **Resolução de caminhos de dados global** — separadores de caminho determinísticos por plataforma (Windows/POSIX) em `getGlobalDataDir`.
+
+  ### Outros
+
+  - **Dicas de validação mais claras** — quando um requisito tem SHALL/MUST apenas no cabeçalho, o `openspec validate` indica mover a palavra-chave para o corpo do requisito.
+  - **Integração de ferramentas alinhada** — o rótulo do Kimi acompanha o upstream (`Kimi CLI`) e as listas de ferramentas de IA (docs EN/PT-BR) ficam consistentes.
+
 ## 2.0.1
 
 ### Patch Changes
