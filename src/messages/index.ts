@@ -862,6 +862,8 @@ export const UPDATE_MESSAGES = {
   it: 'ela',
   them: 'elas',
   extraWorkflowsNote: (count: number) => `Nota: ${count} fluxos de trabalho extras não estão no perfil (use \`openspec config profile\` para gerenciar)`,
+  oldCoreProfileSyncNote: 'Nota: o perfil core agora inclui o fluxo de trabalho sync. Seu perfil personalizado está mantendo o conjunto antigo de fluxos de trabalho do core.',
+  oldCoreProfileSyncHint: 'Execute `openspec config profile core` e depois `openspec update` para adicionar o sync.',
   cleaningLegacy: 'Limpando arquivos legados...',
   legacyCleaned: 'Arquivos legados limpos',
   forceLegacyHint: '⚠ Execute com --force para limpar automaticamente arquivos legados, ou execute de forma interativa.',
