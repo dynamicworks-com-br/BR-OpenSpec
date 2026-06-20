@@ -116,6 +116,13 @@ Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/
 → **[Personalização](docs/pt-BR/customization.md)**: faça do seu jeito
 
 
+## Schemas da comunidade
+
+Bundles de schema de terceiros distribuídos em repositórios independentes — oferecem fluxos de trabalho opinativos que integram o BR-OpenSpec a outras ferramentas, de forma semelhante a como o [catálogo de extensões da comunidade do github/spec-kit](https://github.com/github/spec-kit/tree/main/extensions) trata integrações de ferramentas.
+
+→ **[Veja o catálogo](docs/pt-BR/customization.md#schemas-da-comunidade)** na documentação de personalização.
+
+
 ## Por que o BR-OpenSpec?
 
 Assistentes de codificação com IA são poderosos, mas imprevisíveis quando os requisitos vivem apenas no histórico do chat. O BR-OpenSpec adiciona uma camada leve de especificação para que você concorde sobre o que construir antes de qualquer código ser escrito.

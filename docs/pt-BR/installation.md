@@ -26,6 +26,9 @@ yarn global add @dynamicworks/br-openspec@latest
 
 ### bun
 
+O Bun consegue instalar o BR-OpenSpec globalmente, mas o BR-OpenSpec atualmente roda sobre o Node.js.
+Você ainda precisa ter o Node.js 20.19.0 ou superior disponível no `PATH`.
+
 ```bash
 bun add -g @dynamicworks/br-openspec@latest
 ```

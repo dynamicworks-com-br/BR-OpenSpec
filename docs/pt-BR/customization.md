@@ -337,6 +337,20 @@ Depois edite `schema.yaml` para adicionar:
 
 ---
 
+## Schemas da Comunidade
+
+O BR-OpenSpec também suporta schemas mantidos pela comunidade, distribuídos em repositórios independentes. Eles oferecem fluxos de trabalho opinativos que integram o BR-OpenSpec a outras ferramentas ou sistemas, de forma semelhante a como o [catálogo de extensões da comunidade do github/spec-kit](https://github.com/github/spec-kit/tree/main/extensions) funciona para o spec-kit.
+
+Schemas da comunidade não são embutidos no core do BR-OpenSpec — eles vivem em seus próprios repositórios, com sua própria cadência de releases. Para usar um, copie o bundle do schema para o diretório `openspec/schemas/<nome-do-schema>/` do seu projeto (o README de cada repositório traz as instruções de instalação).
+
+| Schema | Mantenedor | Repositório | Descrição |
+|--------|-----------|-----------|-------------|
+| `superpowers-bridge` | @JiangWay | [JiangWay/openspec-schemas](https://github.com/JiangWay/openspec-schemas/tree/main/superpowers-bridge) | Integra a governança de artefatos do OpenSpec com as skills de execução do [obra/superpowers](https://github.com/obra/superpowers) (brainstorming, escrita de planos, TDD via subagentes, code review, finalização). Adiciona um artefato `retrospective` orientado a evidências, preenchendo uma lacuna que o Superpowers não cobre nativamente. |
+
+> Quer contribuir com um schema da comunidade? Abra uma issue com o link do seu repositório, ou envie um PR adicionando uma linha a esta tabela.
+
+---
+
 ## Veja Também
 
 - [Referência CLI: Comandos de Schema](cli.md#schema-commands) - Documentação completa dos comandos
