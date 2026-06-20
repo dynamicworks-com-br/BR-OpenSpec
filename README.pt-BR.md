@@ -174,6 +174,8 @@ openspec tools --remove windsurf
 
 **Higiene de contexto**: O BR-OpenSpec se beneficia de uma janela de contexto limpa. Limpe seu contexto antes de iniciar a implementação e mantenha uma boa higiene de contexto ao longo da sua sessão.
 
+**Palavras-chave do formato de spec ficam em inglês**: O BR-OpenSpec é PT-BR first, mas o formato de spec é um protocolo lido pelas ferramentas. Os marcadores estruturais (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) e as palavras-chave normativas/de cenário (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — além de `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) são sempre escritas em inglês e em CAIXA ALTA; apenas o texto descritivo fica em português. Traduzir essas palavras-chave quebra o `openspec validate`. Veja a lista completa em [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
+
 ## Contribuindo
 
 **Pequenas correções** — Correções de bugs, erros de digitação e melhorias menores podem ser enviadas diretamente como PRs.

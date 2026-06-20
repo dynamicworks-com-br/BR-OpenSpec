@@ -3,6 +3,28 @@
  *
  * Este módulo reúne todas as mensagens exibidas ao usuário para facilitar
  * manutenção, revisão e consistência linguística.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ TERMOS RESERVADOS — NÃO TRADUZIR
+ * ─────────────────────────────────────────────────────────────────────────
+ * O BR-OpenSpec é PT-BR first, mas o FORMATO de spec é um protocolo lido pelo
+ * parser e pelo validador. Os marcadores estruturais e as palavras-chave
+ * normativas DEVEM permanecer em inglês e em CAIXA ALTA. Só o conteúdo
+ * descritivo (nomes, descrições, prosa) é escrito em português.
+ *
+ * - Palavras-chave normativas (RFC 2119): MUST, MUST NOT, REQUIRED, SHALL,
+ *   SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, OPTIONAL.
+ * - Cabeçalhos de delta/spec: "## ADDED Requirements", "## MODIFIED Requirements",
+ *   "## REMOVED Requirements", "## RENAMED Requirements", "## Requirements",
+ *   "### Requirement:", "#### Scenario:".
+ * - Cláusulas de cenário (Gherkin): WHEN, THEN, AND, GIVEN, ELSE.
+ * - Auxiliares de RENAMED: FROM, TO.
+ *
+ * Regra geral: qualquer palavra em CAIXA ALTA que represente uma regra, uma
+ * operação de delta (ADD/REMOVE/RENAME) ou uma cláusula de cenário fica em
+ * inglês. Traduzir esses termos quebra o parsing/validação dos specs.
+ * Ver também AGENTS.md ("Termos reservados em inglês").
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -1485,21 +1507,21 @@ Aqui está o spec:
 
 ---
 
-## Requisitos ADICIONADOS
+## ADDED Requirements
 
-### Requisito: <Nome>
+### Requirement: <Nome>
 
-<Descrição do que o sistema deve fazer>
+O sistema SHALL <descrição do que o sistema deve fazer>
 
-#### Cenário: <Nome do cenário>
+#### Scenario: <Nome do cenário>
 
-- **QUANDO** <condição de gatilho>
-- **ENTÃO** <resultado esperado>
-- **E** <resultado adicional se necessário>
+- **WHEN** <condição de gatilho>
+- **THEN** <resultado esperado>
+- **AND** <resultado adicional se necessário>
 
 ---
 
-Este formato - QUANDO/ENTÃO/E - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste.
+Este formato - WHEN/THEN/AND - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste. Os marcadores estruturais (ADDED Requirements, Requirement, Scenario) e as palavras-chave (WHEN/THEN/AND, SHALL/MUST) ficam SEMPRE em inglês — é o protocolo que o parser e o validador reconhecem. Apenas o conteúdo descritivo é escrito em português.
 \`\`\`
 
 Salve em \`openspec/changes/<nome>/specs/<capability>/spec.md\`.

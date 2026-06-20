@@ -254,4 +254,15 @@ An upstream sync workflow template is available at `src/core/templates/workflows
 
 ### Key Principle
 
-**Never leave English user-facing strings in `src/` after a sync.** All messages displayed to Brazilian users must be in `pt-BR`, centralized in `src/messages/index.ts`, and tested.
+**Never leave English user-facing strings in `src/` after a sync.** All messages displayed to Brazilian users must be in `pt-BR`, centralized in `src/messages/index.ts`, and tested — **except for the reserved terms below**.
+
+### Reserved English Terms (Never Translate)
+
+BR-OpenSpec is PT-BR first, but the spec/change format is a protocol parsed by the tooling (`src/core/parsers/`, `src/core/validation/`). The structural markers and normative keywords are part of that protocol and MUST stay in English, in UPPERCASE, even inside Portuguese prose or examples. Only descriptive content (names, descriptions, narrative) is translated.
+
+- **RFC 2119 keywords:** `MUST`, `MUST NOT`, `REQUIRED`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `RECOMMENDED`, `MAY`, `OPTIONAL`.
+- **Delta/spec section headers:** `## ADDED Requirements`, `## MODIFIED Requirements`, `## REMOVED Requirements`, `## RENAMED Requirements`, `## Requirements`, `### Requirement:`, `#### Scenario:`.
+- **Scenario clauses (Gherkin):** `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`.
+- **RENAMED helpers:** `FROM`, `TO`.
+
+**Rule of thumb:** any UPPERCASE word that expresses a normative rule, a delta operation (ADD/REMOVE/RENAME), or a scenario clause stays in English. Translating these breaks `openspec validate` and spec parsing. The same reserved-terms note is duplicated at the top of `src/messages/index.ts`.
