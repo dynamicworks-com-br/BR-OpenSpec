@@ -25,10 +25,8 @@ import {
   getOpsxProposeCommandTemplate,
   getOpsxProposeSkillTemplate,
   getOpsxSyncCommandTemplate,
-  getOpsxUpstreamSyncCommandTemplate,
   getOpsxVerifyCommandTemplate,
   getSyncSpecsSkillTemplate,
-  getUpstreamSyncSkillTemplate,
   getVerifyChangeSkillTemplate,
 } from '../../../src/core/templates/skill-templates.js';
 import { generateSkillContent } from '../../../src/core/shared/skill-generation.js';
@@ -59,8 +57,6 @@ const EXPECTED_FUNCTION_HASHES: Record<string, string> = {
   getOpsxProposeSkillTemplate: 'f49ceeab9fb084d5540d45f1b93955b78b1cd3d06a1b57949a432ea5122a964c',
   getOpsxProposeCommandTemplate: '6843b073c38dbb25561fa3d2d2b6b0a443f3914564f44f700bff729493f65b6a',
   getFeedbackSkillTemplate: '087c098185bfc7067fc89fab113ce7cf0df6b5c41138f4f869389f2e2daf0118',
-  getUpstreamSyncSkillTemplate: '5c2e19869b25d85cedac10d4ee4c74f2d467d70252e36723b4c5d80683a14f9b',
-  getOpsxUpstreamSyncCommandTemplate: 'de481103108d05e5ee39f2e0605b2f709e7b057efd4c6cc246123c77dd0dfe04',
 };
 
 const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
@@ -76,7 +72,6 @@ const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
   'openspec-code-review': '55fa92c3af14884d7fb6714acfbdfe17f28b7a092ea30fd534591f49152d0281',
   'openspec-onboard': 'ae1ff205a32cc8a89ce0fe9d40d2221e2576472ab8946a10a9fa1f0eec07a0d0',
   'openspec-propose': '94f406b91d410d3bef66df1819ac8462c13a58ce0e2812921eb08ea09b9ca265',
-  'openspec-upstream-sync': 'f7885a66742b33b0c658de4323b64e01738ab93f984c9954cb386855e96f455c',
 };
 
 function stableStringify(value: unknown): string {
@@ -127,8 +122,6 @@ describe('skill templates split parity', () => {
       getOpsxProposeSkillTemplate,
       getOpsxProposeCommandTemplate,
       getFeedbackSkillTemplate,
-      getUpstreamSyncSkillTemplate,
-      getOpsxUpstreamSyncCommandTemplate,
     };
 
     const actualHashes = Object.fromEntries(
@@ -154,7 +147,6 @@ describe('skill templates split parity', () => {
       ['openspec-code-review', getCodeReviewSkillTemplate],
       ['openspec-onboard', getOnboardSkillTemplate],
       ['openspec-propose', getOpsxProposeSkillTemplate],
-      ['openspec-upstream-sync', getUpstreamSyncSkillTemplate],
     ];
 
     const actualHashes = Object.fromEntries(
