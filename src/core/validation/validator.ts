@@ -166,7 +166,7 @@ export class Validator {
           if (!requirementText) {
             issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingRequirementTextAdded(block.name) });
           } else if (!this.containsShallOrMust(requirementText)) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustAdded(block.name) });
+            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustAdded(block.name, this.containsShallOrMust(block.name)) });
           }
           const scenarioCount = this.countScenarios(block.raw);
           if (scenarioCount < 1) {
@@ -187,7 +187,7 @@ export class Validator {
           if (!requirementText) {
             issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingRequirementTextModified(block.name) });
           } else if (!this.containsShallOrMust(requirementText)) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustModified(block.name) });
+            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustModified(block.name, this.containsShallOrMust(block.name)) });
           }
           const scenarioCount = this.countScenarios(block.raw);
           if (scenarioCount < 1) {

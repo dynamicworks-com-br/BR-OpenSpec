@@ -910,11 +910,21 @@ export const VALIDATOR_MESSAGES = {
   unknownError: 'Erro desconhecido',
   duplicateRequirementAdded: (name: string) => `Requisito duplicado em ADDED: "${name}"`,
   missingRequirementTextAdded: (name: string) => `ADDED "${name}" está sem texto de requisito`,
-  missingShallOrMustAdded: (name: string) => `ADDED "${name}" deve conter SHALL ou MUST`,
+  missingShallOrMustAdded: (name: string, keywordInHeader = false) => {
+    const base = `ADDED "${name}" deve conter SHALL ou MUST`;
+    return keywordInHeader
+      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
+      : base;
+  },
   missingScenarioAdded: (name: string) => `ADDED "${name}" deve incluir pelo menos um cenário`,
   duplicateRequirementModified: (name: string) => `Requisito duplicado em MODIFIED: "${name}"`,
   missingRequirementTextModified: (name: string) => `MODIFIED "${name}" está sem texto de requisito`,
-  missingShallOrMustModified: (name: string) => `MODIFIED "${name}" deve conter SHALL ou MUST`,
+  missingShallOrMustModified: (name: string, keywordInHeader = false) => {
+    const base = `MODIFIED "${name}" deve conter SHALL ou MUST`;
+    return keywordInHeader
+      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
+      : base;
+  },
   missingScenarioModified: (name: string) => `MODIFIED "${name}" deve incluir pelo menos um cenário`,
   duplicateRequirementRemoved: (name: string) => `Requisito duplicado em REMOVED: "${name}"`,
   duplicateFromRenamed: (name: string) => `FROM duplicado em RENAMED: "${name}"`,
