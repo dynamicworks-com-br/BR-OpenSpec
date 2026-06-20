@@ -264,5 +264,6 @@ BR-OpenSpec is PT-BR first, but the spec/change format is a protocol parsed by t
 - **Delta/spec section headers:** `## ADDED Requirements`, `## MODIFIED Requirements`, `## REMOVED Requirements`, `## RENAMED Requirements`, `## Requirements`, `### Requirement:`, `#### Scenario:`.
 - **Scenario clauses (Gherkin):** `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`.
 - **RENAMED helpers:** `FROM`, `TO`.
+- **Change-document section headers parsed/validated by the tooling:** `## Why`, `## What Changes` (the parser extracts them by name via `findSection` and the validator requires them).
 
-**Rule of thumb:** any UPPERCASE word that expresses a normative rule, a delta operation (ADD/REMOVE/RENAME), or a scenario clause stays in English. Translating these breaks `openspec validate` and spec parsing. The same reserved-terms note is duplicated at the top of `src/messages/index.ts`.
+**Rule of thumb:** any UPPERCASE word that expresses a normative rule, a delta operation (ADD/REMOVE/RENAME), or a scenario clause — and any section heading the tooling parses or validates — stays in English. Translating these breaks `openspec validate` and spec/change parsing. Everything else that the Brazilian developer reads or writes (CLI strings, workflow-template prose, and the guidance/comments in `schemas/<schema>/schema.yaml` and `schemas/<schema>/templates/*.md`) IS translated to pt-BR. The same reserved-terms note is duplicated at the top of `src/messages/index.ts`.

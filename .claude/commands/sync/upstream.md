@@ -25,8 +25,16 @@ Leia primeiro `AGENTS.md` (seções **"Upstream Sync Strategy"**, **"Reserved En
 3. **Planeje por tema.** Agrupe os commits STABLE por tema (correções, integrações de ferramentas, perfis, docs…). Ignore TODOS os commits/arquivos WORKSPACE (caminhos com `workspace`, `context-store`, `initiative`, `planning-home`, `foundation`, `registry`, `legacy-state`, `open-surface`, `collections`). Alguns commits do upstream misturam os dois — traga só a parte estável.
 
 4. **Para cada tema, porte com tradução**, respeitando os invariantes (em conflito, vence o fork):
-   - **Strings ao usuário** → catálogo central `src/messages/index.ts`, em PT-BR. Nunca deixe inglês ao usuário; nunca sobrescreva PT-BR existente — só adicione chaves.
-   - **Termos reservados** (RFC 2119 — MUST/SHALL/SHOULD/MAY… — e marcadores `## ADDED Requirements`, `### Requirement:`, `#### Scenario:`, `WHEN/THEN/AND/GIVEN/ELSE`, `FROM/TO`) ficam SEMPRE em inglês/caixa alta. Ver a nota no topo de `src/messages/index.ts`.
+   - **Conteúdo em PT-BR** → traduza TUDO que o desenvolvedor brasileiro lê ou escreve:
+     - strings da CLI → catálogo central `src/messages/index.ts`;
+     - prosa instrucional dos workflow templates → `src/core/templates/workflows/*.ts`;
+     - orientação dos scaffolds de artefato e do schema → `schemas/<schema>/schema.yaml` e `schemas/<schema>/templates/*.md` (proposal, design, spec, tasks) — incluindo os comentários `<!-- … -->`.
+     Nunca deixe inglês ao usuário; nunca sobrescreva PT-BR existente — só adicione/atualize.
+   - **Termos reservados (NÃO traduzir — sempre em inglês/caixa alta):**
+     - RFC 2119: `MUST`/`SHALL`/`SHOULD`/`MAY`/`REQUIRED`/`RECOMMENDED`/`OPTIONAL` (+ negativas);
+     - marcadores de spec: `## ADDED/MODIFIED/REMOVED/RENAMED Requirements`, `## Requirements`, `### Requirement:`, `#### Scenario:`, `WHEN`/`THEN`/`AND`/`GIVEN`/`ELSE`, `FROM`/`TO`;
+     - cabeçalhos de change-document que o parser/validador EXIGEM: `## Why`, `## What Changes`.
+     Regra: qualquer cabeçalho ou keyword que o código **parseie ou valide** fica em inglês. Ver a nota no topo de `src/messages/index.ts` e a seção "Reserved English Terms" em `AGENTS.md`.
    - **Identidade**: preserve `@dynamicworks/br-openspec`, a versão própria (NÃO aceite a do upstream), repo `dynamicworks-com-br/BR-OpenSpec`, Node 22, `NPM_TOKEN`, `flake.nix`, e os workflows próprios (`code-review`).
    - **Docs bilíngues**: aplique em `docs/` (espelho EN) **e** traduza em `docs/pt-BR/`.
    - **Testes**: adapte apenas asserções de string ao PT-BR; nunca a lógica. Se um teste de hash dourado (ex.: `skill-templates-parity`) acusar mudança deliberada de template, recompute e atualize o hash.
