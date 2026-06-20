@@ -8,7 +8,7 @@ O OPSX substitui o antigo fluxo de trabalho baseado em fases por uma abordagem f
 
 | Aspecto | Legado | OPSX |
 |--------|--------|------|
-| **Comandos** | `/openspec:proposal`, `/openspec:apply`, `/openspec:archive` | Padrão: `/opsx:propose`, `/opsx:apply`, `/opsx:archive` (comandos de fluxo de trabalho expandido opcionais) |
+| **Comandos** | `/openspec:proposal`, `/openspec:apply`, `/openspec:archive` | Padrão: `/opsx:propose`, `/opsx:apply`, `/opsx:sync`, `/opsx:archive` (comandos de fluxo de trabalho expandido opcionais) |
 | **Fluxo de trabalho** | Criar todos os artefatos de uma vez | Criar incrementalmente ou tudo de uma vez—sua escolha |
 | **Retroceder** | Fases bloqueantes difíceis | Natural—atualize qualquer artefato a qualquer momento |
 | **Personalização** | Estrutura fixa | Orientado por schema, totalmente personalizável |
@@ -84,7 +84,7 @@ Não se preocupe em acertar de primeira. Ainda estamos aprendendo o que funciona
 
 Tanto `openspec init` quanto `openspec update` detectam arquivos legados e guiam você pelo mesmo processo de limpeza. Use o que melhor se adaptar à sua situação:
 
-- Novas instalações padrão ao perfil `core` (`propose`, `explore`, `apply`, `archive`).
+- Novas instalações padrão ao perfil `core` (`propose`, `explore`, `apply`, `sync`, `archive`).
 - Instalações migradas preservam seus fluxos de trabalho instalados anteriormente gravando um perfil `custom` quando necessário.
 
 ### Usando `openspec init`
@@ -562,6 +562,7 @@ project/
 │       ├── openspec-propose/     # perfil core padrão
 │       ├── openspec-explore/
 │       ├── openspec-apply-change/
+│       ├── openspec-sync-specs/
 │       └── ...                   # perfil expandido adiciona new/continue/ff/etc.
 ├── CLAUDE.md                     # Marcadores do BR-OpenSpec removidos, seu conteúdo preservado
 └── AGENTS.md                     # Marcadores do BR-OpenSpec removidos, seu conteúdo preservado

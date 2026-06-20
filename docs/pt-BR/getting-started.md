@@ -9,7 +9,7 @@ O BR-OpenSpec ajuda você e seu assistente de codificação com IA a chegarem a 
 **Caminho rápido padrão (perfil `core`):**
 
 ```text
-/opsx:propose ──► /opsx:apply ──► /opsx:archive
+/opsx:propose ──► /opsx:apply ──► /opsx:sync ──► /opsx:archive
 ```
 
 **Caminho expandido (seleção de workflow personalizado):**
@@ -18,7 +18,7 @@ O BR-OpenSpec ajuda você e seu assistente de codificação com IA a chegarem a 
 /opsx:new ──► /opsx:ff or /opsx:continue ──► /opsx:apply ──► /opsx:verify ──► /opsx:archive
 ```
 
-O perfil global padrão é `core`, que inclui `propose`, `explore`, `apply` e `archive`. Você pode habilitar os comandos de workflow expandido com `openspec config profile` e depois `openspec update`.
+O perfil global padrão é `core`, que inclui `propose`, `explore`, `apply`, `sync` e `archive`. Você pode habilitar os comandos de workflow expandido com `openspec config profile` e depois `openspec update`.
 
 ## O Que o BR-OpenSpec Cria
 

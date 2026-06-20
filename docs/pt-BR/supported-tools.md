@@ -13,9 +13,10 @@ Por padrão, o BR-OpenSpec usa o perfil `core`, que inclui:
 - `propose`
 - `explore`
 - `apply`
+- `sync`
 - `archive`
 
-Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `verify`, `code-review`, `sync`, `bulk-archive`, `onboard`) via `openspec config profile` e depois executar `openspec update`.
+Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`) via `openspec config profile` e depois executar `openspec update`.
 
 ## Referência de Diretórios das Ferramentas
 
@@ -80,7 +81,7 @@ openspec init --profile core
 
 O BR-OpenSpec instala artefatos de fluxo de trabalho com base nos fluxos selecionados:
 
-- **Perfil core (padrão):** `propose`, `explore`, `apply`, `archive`
+- **Perfil core (padrão):** `propose`, `explore`, `apply`, `sync`, `archive`
 - **Seleção personalizada:** qualquer subconjunto de todos os IDs de fluxo de trabalho:
   `propose`, `explore`, `new`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`, `code-review`, `onboard`
 

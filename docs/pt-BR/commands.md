@@ -13,6 +13,7 @@ Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflo
 | `/opsx:propose` | Criar uma mudança e gerar artefatos de planejamento em um único passo |
 | `/opsx:explore` | Explorar ideias antes de se comprometer com uma mudança |
 | `/opsx:apply` | Implementar tarefas da mudança |
+| `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:archive` | Arquivar uma mudança concluída |
 
 ### Comandos de Fluxo de Trabalho Expandido (seleção de workflow personalizado)
@@ -24,7 +25,6 @@ Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflo
 | `/opsx:ff` | Fast-forward: criar todos os artefatos de planejamento de uma vez |
 | `/opsx:verify` | Validar se a implementação corresponde aos artefatos |
 | `/opsx:code-review` | Revisar diffs, branches, PRs ou arquivos com contexto do projeto |
-| `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:bulk-archive` | Arquivar múltiplas mudanças de uma vez |
 | `/opsx:onboard` | Tutorial guiado pelo fluxo de trabalho completo |
 

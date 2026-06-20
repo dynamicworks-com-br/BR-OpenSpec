@@ -63,7 +63,7 @@ openspec init
 
 Isso cria skills em `.claude/skills/` (ou equivalente) que assistentes de codificação com IA detectam automaticamente.
 
-Por padrão, o BR-OpenSpec usa o perfil de fluxo de trabalho `core` (`propose`, `explore`, `apply`, `archive`). Se você quiser os comandos de fluxo de trabalho expandido (`new`, `continue`, `ff`, `verify`, `code-review`, `sync`, `bulk-archive`, `onboard`), configure-os com `openspec config profile` e aplique com `openspec update`.
+Por padrão, o BR-OpenSpec usa o perfil de fluxo de trabalho `core` (`propose`, `explore`, `apply`, `sync`, `archive`). Se você quiser os comandos de fluxo de trabalho expandido (`new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`), configure-os com `openspec config profile` e aplique com `openspec update`.
 
 Durante a configuração, você será solicitado a criar uma **configuração de projeto** (`openspec/config.yaml`). Isso é opcional, mas recomendado.
 
@@ -163,7 +163,7 @@ rules:
 | `/opsx:apply` | Implementa tarefas, atualizando artefatos conforme necessário |
 | `/opsx:verify` | Valida a implementação contra os artefatos (fluxo de trabalho expandido) |
 | `/opsx:code-review` | Revisa diffs, branches, PRs ou arquivos com contexto do projeto (fluxo de trabalho expandido) |
-| `/opsx:sync` | Sincroniza specs delta com a principal (fluxo de trabalho expandido, opcional) |
+| `/opsx:sync` | Sincroniza specs delta com a principal (fluxo de trabalho padrão, opcional) |
 | `/opsx:archive` | Arquiva quando concluído |
 | `/opsx:bulk-archive` | Arquiva múltiplas mudanças concluídas (fluxo de trabalho expandido) |
 | `/opsx:onboard` | Guia passo a passo por uma mudança completa (fluxo de trabalho expandido) |
@@ -312,7 +312,7 @@ Pense como branches do git:
 ## Visão Detalhada da Arquitetura
 
 Esta seção explica como o OPSX funciona internamente e como se compara ao fluxo de trabalho legado.
-Os exemplos nesta seção usam o conjunto de comandos expandido (`new`, `continue`, etc.); usuários do `core` padrão podem mapear o mesmo fluxo para `propose → apply → archive`.
+Os exemplos nesta seção usam o conjunto de comandos expandido (`new`, `continue`, etc.); usuários do `core` padrão podem mapear o mesmo fluxo para `propose → apply → sync → archive`.
 
 ### Filosofia: Fases vs. Ações
 
