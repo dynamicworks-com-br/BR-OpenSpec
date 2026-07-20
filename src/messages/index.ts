@@ -550,7 +550,7 @@ export const CONFIG_MESSAGES = {
   commandsOnlyDesc: 'Instala fluxos de trabalho apenas como comandos de barra',
   currentSuffix: ' [atual]',
   configChanges: 'Alterações na configuração:',
-  updateFailed: '`openspec update` falhou. Execute-o manualmente para aplicar as alterações do perfil.',
+  updateFailed: (reason: string) => `\`openspec update\` falhou: ${reason}. Execute-o manualmente para aplicar as alterações do perfil.`,
   configProfileCancelled: 'Configuração de perfil cancelada.',
   spaceToToggle: 'Espaço para alternar, Enter para confirmar',
   configScopeOption: 'Escopo da configuração (apenas "global" suportado atualmente)',

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { spawn, execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -22,6 +22,7 @@ import {
 import { CORE_WORKFLOWS, ALL_WORKFLOWS, getProfileWorkflows } from '../core/profiles.js';
 import { OPENSPEC_DIR_NAME } from '../core/config.js';
 import { hasProjectConfigDrift } from '../core/profile-sync-drift.js';
+import { UpdateCommand } from '../core/update.js';
 import { CONFIG_MESSAGES, CLI_MESSAGES } from '../messages/index.js';
 
 type ProfileAction = 'both' | 'delivery' | 'workflows' | 'keep';
@@ -102,6 +103,10 @@ function isPromptCancellationError(error: unknown): boolean {
     error instanceof Error &&
     (error.name === 'ExitPromptError' || error.message.includes('force closed the prompt with SIGINT'))
   );
+}
+
+function asErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -631,10 +636,10 @@ export function registerConfigCommand(program: Command): void {
 
           if (applyNow) {
             try {
-              execSync('npx openspec update', { stdio: 'inherit', cwd: projectDir });
+              await new UpdateCommand().execute(projectDir);
               console.log(CONFIG_MESSAGES.configUpdated);
-            } catch {
-              console.error(CONFIG_MESSAGES.updateFailed);
+            } catch (error) {
+              console.error(CONFIG_MESSAGES.updateFailed(asErrorMessage(error)));
               process.exitCode = 1;
             }
             return;

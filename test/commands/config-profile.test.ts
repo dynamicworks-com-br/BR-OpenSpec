@@ -144,6 +144,7 @@ describe('config profile interactive flow', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env = originalEnv;
     process.chdir(originalCwd);
     (process.stdout as NodeJS.WriteStream & { isTTY?: boolean }).isTTY = originalTTY;
@@ -365,6 +366,53 @@ describe('config profile interactive flow', () => {
       message: 'Aplicar alterações a este projeto agora?',
       default: true,
     });
+  });
+
+  it('confirmed project apply should update in process without resolving openspec from PATH', async () => {
+    const { saveGlobalConfig, getGlobalConfig } = await import('../../src/core/global-config.js');
+    const { select, confirm } = await getPromptMocks();
+
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both', workflows: ['propose', 'explore', 'apply', 'update', 'sync', 'archive'] });
+    fs.mkdirSync(path.join(tempDir, 'openspec'), { recursive: true });
+    const emptyBinDir = path.join(tempDir, 'empty-bin');
+    fs.mkdirSync(emptyBinDir);
+    vi.stubEnv('PATH', emptyBinDir);
+
+    select.mockResolvedValueOnce('delivery');
+    select.mockResolvedValueOnce('skills');
+    confirm.mockResolvedValueOnce(true);
+
+    await runConfigCommand(['profile']);
+
+    expect(getGlobalConfig().delivery).toBe('skills');
+    expect(process.exitCode).toBeUndefined();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith('Nenhuma ferramenta configurada encontrada.');
+    expect(consoleLogSpy).toHaveBeenCalledWith('Configuração atualizada. Execute `openspec update` nos seus projetos para aplicar.');
+  });
+
+  it('confirmed project apply should report the update failure reason', async () => {
+    const { saveGlobalConfig } = await import('../../src/core/global-config.js');
+    const { UpdateCommand } = await import('../../src/core/update.js');
+    const { select, confirm } = await getPromptMocks();
+
+    saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both', workflows: ['propose', 'explore', 'apply', 'update', 'sync', 'archive'] });
+    fs.mkdirSync(path.join(tempDir, 'openspec'), { recursive: true });
+    const executeSpy = vi.spyOn(UpdateCommand.prototype, 'execute')
+      .mockRejectedValueOnce(new Error('permission denied'));
+
+    select.mockResolvedValueOnce('delivery');
+    select.mockResolvedValueOnce('skills');
+    confirm.mockResolvedValueOnce(true);
+
+    try {
+      await runConfigCommand(['profile']);
+    } finally {
+      executeSpy.mockRestore();
+    }
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('`openspec update` falhou: permission denied. Execute-o manualmente para aplicar as alterações do perfil.');
+    expect(process.exitCode).toBe(1);
   });
 
   it('core preset should preserve delivery setting', async () => {
