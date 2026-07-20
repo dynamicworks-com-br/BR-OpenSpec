@@ -9,7 +9,6 @@ import chalk from 'chalk';
 import path from 'path';
 import * as fs from 'fs';
 import { getSchemaDir, listSchemas } from '../../core/artifact-graph/index.js';
-import { validateChangeName } from '../../utils/change-utils.js';
 import { WORKFLOW_MESSAGES } from '../../messages/index.js';
 
 // -----------------------------------------------------------------------------
@@ -105,6 +104,34 @@ export async function getAvailableChanges(projectRoot: string): Promise<string[]
 }
 
 /**
+ * Validates a change name used to look up an existing change directory.
+ * Lookup accepts any directory name that `getAvailableChanges` could return
+ * (the kebab-case convention in `validateChangeName` applies at creation
+ * time only); it only rejects names that would escape the changes directory
+ * or address entries `getAvailableChanges` excludes (hidden dirs, archive).
+ *
+ * @returns An error message, or undefined if the name is safe to look up
+ */
+function validateChangeLookupName(changeName: string): string | undefined {
+  if (changeName === '.' || changeName === '..') {
+    return WORKFLOW_MESSAGES.changeLookupRelativePath;
+  }
+  if (changeName.includes('/') || changeName.includes('\\')) {
+    return WORKFLOW_MESSAGES.changeLookupPathSeparator;
+  }
+  if (changeName.includes('\0')) {
+    return WORKFLOW_MESSAGES.changeLookupNullChar;
+  }
+  if (changeName.startsWith('.')) {
+    return WORKFLOW_MESSAGES.changeLookupLeadingDot;
+  }
+  if (changeName === 'archive') {
+    return WORKFLOW_MESSAGES.changeLookupArchiveReserved;
+  }
+  return undefined;
+}
+
+/**
  * Validates that a change exists and returns available changes if not.
  * Checks directory existence directly to support scaffolded changes (without proposal.md).
  */
@@ -123,9 +150,9 @@ export async function validateChangeExists(
   }
 
   // Validate change name format to prevent path traversal
-  const nameValidation = validateChangeName(changeName);
-  if (!nameValidation.valid) {
-    throw new Error(WORKFLOW_MESSAGES.invalidChangeName(changeName, nameValidation.error!));
+  const lookupError = validateChangeLookupName(changeName);
+  if (lookupError) {
+    throw new Error(WORKFLOW_MESSAGES.invalidChangeName(changeName, lookupError));
   }
 
   // Check directory existence directly
