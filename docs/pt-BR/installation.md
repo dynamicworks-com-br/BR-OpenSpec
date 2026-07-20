@@ -72,6 +72,39 @@ Ou adicione ao seu ambiente de desenvolvimento em `flake.nix`:
 openspec --version
 ```
 
+## Atualizando
+
+Atualize o pacote, depois atualize os arquivos gerados de cada projeto:
+
+```bash
+npm install -g @dynamicworks/br-openspec@latest   # ou equivalente em pnpm/yarn/bun
+openspec update                                   # rode dentro de cada projeto
+```
+
+`openspec update` regenera os arquivos de skill e comando para as ferramentas que você configurou, de modo que seus slash commands fiquem em dia com a versão instalada.
+
+## Desinstalando
+
+Não existe um comando `openspec uninstall`, porque o BR-OpenSpec é apenas um pacote global mais alguns arquivos no seu projeto. Removê-lo são alguns passos manuais, e nada aqui toca no seu código-fonte.
+
+**1. Remova o pacote global:**
+
+```bash
+npm uninstall -g @dynamicworks/br-openspec   # ou: pnpm rm -g / yarn global remove / bun rm -g
+```
+
+**2. Remova o BR-OpenSpec de um projeto (opcional).** Delete o diretório `openspec/` se você não quiser mais suas specs e mudanças:
+
+```bash
+rm -rf openspec/
+```
+
+Pense antes de fazer isso: `openspec/specs/` e `openspec/changes/archive/` são seu registro de como o sistema se comporta e por que mudou. Se você puder querer esse histórico, mantenha a pasta (ou mantenha-a no git) mesmo depois de desinstalar.
+
+**3. Remova os arquivos gerados das ferramentas de IA (opcional).** O BR-OpenSpec escreve arquivos de skill e comando em diretórios por ferramenta como `.claude/skills/openspec-*/`, `.cursor/commands/opsx-*` e assim por diante. Delete as skills `openspec-*` e os comandos `opsx-*` das ferramentas que você configurou. Os caminhos exatos por ferramenta estão listados em [Ferramentas Suportadas](supported-tools.md).
+
+Se você também tem blocos de marcação do BR-OpenSpec em arquivos como `CLAUDE.md` ou `AGENTS.md`, remova esses blocos manualmente; seu próprio conteúdo nesses arquivos é seu para manter.
+
 ## Próximos Passos
 
 Após instalar, inicialize o BR-OpenSpec no seu projeto:

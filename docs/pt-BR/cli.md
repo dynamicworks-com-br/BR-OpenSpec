@@ -91,6 +91,8 @@ openspec init [path] [options]
 
 **IDs de ferramentas suportados (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
 
+> Esta lista espelha `AI_TOOLS` em `src/core/config.ts`. Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos de skill e comando de cada ferramenta.
+
 **Exemplos:**
 
 ```bash
@@ -402,6 +404,37 @@ openspec archive update-ci-config --skip-specs
 ## Comandos de Fluxo de Trabalho
 
 Esses comandos suportam o fluxo de trabalho OPSX orientado a artefatos. São úteis tanto para humanos verificarem o progresso quanto para agentes determinarem os próximos passos.
+
+### `openspec new change`
+
+Cria um diretório de mudança na pasta `openspec/changes/` do projeto.
+
+```bash
+openspec new change <nome> [opções]
+```
+
+Nomes de mudança devem usar kebab-case em minúsculas. Começam com uma letra
+minúscula, seguida de letras minúsculas, números e hífens simples. Não podem
+começar com número, nem conter espaços, underscores, letras maiúsculas,
+hífens consecutivos ou hífens no início/fim. Ao incluir um ID de ticket
+externo, prefixe-o com uma palavra, por exemplo
+`ticket-123-add-notifications` em vez de `123-add-notifications`.
+
+**Opções:**
+
+| Opção | Descrição |
+|--------|-------------|
+| `--description <texto>` | Descrição a adicionar ao `README.md` da mudança |
+| `--schema <nome>` | Schema de fluxo de trabalho a usar |
+
+**Exemplos:**
+
+```bash
+openspec new change add-billing-api
+openspec new change ticket-123-add-notifications --schema spec-driven
+```
+
+---
 
 ### `openspec status`
 

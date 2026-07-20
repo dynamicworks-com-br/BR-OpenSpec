@@ -74,6 +74,8 @@ IA:   Criado openspec/changes/add-dark-mode/
 
 ### `/opsx:explore`
 
+> **Comece aqui quando estiver em dúvida.** O explore é um parceiro de raciocínio sem risco algum: ele lê sua base de código, compara opções e afia uma ideia difusa em um plano concreto antes que qualquer mudança exista. Ele vem no perfil padrão. Para o argumento completo e mais exemplos, veja o guia [Explore Primeiro](explore.md).
+
 Explorar ideias, investigar problemas e esclarecer requisitos antes de se comprometer com uma mudança.
 
 **Sintaxe:**
