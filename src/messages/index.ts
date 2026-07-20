@@ -951,6 +951,12 @@ export const VALIDATOR_MESSAGES = {
       : base;
   },
   missingScenarioModified: (name: string) => `MODIFIED "${name}" deve incluir pelo menos um cenário`,
+  missingShallOrMustRequirement: (name: string, keywordInHeader = false) => {
+    const base = `Requirement "${name}" deve conter SHALL ou MUST`;
+    return keywordInHeader
+      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
+      : base;
+  },
   duplicateRequirementRemoved: (name: string) => `Requisito duplicado em REMOVED: "${name}"`,
   duplicateFromRenamed: (name: string) => `FROM duplicado em RENAMED: "${name}"`,
   duplicateToRenamed: (name: string) => `TO duplicado em RENAMED: "${name}"`,

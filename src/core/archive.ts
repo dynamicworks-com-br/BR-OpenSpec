@@ -176,7 +176,7 @@ export class ArchiveCommand {
     }
 
     // Show progress and check for incomplete tasks
-    const progress = await getTaskProgressForChange(changesDir, changeName);
+    const progress = await getTaskProgressForChange(changesDir, changeName, path.resolve(changesDir, '..', '..'));
     const status = formatTaskStatus(progress);
     console.log(ARCHIVE_MESSAGES.taskStatus(status));
 
@@ -310,7 +310,7 @@ export class ArchiveCommand {
     try {
       const progressList: Array<{ id: string; status: string }> = [];
       for (const id of changeDirs) {
-        const progress = await getTaskProgressForChange(changesDir, id);
+        const progress = await getTaskProgressForChange(changesDir, id, path.resolve(changesDir, '..', '..'));
         const status = formatTaskStatus(progress);
         progressList.push({ id, status });
       }
