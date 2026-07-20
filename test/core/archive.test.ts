@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ArchiveCommand } from '../../src/core/archive.js';
 import { ARCHIVE_MESSAGES } from '../../src/messages/index.js';
 import { Validator } from '../../src/core/validation/validator.js';
+import { formatLocalDate } from '../../src/utils/date.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -17,6 +18,7 @@ describe('ArchiveCommand', () => {
   let archiveCommand: ArchiveCommand;
   const originalConsoleLog = console.log;
   const originalExitCode = process.exitCode;
+  const originalTimeZone = process.env.TZ;
 
   beforeEach(async () => {
     // Create temp directory
@@ -43,11 +45,19 @@ describe('ArchiveCommand', () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
+
     // Restore console.log
     console.log = originalConsoleLog;
 
     // Restore process.exitCode (clear anything a test set)
     process.exitCode = originalExitCode;
+
+    if (originalTimeZone === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTimeZone;
+    }
     
     // Clear mocks
     vi.clearAllMocks();
@@ -83,6 +93,73 @@ describe('ArchiveCommand', () => {
       
       // Verify original change directory no longer exists
       await expect(fs.access(changeDir)).rejects.toThrow();
+    });
+
+    it('should use the process local date across a UTC date boundary', async () => {
+      process.env.TZ = 'Asia/Shanghai';
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-14T16:30:00.000Z'));
+
+      const changeName = 'local-date-feature';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(path.join(changeDir, 'tasks.md'), '- [x] Task 1\n');
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true, skipSpecs: true });
+
+      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+      await expect(fs.readdir(archiveDir)).resolves.toEqual([`2026-07-15-${changeName}`]);
+    });
+
+    it('should preserve the date when UTC and local calendar dates match', async () => {
+      process.env.TZ = 'Asia/Shanghai';
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-05T04:30:00.000Z'));
+
+      const changeName = 'same-date-feature';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(path.join(changeDir, 'tasks.md'), '- [x] Task 1\n');
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true, skipSpecs: true });
+
+      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+      await expect(fs.readdir(archiveDir)).resolves.toEqual([`2026-01-05-${changeName}`]);
+    });
+
+    it('keeps an existing YYYY-MM-DD- prefix instead of stacking a new one (#1309)', async () => {
+      const changeName = '2026-07-04-voice-copilot-v1';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(path.join(changeDir, 'tasks.md'), '- [x] Task 1');
+
+      await archiveCommand.execute(changeName, { yes: true });
+
+      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+      const archives = await fs.readdir(archiveDir);
+
+      // Archived under its own name: no second date prefix, and the folder
+      // keeps sorting under the change's own day even when archived later.
+      expect(archives).toEqual([changeName]);
+      await expect(fs.access(changeDir)).rejects.toThrow();
+    });
+
+    it('still adds the date prefix when a name only starts with a partial date', async () => {
+      const changeName = '2026-07-feature';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(path.join(changeDir, 'tasks.md'), '- [x] Task 1');
+
+      await archiveCommand.execute(changeName, { yes: true });
+
+      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+      const archives = await fs.readdir(archiveDir);
+
+      // `2026-07-` is not a full YYYY-MM-DD- prefix, so the name is dated
+      // as usual. Asserted as a pattern rather than an exact date to avoid
+      // a UTC-midnight race between execute() and the expectation.
+      expect(archives.length).toBe(1);
+      expect(archives[0]).toMatch(new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${changeName}$`));
     });
 
     it('should warn about incomplete tasks', async () => {
@@ -490,7 +567,7 @@ New feature description.
       await fs.mkdir(changeDir, { recursive: true });
       
       // Create existing archive with same date
-      const date = new Date().toISOString().split('T')[0];
+      const date = formatLocalDate();
       const archivePath = path.join(tempDir, 'openspec', 'changes', 'archive', `${date}-${changeName}`);
       await fs.mkdir(archivePath, { recursive: true });
       
