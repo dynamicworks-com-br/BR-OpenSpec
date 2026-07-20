@@ -65,7 +65,7 @@ export function getContinueChangeSkillTemplate(): SkillTemplate {
      - \`outputPath\`: Onde escrever o artifact
      - \`dependencies\`: Artifacts concluídos para ler como contexto
    - **Crie o arquivo do artifact**:
-     - Leia quaisquer arquivos de dependências concluídos para contexto
+     - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
      - Use \`template\` como a estrutura - preencha suas seções
      - Aplique \`context\` e \`rules\` como restrições ao escrever - mas NÃO copie-os para o arquivo
      - Escreva no caminho de saída especificado nas instruções
@@ -109,7 +109,7 @@ Para outros schemas, siga o campo \`instruction\` da saída do CLI.
 
 **Guardrails**
 - Crie UM artifact por invocação
-- Sempre leia artifacts de dependência antes de criar um novo
+- Sempre leia artifacts de dependência antes de criar um novo - releia do disco, não da memória da conversa (os arquivos podem ter mudado desde a última vez que você os viu)
 - Nunca pule artifacts ou crie fora de ordem
 - Se o contexto estiver incerto, pergunte ao usuário antes de criar
 - Verifique se o arquivo do artifact existe após escrever antes de marcar progresso
@@ -184,7 +184,7 @@ export function getOpsxContinueCommandTemplate(): CommandTemplate {
      - \`outputPath\`: Onde escrever o artifact
      - \`dependencies\`: Artifacts concluídos para ler como contexto
    - **Crie o arquivo do artifact**:
-     - Leia quaisquer arquivos de dependências concluídos para contexto
+     - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
      - Use \`template\` como a estrutura - preencha suas seções
      - Aplique \`context\` e \`rules\` como restrições ao escrever - mas NÃO copie-os para o arquivo
      - Escreva no caminho de saída especificado nas instruções
@@ -228,7 +228,7 @@ Para outros schemas, siga o campo \`instruction\` da saída do CLI.
 
 **Guardrails**
 - Crie UM artifact por invocação
-- Sempre leia artifacts de dependência antes de criar um novo
+- Sempre leia artifacts de dependência antes de criar um novo - releia do disco, não da memória da conversa (os arquivos podem ter mudado desde a última vez que você os viu)
 - Nunca pule artifacts ou crie fora de ordem
 - Se o contexto estiver incerto, pergunte ao usuário antes de criar
 - Verifique se o arquivo do artifact existe após escrever antes de marcar progresso

@@ -986,7 +986,7 @@ export const WORKFLOW_MESSAGES = {
   unmetDependenciesWarning: 'Este artefato possui dependências não satisfeitas. Complete-as primeiro ou prossiga com cautela.',
   missingDependencies: (deps: string) => `Pendentes: ${deps}`,
   createArtifactTask: (artifactId: string, changeName: string) => `Crie o artefato ${artifactId} para a alteração "${changeName}".`,
-  readFilesForContext: 'Leia estes arquivos para contexto antes de criar este artefato:',
+  readFilesForContext: 'Leia o conteúdo atual destes arquivos antes de criar este artefato (releia-os do disco mesmo que já os tenha visto antes - podem ter sido editados):',
   writeTo: (filePath: string) => `Escreva em: ${filePath}`,
   unlocksArtifacts: (artifacts: string) => `Completar este artefato habilita: ${artifacts}`,
   generatingApplyInstructions: 'Gerando instruções de aplicação...',
