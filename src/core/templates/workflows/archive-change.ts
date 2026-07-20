@@ -64,7 +64,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
    - Se alterações forem necessárias: "Sincronizar agora (recomendado)", "Arquivar sem sincronizar"
    - Se já estiver sincronizado: "Arquivar agora", "Sincronizar mesmo assim", "Cancelar"
 
-   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). Prossiga para o arquivamento independentemente da escolha.
+   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). Se o usuário escolher "Cancelar", pare — não arquive. Para qualquer outra escolha, prossiga para o arquivamento.
 
 5. **Realize o arquivamento**
 
@@ -94,7 +94,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
 **Saída em Sucesso**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento Concluído
 
 **Change:** <nome-change>
@@ -102,7 +102,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 **Arquivado em:** openspec/changes/archive/YYYY-MM-DD-<nome>/
 **Specs:** ✓ Sincronizados com os specs principais (ou "Sem delta specs" ou "Sincronização ignorada")
 
-Todos os artifacts completos. Todas as tarefas completas.
+<"Todos os artifacts completos. Todas as tarefas completas." — ou, se arquivado com avisos, liste-os em vez disso (ex.: "Arquivado com 2 tarefas incompletas")>
 \`\`\`
 
 **Guardrails**
@@ -179,7 +179,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
    - Se alterações forem necessárias: "Sincronizar agora (recomendado)", "Arquivar sem sincronizar"
    - Se já estiver sincronizado: "Arquivar agora", "Sincronizar mesmo assim", "Cancelar"
 
-   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). Prossiga para o arquivamento independentemente da escolha.
+   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). Se o usuário escolher "Cancelar", pare — não arquive. Para qualquer outra escolha, prossiga para o arquivamento.
 
 5. **Realize o arquivamento**
 
@@ -209,7 +209,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
 
 **Saída em Sucesso**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento Concluído
 
 **Change:** <nome-change>
@@ -217,12 +217,12 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
 **Arquivado em:** openspec/changes/archive/YYYY-MM-DD-<nome>/
 **Specs:** ✓ Sincronizados com os specs principais
 
-Todos os artifacts completos. Todas as tarefas completas.
+<"Todos os artifacts completos. Todas as tarefas completas." — ou, se arquivado com avisos, liste-os em vez disso (ex.: "Arquivado com 2 tarefas incompletas")>
 \`\`\`
 
 **Saída em Sucesso (Sem Delta Specs)**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento Concluído
 
 **Change:** <nome-change>
@@ -235,7 +235,7 @@ Todos os artifacts completos. Todas as tarefas completas.
 
 **Saída em Sucesso com Avisos**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento Concluído (com avisos)
 
 **Change:** <nome-change>
@@ -253,7 +253,7 @@ Revise o arquivo se isso não foi intencional.
 
 **Saída em Erro (Arquivo Existe)**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento Falhou
 
 **Change:** <nome-change>

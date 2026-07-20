@@ -168,7 +168,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 **Exemplos de Resolução de Conflitos**
 
 Exemplo 1: Apenas uma implementada
-\`\`\`
+\`\`\`text
 Conflito: specs/auth/spec.md tocado por [add-oauth, add-jwt]
 
 Verificando add-oauth:
@@ -183,7 +183,7 @@ Resolução: Apenas add-oauth está implementada. Sincronizará apenas os specs 
 \`\`\`
 
 Exemplo 2: Ambas implementadas
-\`\`\`
+\`\`\`text
 Conflito: specs/api/spec.md tocado por [add-rest-api, add-graphql]
 
 Verificando add-rest-api (criada 2026-01-10):
@@ -200,7 +200,7 @@ depois specs de add-graphql (ordem cronológica, mais recente tem precedência).
 
 **Saída em Sucesso**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento em Lote Concluído
 
 N changes arquivadas:
@@ -214,7 +214,7 @@ Resumo de sync de specs:
 
 **Saída em Sucesso Parcial**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento em Lote Concluído (parcial)
 
 N changes arquivadas:
@@ -229,7 +229,7 @@ K changes falharam:
 
 **Saída Quando Não Há Changes**
 
-\`\`\`
+\`\`\`markdown
 ## Nenhuma Change para Arquivar
 
 Nenhuma change ativa encontrada. Crie uma nova change para começar.
@@ -417,7 +417,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 **Exemplos de Resolução de Conflitos**
 
 Exemplo 1: Apenas uma implementada
-\`\`\`
+\`\`\`text
 Conflito: specs/auth/spec.md tocado por [add-oauth, add-jwt]
 
 Verificando add-oauth:
@@ -432,7 +432,7 @@ Resolução: Apenas add-oauth está implementada. Sincronizará apenas os specs 
 \`\`\`
 
 Exemplo 2: Ambas implementadas
-\`\`\`
+\`\`\`text
 Conflito: specs/api/spec.md tocado por [add-rest-api, add-graphql]
 
 Verificando add-rest-api (criada 2026-01-10):
@@ -449,7 +449,7 @@ depois specs de add-graphql (ordem cronológica, mais recente tem precedência).
 
 **Saída em Sucesso**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento em Lote Concluído
 
 N changes arquivadas:
@@ -463,7 +463,7 @@ Resumo de sync de specs:
 
 **Saída em Sucesso Parcial**
 
-\`\`\`
+\`\`\`markdown
 ## Arquivamento em Lote Concluído (parcial)
 
 N changes arquivadas:
@@ -478,7 +478,7 @@ K changes falharam:
 
 **Saída Quando Não Há Changes**
 
-\`\`\`
+\`\`\`markdown
 ## Nenhuma Change para Arquivar
 
 Nenhuma change ativa encontrada. Crie uma nova change para começar.

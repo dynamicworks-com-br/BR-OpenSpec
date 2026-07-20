@@ -115,7 +115,7 @@ Ao contrário da mesclagem programática, você pode aplicar **atualizações pa
 
 **Saída em Sucesso**
 
-\`\`\`
+\`\`\`markdown
 ## Specs Sincronizados: <nome-change>
 
 Specs principais atualizados:
@@ -254,7 +254,7 @@ Ao contrário da mesclagem programática, você pode aplicar **atualizações pa
 
 **Saída em Sucesso**
 
-\`\`\`
+\`\`\`markdown
 ## Specs Sincronizados: <nome-change>
 
 Specs principais atualizados:
