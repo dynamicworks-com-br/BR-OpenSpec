@@ -96,6 +96,7 @@ Quando selecionadas pela configuração de perfil/fluxo de trabalho, o BR-OpenSp
 - `openspec-new-change`
 - `openspec-continue-change`
 - `openspec-apply-change`
+- `openspec-update-change`
 - `openspec-ff-change`
 - `openspec-sync-specs`
 - `openspec-archive-change`

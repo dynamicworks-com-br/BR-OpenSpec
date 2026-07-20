@@ -9,6 +9,7 @@ import {
   formatChangeStatus,
   TemplateLoadError,
 } from '../../../src/core/artifact-graph/instruction-loader.js';
+import { FileSystemUtils } from '../../../src/utils/file-system.js';
 
 describe('instruction-loader', () => {
   describe('loadTemplate', () => {
@@ -604,6 +605,32 @@ rules:
       // proposal must come before specs, specs before tasks
       expect(proposalIdx).toBeLessThan(specsIdx);
       expect(specsIdx).toBeLessThan(tasksIdx);
+    });
+
+    it('should include artifactPaths with resolved and existing output paths', () => {
+      const canonical = (targetPath: string): string => FileSystemUtils.canonicalizeExistingPath(targetPath);
+      const changeDir = path.join(tempDir, 'openspec', 'changes', 'my-change');
+      fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
+      fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# Proposal');
+      fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '# Spec');
+
+      const context = loadChangeContext(tempDir, 'my-change');
+      const status = formatChangeStatus(context);
+
+      const proposal = status.artifactPaths['proposal'];
+      expect(proposal.outputPath).toBe('proposal.md');
+      expect(proposal.resolvedOutputPath).toBe(path.join(changeDir, 'proposal.md'));
+      expect(proposal.existingOutputPaths).toEqual([canonical(path.join(changeDir, 'proposal.md'))]);
+
+      // Glob artifacts keep the glob pattern as resolvedOutputPath while
+      // existingOutputPaths lists the concrete files found on disk.
+      const specs = status.artifactPaths['specs'];
+      expect(specs.outputPath).toBe('specs/**/*.md');
+      expect(specs.resolvedOutputPath).toBe(path.join(changeDir, 'specs/**/*.md'));
+      expect(specs.existingOutputPaths).toEqual([canonical(path.join(changeDir, 'specs', 'auth', 'spec.md'))]);
+
+      const design = status.artifactPaths['design'];
+      expect(design.existingOutputPaths).toEqual([]);
     });
   });
 });

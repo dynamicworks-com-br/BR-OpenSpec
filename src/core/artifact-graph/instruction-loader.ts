@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { getSchemaDir, resolveSchema, listSchemasWithInfo } from './resolver.js';
 import { ArtifactGraph } from './graph.js';
 import { detectCompleted } from './state.js';
+import { resolveArtifactOutputs } from './outputs.js';
 import { resolveSchemaForChange } from '../../utils/change-metadata.js';
 import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
@@ -115,6 +116,14 @@ export interface ChangeStatus {
   applyRequires: string[];
   /** Status of each artifact */
   artifacts: ArtifactStatus[];
+  /** Absolute artifact path details keyed by artifact ID */
+  artifactPaths: Record<string, ArtifactPathSummary>;
+}
+
+export interface ArtifactPathSummary {
+  outputPath: string;
+  resolvedOutputPath: string;
+  existingOutputPaths: string[];
 }
 
 /**
@@ -329,7 +338,14 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
   const ready = new Set(context.graph.getNextArtifacts(context.completed));
   const blocked = context.graph.getBlocked(context.completed);
 
+  const artifactPaths: Record<string, ArtifactPathSummary> = {};
   const artifactStatuses: ArtifactStatus[] = artifacts.map(artifact => {
+    artifactPaths[artifact.id] = {
+      outputPath: artifact.generates,
+      resolvedOutputPath: path.join(context.changeDir, artifact.generates),
+      existingOutputPaths: resolveArtifactOutputs(context.changeDir, artifact.generates),
+    };
+
     if (context.completed.has(artifact.id)) {
       return {
         id: artifact.id,
@@ -365,5 +381,6 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
     isComplete: context.graph.isComplete(context.completed),
     applyRequires,
     artifacts: artifactStatuses,
+    artifactPaths,
   };
 }

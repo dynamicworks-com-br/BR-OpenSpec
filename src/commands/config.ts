@@ -63,6 +63,10 @@ const WORKFLOW_PROMPT_META: Record<string, WorkflowPromptMeta> = {
     name: CONFIG_MESSAGES.workflowApplyName,
     description: CONFIG_MESSAGES.workflowApplyDesc,
   },
+  update: {
+    name: CONFIG_MESSAGES.workflowUpdateName,
+    description: CONFIG_MESSAGES.workflowUpdateDesc,
+  },
   ff: {
     name: CONFIG_MESSAGES.workflowFastForwardName,
     description: CONFIG_MESSAGES.workflowFastForwardDesc,

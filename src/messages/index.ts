@@ -570,6 +570,8 @@ export const CONFIG_MESSAGES = {
   workflowContinueDesc: 'Retoma o trabalho em uma alteração existente',
   workflowApplyName: 'Aplicar tarefas',
   workflowApplyDesc: 'Implementa as tarefas da alteração atual',
+  workflowUpdateName: 'Atualizar alteração',
+  workflowUpdateDesc: 'Revisa artefatos de planejamento e os mantém coerentes',
   workflowFastForwardName: 'Avanço rápido',
   workflowFastForwardDesc: 'Executa um fluxo de implementação mais rápido',
   workflowSyncName: 'Sincronizar specs',

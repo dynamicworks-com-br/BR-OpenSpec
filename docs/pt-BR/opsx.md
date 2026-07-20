@@ -161,6 +161,7 @@ rules:
 | `/opsx:continue` | Cria o próximo artefato (fluxo de trabalho expandido) |
 | `/opsx:ff` | Avança rapidamente os artefatos de planejamento (fluxo de trabalho expandido) |
 | `/opsx:apply` | Implementa tarefas, atualizando artefatos conforme necessário |
+| `/opsx:update` | Revisa os artefatos de planejamento de uma mudança e os mantém coerentes |
 | `/opsx:verify` | Valida a implementação contra os artefatos (fluxo de trabalho expandido) |
 | `/opsx:code-review` | Revisa diffs, branches, PRs ou arquivos com contexto do projeto (fluxo de trabalho expandido) |
 | `/opsx:sync` | Sincroniza specs delta com a principal (fluxo de trabalho padrão, opcional) |
@@ -206,6 +207,12 @@ Cria todos os artefatos de planejamento de uma vez. Use quando você tem uma vis
 /opsx:apply
 ```
 Percorre as tarefas, marcando-as conforme avança. Se você está gerenciando múltiplas mudanças, pode executar `/opsx:apply <name>`; caso contrário, ele deve inferir pela conversa e solicitar que você escolha se não conseguir determinar.
+
+### Atualizando uma mudança
+```
+/opsx:update add-dark-mode - agora guardamos o tema em um cookie
+```
+Revisa os artefatos de planejamento existentes da mudança e os mantém coerentes - em qualquer direção (uma edição no design pode repercutir de volta na proposta). Apenas artefatos de planejamento: nunca edita código e nunca cria artefatos faltantes (isso é trabalho do `/opsx:continue`). Toda edição é confirmada com você antes. Se a mudança já foi implementada, ele recomenda `/opsx:apply` para que o código acompanhe o plano revisado. Se a sua revisão muda a *intenção* da mudança, comece do zero - veja [Quando Atualizar vs. Começar do Zero](#quando-atualizar-vs-começar-do-zero).
 
 ### Finalizar
 ```

@@ -155,10 +155,11 @@ Old instructions content
 
       await updateCommand.execute(testDir);
 
-      // Verify core profile skill files were created/updated (propose, explore, apply, sync, archive)
+      // Verify core profile skill files were created/updated (propose, explore, apply, update, sync, archive)
       const coreSkillNames = [
         'openspec-explore',
         'openspec-apply-change',
+        'openspec-update-change',
         'openspec-sync-specs',
         'openspec-archive-change',
         'openspec-propose',
@@ -1325,6 +1326,7 @@ More user content after markers.
         'openspec-propose',
         'openspec-explore',
         'openspec-apply-change',
+        'openspec-update-change',
         'openspec-sync-specs',
         'openspec-archive-change',
       ];

@@ -13,6 +13,7 @@ Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflo
 | `/opsx:propose` | Criar uma mudança e gerar artefatos de planejamento em um único passo |
 | `/opsx:explore` | Explorar ideias antes de se comprometer com uma mudança |
 | `/opsx:apply` | Implementar tarefas da mudança |
+| `/opsx:update` | Revisar os artefatos de planejamento de uma mudança e mantê-los coerentes |
 | `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:archive` | Arquivar uma mudança concluída |
 
@@ -313,6 +314,50 @@ IA:   Implementando add-dark-mode...
 - Pode retomar de onde parou se interrompido
 - Use para mudanças paralelas especificando o nome da mudança
 - O estado de conclusão é rastreado nos checkboxes do `tasks.md`
+
+---
+
+### `/opsx:update`
+
+Revisar os artefatos de planejamento existentes de uma mudança e mantê-los coerentes entre si. Apenas artefatos de planejamento - nunca edita código.
+
+**Sintaxe:**
+```
+/opsx:update [change-name]
+```
+
+**Argumentos:**
+| Argumento | Obrigatório | Descrição |
+|----------|----------|-------------|
+| `change-name` | Não | Qual mudança atualizar (inferida do contexto se não fornecida) |
+
+**O que faz:**
+- Lê os artefatos da mudança via `openspec status --change <name> --json`
+- Aplica a revisão solicitada, ou revisa os artefatos em busca de contradições se você não indicou uma
+- Reconcilia os demais artefatos existentes em qualquer direção (uma edição no design pode repercutir de volta na proposta)
+- Confirma cada edição com você antes de escrever, um artefato por vez
+- Termina recomendando o próximo passo: `/opsx:continue` (artefatos faltando), `/opsx:apply` (levar o plano revisado ao código) ou `/opsx:archive` (tudo concluído)
+
+**Exemplo:**
+```
+Você: /opsx:update add-dark-mode - agora guardamos o tema em um cookie, não no localStorage
+
+IA:   Lendo os artefatos de add-dark-mode...
+
+      O design referencia localStorage em dois lugares; a tarefa 1.3 cobre
+      persistência em localStorage; a proposta não menciona armazenamento.
+
+      Revisões propostas:
+      1. design.md - trocar a decisão de localStorage por armazenamento em cookie
+      2. tasks.md - reescrever a tarefa 1.3 para persistência em cookie
+
+      Aplicar a revisão 1? (design.md)
+```
+
+**Dicas:**
+- Ele não cria artefatos faltantes - isso é trabalho do `/opsx:continue`
+- Se a mudança já foi implementada, siga com `/opsx:apply` para que o código corresponda ao plano revisado
+- Se a sua revisão muda a *intenção* da mudança, comece do zero com uma nova mudança (veja [Quando Atualizar vs. Começar do Zero](opsx.md#quando-atualizar-vs-começar-do-zero))
 
 ---
 

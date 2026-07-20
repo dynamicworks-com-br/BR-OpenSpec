@@ -8,9 +8,9 @@ import {
 
 describe('skill-generation', () => {
   describe('getSkillTemplates', () => {
-    it('should return all 12 skill templates', () => {
+    it('should return all 13 skill templates', () => {
       const templates = getSkillTemplates();
-      expect(templates).toHaveLength(12);
+      expect(templates).toHaveLength(13);
     });
 
     it('should have unique directory names', () => {
@@ -28,6 +28,7 @@ describe('skill-generation', () => {
       expect(dirNames).toContain('openspec-new-change');
       expect(dirNames).toContain('openspec-continue-change');
       expect(dirNames).toContain('openspec-apply-change');
+      expect(dirNames).toContain('openspec-update-change');
       expect(dirNames).toContain('openspec-ff-change');
       expect(dirNames).toContain('openspec-sync-specs');
       expect(dirNames).toContain('openspec-archive-change');
@@ -89,9 +90,9 @@ describe('skill-generation', () => {
   });
 
   describe('getCommandTemplates', () => {
-    it('should return all 12 command templates', () => {
+    it('should return all 13 command templates', () => {
       const templates = getCommandTemplates();
-      expect(templates).toHaveLength(12);
+      expect(templates).toHaveLength(13);
     });
 
     it('should have unique IDs', () => {
@@ -109,6 +110,7 @@ describe('skill-generation', () => {
       expect(ids).toContain('new');
       expect(ids).toContain('continue');
       expect(ids).toContain('apply');
+      expect(ids).toContain('update');
       expect(ids).toContain('ff');
       expect(ids).toContain('sync');
       expect(ids).toContain('archive');
@@ -144,9 +146,9 @@ describe('skill-generation', () => {
   });
 
   describe('getCommandContents', () => {
-    it('should return all 12 command contents', () => {
+    it('should return all 13 command contents', () => {
       const contents = getCommandContents();
-      expect(contents).toHaveLength(12);
+      expect(contents).toHaveLength(13);
     });
 
     it('should have valid content structure', () => {
