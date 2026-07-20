@@ -114,4 +114,4 @@ cd seu-projeto
 openspec init
 ```
 
-Veja [Primeiros Passos](../getting-started.md) para um guia completo.
+Veja [Primeiros Passos](getting-started.md) para um guia completo.

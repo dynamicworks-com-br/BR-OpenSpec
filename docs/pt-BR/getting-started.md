@@ -80,7 +80,7 @@ Cada pasta de mudança contém artefatos que orientam o trabalho:
 | Artefato | Propósito |
 |----------|-----------|
 | `proposal.md` | O "por quê" e o "o quê" — captura a intenção, o escopo e a abordagem |
-| `specs/` | Delta specs mostrando requisitos ADICIONADOS/MODIFICADOS/REMOVIDOS |
+| `specs/` | Delta specs mostrando requisitos ADDED/MODIFIED/REMOVED |
 | `design.md` | O "como" — abordagem técnica e decisões de arquitetura |
 | `tasks.md` | Lista de verificação de implementação com checkboxes |
 
