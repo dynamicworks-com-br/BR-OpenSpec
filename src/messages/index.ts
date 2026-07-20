@@ -860,6 +860,7 @@ export const UPDATE_MESSAGES = {
   noOpenspecDir: "Diretório do BR-OpenSpec não encontrado. Execute 'openspec init' primeiro.",
   noConfiguredTools: 'Nenhuma ferramenta configurada encontrada.',
   runInitHint: 'Execute "openspec init" para configurar ferramentas.',
+  migratedSkillDirs: (count: number, from: string, to: string) => `Migrada(s) ${count} pasta(s) de skill: ${from}/skills → ${to}/skills`,
   forceUpdating: (count: number, tools: string) => `Forçando atualização de ${count} ferramenta(s): ${tools}`,
   updatingTool: (name: string) => `Atualizando ${name}...`,
   updatedTool: (name: string) => `Atualizado ${name}`,
