@@ -1,5 +1,6 @@
 import { MarkdownParser, Section } from './markdown-parser.js';
 import { Change, Delta, DeltaOperation, Requirement } from '../schemas/index.js';
+import { buildCodeFenceMask } from './requirement-text.js';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { CHANGE_PARSER_MESSAGES } from '../../messages/index.js';
@@ -180,7 +181,7 @@ export class ChangeParser extends MarkdownParser {
   private parseSectionsFromContent(content: string): Section[] {
     const normalizedContent = ChangeParser.normalizeContent(content);
     const lines = normalizedContent.split('\n');
-    const codeFenceLineMask = ChangeParser.buildCodeFenceMask(lines);
+    const codeFenceLineMask = buildCodeFenceMask(lines);
     const sections: Section[] = [];
     const stack: Section[] = [];
     

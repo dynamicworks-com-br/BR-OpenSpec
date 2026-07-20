@@ -11,6 +11,11 @@ import {
   VALIDATION_MESSAGES
 } from './constants.js';
 import { parseDeltaSpec, normalizeRequirementName, extractRequirementsSection } from '../parsers/requirement-blocks.js';
+import {
+  extractRequirementBody as extractRequirementBodyShared,
+  containsShallOrMust as containsShallOrMustShared,
+  countScenarios as countScenariosShared,
+} from '../parsers/requirement-text.js';
 import { findMainSpecStructureIssues } from '../parsers/spec-structure.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
 import { VALIDATOR_MESSAGES } from '../../messages/index.js';
@@ -136,6 +141,25 @@ export class Validator {
 
         const plan = parseDeltaSpec(content);
         const entryPath = FileSystemUtils.toPosixPath(path.relative(specsDir, specFile));
+
+        // Surface (as INFO, never a failure) the non-canonical level-3 headers
+        // the delta reader skipped while parsing ADDED/MODIFIED sections —
+        // without this note a stray divider like "### Documentation
+        // Requirements" would pass validate <change> while failing
+        // archive/validate <spec>. The list comes from the parse itself, so it
+        // reflects exactly what the reader skipped.
+        for (const stray of plan.skippedHeaders) {
+          const nameless = /^requirement:?$/i.test(stray.header);
+          issues.push({
+            level: 'INFO',
+            path: entryPath,
+            line: stray.line,
+            message: nameless
+              ? VALIDATOR_MESSAGES.skippedHeaderNameless(stray.header, stray.section)
+              : VALIDATOR_MESSAGES.skippedHeaderNotRequirement(stray.header, stray.section),
+          });
+        }
+
         const sectionNames: string[] = [];
         if (plan.sectionPresence.added) sectionNames.push('## ADDED Requirements');
         if (plan.sectionPresence.modified) sectionNames.push('## MODIFIED Requirements');
@@ -473,40 +497,23 @@ export class Validator {
   }
 
   private extractRequirementText(blockRaw: string): string | undefined {
-    const lines = blockRaw.split('\n');
-    // Skip header line (index 0)
-    let i = 1;
-
-    // Find the first substantial text line, skipping metadata and blank lines
-    for (; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Stop at scenario headers
-      if (/^####\s+/.test(line)) break;
-
-      const trimmed = line.trim();
-
-      // Skip blank lines
-      if (trimmed.length === 0) continue;
-
-      // Skip metadata lines (lines starting with ** like **ID**, **Priority**, etc.)
-      if (/^\*\*[^*]+\*\*:/.test(trimmed)) continue;
-
-      // Found first non-metadata, non-blank line - this is the requirement text
-      return trimmed;
-    }
-
-    // No requirement text found
-    return undefined;
+    // Delegate to the shared, fence-/metadata-/multi-line-aware body reader.
+    // Validation intentionally does not use the parser/display header-title
+    // fallback for canonical `### Requirement:` blocks: #1280 requires a
+    // SHALL/MUST that appears only in the header to receive the body-keyword
+    // hint. Line 0 is the `### Requirement: ...` header.
+    const [, ...bodyLines] = blockRaw.split('\n');
+    return extractRequirementBodyShared(bodyLines) || undefined;
   }
 
   private containsShallOrMust(text: string): boolean {
-    return /\b(SHALL|MUST)\b/.test(text);
+    return containsShallOrMustShared(text);
   }
 
   private countScenarios(blockRaw: string): number {
-    const matches = blockRaw.match(/^####\s+/gm);
-    return matches ? matches.length : 0;
+    // Fence-aware count via the shared reader: a `#### Scenario:` inside a fenced
+    // example is not a real scenario. Drop the header line (index 0).
+    return countScenariosShared(blockRaw.split('\n').slice(1));
   }
 
   private formatSectionList(sections: string[]): string {

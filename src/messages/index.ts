@@ -957,6 +957,8 @@ export const VALIDATOR_MESSAGES = {
       ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
       : base;
   },
+  skippedHeaderNameless: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} está sem nome de requisito e é ignorado pela validação. Adicione um nome, ex.: "### Requirement: <nome>".`,
+  skippedHeaderNotRequirement: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} não é um cabeçalho "### Requirement:" e é ignorado pela validação. Use "### Requirement: ${header}" se ele deve ser validado como um requisito.`,
   duplicateRequirementRemoved: (name: string) => `Requisito duplicado em REMOVED: "${name}"`,
   duplicateFromRenamed: (name: string) => `FROM duplicado em RENAMED: "${name}"`,
   duplicateToRenamed: (name: string) => `TO duplicado em RENAMED: "${name}"`,
