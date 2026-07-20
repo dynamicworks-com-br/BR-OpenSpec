@@ -242,10 +242,17 @@ export async function buildUpdatedSpec(
 
   // Apply operations in order: RENAMED → REMOVED → MODIFIED → ADDED
   // RENAMED
+  let renamedApplied = 0;
   for (const r of plan.renamed) {
     const from = normalizeRequirementName(r.from);
     const to = normalizeRequirementName(r.to);
     if (!nameToBlock.has(from)) {
+      // Source gone but target present means the rename was already synced
+      // to the baseline (early-sync pattern) — re-applying it is a no-op,
+      // not a failure. Only a missing source AND target is a genuine error.
+      if (nameToBlock.has(to)) {
+        continue;
+      }
       throw new Error(SPECS_APPLY_MESSAGES.renamedFailedSourceNotFound(specName, r.from));
     }
     if (nameToBlock.has(to)) {
@@ -262,6 +269,7 @@ export async function buildUpdatedSpec(
     };
     nameToBlock.delete(from);
     nameToBlock.set(to, renamedBlock);
+    renamedApplied++;
   }
 
   // REMOVED
@@ -303,12 +311,21 @@ export async function buildUpdatedSpec(
   }
 
   // ADDED
+  let addedApplied = 0;
   for (const add of plan.added) {
     const key = normalizeRequirementName(add.name);
-    if (nameToBlock.has(key)) {
+    const existing = nameToBlock.get(key);
+    if (existing) {
+      // Identical content means the requirement was already synced to the
+      // baseline (early-sync pattern) — re-applying it is a no-op, not a
+      // conflict. Only differing content is a genuine collision.
+      if (normalizeBlockRaw(existing.raw) === normalizeBlockRaw(add.raw)) {
+        continue;
+      }
       throw new Error(SPECS_APPLY_MESSAGES.addedFailedAlreadyExists(specName, add.name));
     }
     nameToBlock.set(key, add);
+    addedApplied++;
   }
 
   // Duplicates within resulting map are implicitly prevented by key uniqueness.
@@ -345,12 +362,16 @@ export async function buildUpdatedSpec(
   return {
     rebuilt,
     counts: {
-      added: plan.added.length,
+      added: addedApplied,
       modified: plan.modified.length,
       removed: plan.removed.length,
-      renamed: plan.renamed.length,
+      renamed: renamedApplied,
     },
   };
+}
+
+function normalizeBlockRaw(raw: string): string {
+  return raw.replace(/\r\n?/g, '\n').trim();
 }
 
 /**
