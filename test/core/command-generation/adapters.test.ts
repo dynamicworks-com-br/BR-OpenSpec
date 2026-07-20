@@ -55,11 +55,13 @@ describe('command-generation/adapters', () => {
       const output = claudeAdapter.formatFile(sampleContent);
 
       expect(output).toContain('---\n');
-      expect(output).toContain('name: OpenSpec Explore');
-      expect(output).toContain('description: Enter explore mode for thinking');
-      expect(output).toContain('allowed-tools: Bash(openspec:*)');
-      expect(output).toContain('category: Workflow');
-      expect(output).toContain('tags: [workflow, explore, experimental]');
+      expect(output).toContain('name: "OpenSpec Explore"');
+      expect(output).toContain('description: "Enter explore mode for thinking"');
+      expect(output).toContain(
+        'allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task',
+      );
+      expect(output).toContain('category: "Workflow"');
+      expect(output).toContain('tags: ["workflow", "explore", "experimental"]');
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.\n\nWith multiple lines.');
     });
@@ -92,8 +94,8 @@ describe('command-generation/adapters', () => {
       expect(output).toContain('---\n');
       expect(output).toContain('name: /opsx-explore');
       expect(output).toContain('id: opsx-explore');
-      expect(output).toContain('category: Workflow');
-      expect(output).toContain('description: Enter explore mode for thinking');
+      expect(output).toContain('category: "Workflow"');
+      expect(output).toContain('description: "Enter explore mode for thinking"');
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.');
     });
@@ -118,10 +120,10 @@ describe('command-generation/adapters', () => {
       const output = windsurfAdapter.formatFile(sampleContent);
 
       expect(output).toContain('---\n');
-      expect(output).toContain('name: OpenSpec Explore');
-      expect(output).toContain('description: Enter explore mode for thinking');
-      expect(output).toContain('category: Workflow');
-      expect(output).toContain('tags: [workflow, explore, experimental]');
+      expect(output).toContain('name: "OpenSpec Explore"');
+      expect(output).toContain('description: "Enter explore mode for thinking"');
+      expect(output).toContain('category: "Workflow"');
+      expect(output).toContain('tags: ["workflow", "explore", "experimental"]');
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.');
     });
@@ -204,7 +206,7 @@ describe('command-generation/adapters', () => {
     it('should format file with description and argument-hint frontmatter', () => {
       const output = bobAdapter.formatFile(sampleContent);
       expect(output).toContain('---\n');
-      expect(output).toContain('description: Enter explore mode for thinking');
+      expect(output).toContain('description: "Enter explore mode for thinking"');
       expect(output).toContain('argument-hint: command arguments');
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.\n\nWith multiple lines.');
@@ -246,7 +248,7 @@ describe('command-generation/adapters', () => {
         description: '',
       };
       const output = bobAdapter.formatFile(contentEmptyDesc);
-      expect(output).toContain('description: \n');
+      expect(output).toContain('description: ""');
     });
   });
 
@@ -609,7 +611,7 @@ describe('command-generation/adapters', () => {
     it('should format file with description frontmatter', () => {
       const output = piAdapter.formatFile(sampleContent);
       expect(output).toContain('---\n');
-      expect(output).toContain('description: Enter explore mode for thinking');
+      expect(output).toContain('description: "Enter explore mode for thinking"');
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.');
     });

@@ -13,7 +13,7 @@ npm install -g @dynamicworks/br-openspec@latest
 openspec --version
 ```
 
-Se instalou mas ainda não é encontrado, seu diretório global de binários do npm provavelmente não está no seu `PATH`. Rode `npm bin -g` para ver onde os binários globais vivem e garanta que esse caminho esteja no perfil do seu shell.
+Se instalou mas ainda não é encontrado, seu prefixo global do npm provavelmente não está no seu `PATH`. Rode `npm config get prefix` para ver o diretório de prefixo. Em Unix/macOS/Linux, os executáveis globais ficam em `<prefix>/bin`; no Windows, ficam diretamente em `<prefix>`. Adicione o diretório aplicável ao perfil do seu shell ou ao `PATH`.
 
 ### "Requires Node.js 20.19.0 or higher"
 
@@ -55,7 +55,7 @@ Se `/opsx:propose` (ou o equivalente da sua ferramenta) não aparece ou não faz
 
 5. **Verifique que você inicializou este projeto.** Skills são escritas por projeto. Se você clonou um repo ou trocou de pasta, rode `openspec init` (ou `openspec update`) lá.
 
-6. **Confirme que sua ferramenta suporta arquivos de comando.** O Codex e algumas outras ferramentas (CodeArts, Kimi CLI, ForgeCode, Mistral Vibe) não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills. Para o Codex, verifique `.codex/skills/openspec-*`. As formas diferem por ferramenta: veja [Ferramentas Suportadas](supported-tools.md) e [Como os Comandos Funcionam](how-commands-work.md#sintaxe-de-slash-command-por-ferramenta).
+6. **Confirme que sua ferramenta suporta arquivos de comando.** O Codex e algumas outras ferramentas (Kimi Code, ForgeCode, Mistral Vibe) não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills. Para o Codex, verifique `.codex/skills/openspec-*`. As formas diferem por ferramenta: veja [Ferramentas Suportadas](supported-tools.md) e [Como os Comandos Funcionam](how-commands-work.md#sintaxe-de-slash-command-por-ferramenta).
 
 ## Trabalhando com mudanças
 

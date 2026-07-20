@@ -468,7 +468,7 @@ For full command details and options, see [Commands](commands.md).
 | `/opsx:ff` | Create all planning artifacts | Expanded mode, clear scope |
 | `/opsx:apply` | Implement tasks | Ready to write code |
 | `/opsx:verify` | Validate implementation | Expanded mode, before archiving |
-| `/opsx:sync` | Merge delta specs | Expanded mode, optional |
+| `/opsx:sync` | Merge delta specs | Default workflow (`core` profile), optional before archive |
 | `/opsx:archive` | Complete the change | All work finished |
 | `/opsx:bulk-archive` | Archive multiple changes | Expanded mode, parallel work |
 

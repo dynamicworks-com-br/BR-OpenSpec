@@ -90,13 +90,22 @@ Não existe um comando `openspec uninstall`, porque o BR-OpenSpec é apenas um p
 **1. Remova o pacote global:**
 
 ```bash
-npm uninstall -g @dynamicworks/br-openspec   # ou: pnpm rm -g / yarn global remove / bun rm -g
+npm uninstall -g @dynamicworks/br-openspec
+pnpm remove -g @dynamicworks/br-openspec
+yarn global remove @dynamicworks/br-openspec
+bun remove -g @dynamicworks/br-openspec
 ```
 
 **2. Remova o BR-OpenSpec de um projeto (opcional).** Delete o diretório `openspec/` se você não quiser mais suas specs e mudanças:
 
 ```bash
+# Unix/macOS/Linux
 rm -rf openspec/
+```
+
+```powershell
+# Windows (PowerShell)
+Remove-Item -Recurse -Force .\openspec
 ```
 
 Pense antes de fazer isso: `openspec/specs/` e `openspec/changes/archive/` são seu registro de como o sistema se comporta e por que mudou. Se você puder querer esse histórico, mantenha a pasta (ou mantenha-a no git) mesmo depois de desinstalar.

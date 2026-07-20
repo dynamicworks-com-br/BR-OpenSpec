@@ -1,7 +1,7 @@
 ---
 name: openspec-apply-change
 description: Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:
@@ -70,7 +70,7 @@ Implementa tarefas de uma change do BR-OpenSpec.
    - Mostre qual tarefa está sendo trabalhada
    - Faça as alterações de código necessárias
    - Mantenha as alterações mínimas e focadas
-   - Marque a tarefa como concluída no arquivo de tasks: `- [ ]` → `- [x]`
+   - Marque a tarefa como concluída no artifact de rastreamento retornado por `openspec instructions apply` (caminho em `contextFiles` e formato definido pelo schema ativo — não presuma `tasks.md` nem a sintaxe `- [ ]`/`- [x]`)
    - Continue para a próxima tarefa
 
    **Pare se:**

@@ -1,7 +1,7 @@
 ---
 name: openspec-sync-specs
 description: Sincroniza delta specs de uma change para os specs principais. Use quando o usuário quiser atualizar os specs principais com alterações de um delta spec, sem arquivar a change.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:
@@ -48,12 +48,15 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    c. **Aplique as alterações de forma inteligente**:
 
       **ADDED Requirements:**
+      - Antes de adicionar, compare nome e conteúdo com o spec principal; se já existir um requisito equivalente, trate como no-op
       - Se o requisito não existir no spec principal → adicione-o
-      - Se o requisito já existir → atualize-o para corresponder (trate como MODIFIED implícito)
+      - Se o requisito já existir com conteúdo idêntico → não duplique (no-op)
+      - Se o requisito já existir com conteúdo diferente → atualize-o para corresponder (trate como MODIFIED implícito)
 
       **MODIFIED Requirements:**
       - Encontre o requisito no spec principal
-      - Aplique as alterações — isso pode ser:
+      - Antes de adicionar cenários ou alterar conteúdo, compare com o que já existe; se já for equivalente, trate como no-op
+      - Aplique apenas diferenças reais — isso pode ser:
         - Adicionar novos cenários (não é necessário copiar os existentes)
         - Modificar cenários existentes
         - Alterar a descrição do requisito

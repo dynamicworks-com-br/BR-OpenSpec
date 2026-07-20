@@ -18,6 +18,7 @@ import {
 } from '../parsers/requirement-text.js';
 import { findMainSpecStructureIssues } from '../parsers/spec-structure.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
+import { discoverSpecFiles } from '../../utils/spec-discovery.js';
 import { VALIDATOR_MESSAGES } from '../../messages/index.js';
 
 export class Validator {
@@ -318,25 +319,8 @@ export class Validator {
    * Returns absolute paths, sorted for deterministic issue ordering.
    */
   private async findDeltaSpecFiles(specsDir: string): Promise<string[]> {
-    const results: string[] = [];
-    const walk = async (dir: string): Promise<void> => {
-      let entries;
-      try {
-        entries = await fs.readdir(dir, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          await walk(full);
-        } else if (entry.isFile() && entry.name === 'spec.md') {
-          results.push(full);
-        }
-      }
-    };
-    await walk(specsDir);
-    return results.sort();
+    const discovered = await discoverSpecFiles(specsDir);
+    return discovered.map((spec) => spec.specFile).sort();
   }
 
   private convertZodErrors(error: ZodError): ValidationIssue[] {

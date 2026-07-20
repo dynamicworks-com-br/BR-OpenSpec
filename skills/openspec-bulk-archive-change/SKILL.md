@@ -1,7 +1,7 @@
 ---
 name: openspec-bulk-archive-change
 description: Arquiva múltiplas changes concluídas de uma vez. Use ao arquivar várias changes paralelas.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:

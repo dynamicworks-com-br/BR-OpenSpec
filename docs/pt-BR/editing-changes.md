@@ -18,7 +18,7 @@ Use o que couber no momento. Pequeno ajuste de redação? Edite o arquivo. Repen
 
 Simplesmente atualize. Mesma mudança, refinada.
 
-Se você está usando os comandos expandidos, o fluxo natural é: edite o artefato, depois rode `/opsx:continue` para retomar do novo estado, ou `/opsx:apply` para continuar implementando contra o plano atualizado. Se você está nos comandos `core` padrão, edite o artefato e rode `/opsx:apply`; ele lê os arquivos atuais, então constrói contra o que quer que os artefatos digam agora.
+Se você está usando os comandos expandidos, pode rodar `/opsx:update` para revisar os artifacts de planejamento com reconciliação guiada, ou editar os arquivos diretamente e depois rodar `/opsx:continue` para retomar do novo estado, ou `/opsx:apply` para continuar implementando contra o plano atualizado. Se você está nos comandos `core` padrão, `/opsx:update` também está disponível; alternativamente, edite o artefato e rode `/opsx:apply` — ele lê os arquivos atuais, então constrói contra o que quer que os artefatos digam agora.
 
 O modelo mental: artefatos são o plano vivo, não um contrato assinado. A IA sempre trabalha a partir do conteúdo atual deles, então editá-los dirige o trabalho.
 
@@ -35,7 +35,7 @@ IA:   Atualizado design.md. A lista de tarefas ainda serve; quer que
 Você: /opsx:apply
 ```
 
-Isso responde uma pergunta muito comum: não existe um comando separado de "atualizar proposta" porque você não precisa de um. O arquivo é a fonte de verdade, e editá-lo (manualmente ou via IA) é a atualização.
+Isso responde uma pergunta muito comum: `/opsx:update` é o comando suportado para revisar uma proposta existente ou seus artifacts com reconciliação guiada. Você também pode editar os arquivos Markdown diretamente (manualmente ou via IA) — o arquivo é a fonte de verdade de qualquer forma.
 
 ## "Como volto para revisar depois de implementar?"
 

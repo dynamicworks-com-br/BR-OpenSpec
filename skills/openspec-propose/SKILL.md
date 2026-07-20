@@ -1,7 +1,7 @@
 ---
 name: openspec-propose
 description: Proponha uma nova change com todos os artifacts gerados em um passo. Use quando o usuário quiser descrever rapidamente o que quer construir e obter uma proposal completa com design, specs e tasks prontos para implementação.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:
@@ -13,6 +13,7 @@ Proponha uma nova change - crie a change e gere todos os artifacts em um passo.
 
 Vou criar uma change com artifacts:
 - proposal.md (o que & por que)
+- specs/ (delta specs de capabilities)
 - design.md (como)
 - tasks.md (passos de implementação)
 

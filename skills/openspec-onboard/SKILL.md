@@ -1,7 +1,7 @@
 ---
 name: openspec-onboard
 description: Onboarding guiado para o BR-OpenSpec - percorra um ciclo completo de workflow com narração e trabalho real na codebase.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:
@@ -15,13 +15,16 @@ Guie o usuário através de seu primeiro ciclo completo de workflow do BR-OpenSp
 
 ## Pré-voo
 
-Antes de começar, verifique se o CLI do BR-OpenSpec está instalado:
+Antes de começar, verifique se o CLI do BR-OpenSpec está instalado. Use o bloco adequado ao SO do usuário:
 
 ```bash
 # Unix/macOS
 openspec --version 2>&1 || echo "CLI_NOT_INSTALLED"
+```
+
+```powershell
 # Windows (PowerShell)
-# if (Get-Command openspec -ErrorAction SilentlyContinue) { openspec --version } else { echo "CLI_NOT_INSTALLED" }
+if (Get-Command openspec -ErrorAction SilentlyContinue) { openspec --version } else { Write-Output "CLI_NOT_INSTALLED" }
 ```
 
 **Se o CLI não estiver instalado:**

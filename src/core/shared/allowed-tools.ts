@@ -8,4 +8,5 @@
  * available under the user's normal permission settings. Tools that don't
  * recognize the field ignore it.
  */
-export const OPENSPEC_CLI_ALLOWED_TOOLS = 'Bash(openspec:*)';
+export const OPENSPEC_CLI_ALLOWED_TOOLS =
+  'Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task';

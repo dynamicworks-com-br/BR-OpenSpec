@@ -125,7 +125,7 @@ function validateChangeLookupName(changeName: string): string | undefined {
   if (changeName.startsWith('.')) {
     return WORKFLOW_MESSAGES.changeLookupLeadingDot;
   }
-  if (changeName === 'archive') {
+  if (changeName.toLowerCase() === 'archive') {
     return WORKFLOW_MESSAGES.changeLookupArchiveReserved;
   }
   return undefined;

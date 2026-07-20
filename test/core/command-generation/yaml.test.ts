@@ -14,10 +14,13 @@ function roundTrip(value: string): unknown {
 }
 
 describe('command-generation/yaml escapeYamlValue', () => {
-  it('returns the value unquoted when no special characters are present', () => {
+  it('quotes plain values so YAML 1.1 tokens are not misparsed', () => {
     expect(escapeYamlValue('Enter explore mode for thinking')).toBe(
-      'Enter explore mode for thinking'
+      '"Enter explore mode for thinking"'
     );
+    expect(escapeYamlValue('true')).toBe('"true"');
+    expect(escapeYamlValue('null')).toBe('"null"');
+    expect(escapeYamlValue('- argument')).toBe('"- argument"');
   });
 
   it('quotes values containing a colon', () => {

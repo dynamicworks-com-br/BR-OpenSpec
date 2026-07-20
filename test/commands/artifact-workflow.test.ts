@@ -220,6 +220,15 @@ describe('artifact-workflow CLI commands', () => {
       expect(output).toContain('Nome de alteração inválido');
     });
 
+    it('rejects the reserved archive directory name (case-insensitive)', async () => {
+      await fs.mkdir(path.join(changesDir, 'archive'), { recursive: true });
+
+      const result = await runCLI(['status', '--change', 'Archive'], { cwd: tempDir });
+      expect(result.exitCode).toBe(1);
+      const output = getOutput(result);
+      expect(output).toContain('Nome de alteração inválido');
+    });
+
     it('rejects the reserved archive directory name', async () => {
       await fs.mkdir(path.join(changesDir, 'archive'), { recursive: true });
 

@@ -1,7 +1,7 @@
 ---
 name: openspec-explore
 description: Entre no modo explore - um parceiro de pensamento para explorar ideias, investigar problemas e esclarecer requisitos. Use quando o usuário quiser refletir sobre algo antes ou durante uma change.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:

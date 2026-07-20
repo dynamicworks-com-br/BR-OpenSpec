@@ -1258,13 +1258,16 @@ export const ONBOARD_TEMPLATE_MESSAGES = {
 
 ## Pré-voo
 
-Antes de começar, verifique se o CLI do BR-OpenSpec está instalado:
+Antes de começar, verifique se o CLI do BR-OpenSpec está instalado. Use o bloco adequado ao SO do usuário:
 
 \`\`\`bash
 # Unix/macOS
 openspec --version 2>&1 || echo "CLI_NOT_INSTALLED"
+\`\`\`
+
+\`\`\`powershell
 # Windows (PowerShell)
-# if (Get-Command openspec -ErrorAction SilentlyContinue) { openspec --version } else { echo "CLI_NOT_INSTALLED" }
+if (Get-Command openspec -ErrorAction SilentlyContinue) { openspec --version } else { Write-Output "CLI_NOT_INSTALLED" }
 \`\`\`
 
 **Se o CLI não estiver instalado:**
@@ -1814,9 +1817,10 @@ export const VERIFY_CHANGE_TEMPLATE_MESSAGES = {
 
 1. **Se nenhum nome de change for fornecido, solicite a seleção**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
-   Mostre as changes que possuem tarefas de implementação (o artifact tasks existe).
+   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
@@ -1858,14 +1862,14 @@ export const VERIFY_CHANGE_TEMPLATE_MESSAGES = {
      - Recomendação: "Complete task: <descrição>" ou "Mark as done if already implemented"
 
    **Cobertura de Specs**:
-   - Se delta specs existirem em \`openspec/changes/<nome>/specs/\`:
-     - Extraia todos os requisitos (marcados com "### Requirement:")
-     - Para cada requisito:
-       - Procure no codebase por palavras-chave relacionadas ao requisito
-       - Avalie se a implementação provavelmente existe
-     - Se requisitos parecerem não implementados:
-       - Adicione issue CRITICAL: "Requirement not found: <nome do requisito>"
-       - Recomendação: "Implement requirement X: <descrição>"
+   - Use \`contextFiles\` e \`artifactPaths\` do status/instructions para localizar delta specs — não assuma caminhos fixos
+   - Extraia todos os requisitos (marcados com "### Requirement:")
+   - Para cada requisito:
+     - Procure no codebase por evidências objetivas de implementação (símbolos, testes, endpoints)
+     - Não classifique como CRITICAL apenas por busca heurística de palavras-chave inconclusiva
+     - Se houver evidência clara de que o requisito não foi implementado: issue CRITICAL
+     - Se a análise for inconclusiva: registre WARNING ou SUGGESTION conforme o risco de falso positivo
+     - Recomendação: "Implement requirement X: <descrição>" ou "Verify requirement X manually: <descrição>"
 
 6. **Verifique Correctness**
 
@@ -1971,9 +1975,10 @@ Use markdown claro com:
 
 1. **Se nenhum nome de change for fornecido, solicite a seleção**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
-   Mostre as changes que possuem tarefas de implementação (o artifact tasks existe).
+   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
@@ -2015,14 +2020,14 @@ Use markdown claro com:
      - Recomendação: "Complete task: <descrição>" ou "Mark as done if already implemented"
 
    **Cobertura de Specs**:
-   - Se delta specs existirem em \`openspec/changes/<nome>/specs/\`:
-     - Extraia todos os requisitos (marcados com "### Requirement:")
-     - Para cada requisito:
-       - Procure no codebase por palavras-chave relacionadas ao requisito
-       - Avalie se a implementação provavelmente existe
-     - Se requisitos parecerem não implementados:
-       - Adicione issue CRITICAL: "Requirement not found: <nome do requisito>"
-       - Recomendação: "Implement requirement X: <descrição>"
+   - Use \`contextFiles\` e \`artifactPaths\` do status/instructions para localizar delta specs — não assuma caminhos fixos
+   - Extraia todos os requisitos (marcados com "### Requirement:")
+   - Para cada requisito:
+     - Procure no codebase por evidências objetivas de implementação (símbolos, testes, endpoints)
+     - Não classifique como CRITICAL apenas por busca heurística de palavras-chave inconclusiva
+     - Se houver evidência clara de que o requisito não foi implementado: issue CRITICAL
+     - Se a análise for inconclusiva: registre WARNING ou SUGGESTION conforme o risco de falso positivo
+     - Recomendação: "Implement requirement X: <descrição>" ou "Verify requirement X manually: <descrição>"
 
 6. **Verifique Correctness**
 
@@ -2186,8 +2191,9 @@ export const CODE_REVIEW_TEMPLATE_MESSAGES = {
 5. **Inclua contexto OpenSpec quando existir**
 
    Se houver uma change relacionada:
-   - Leia \`proposal.md\`, \`design.md\`, \`tasks.md\` e delta specs disponíveis.
-   - Verifique se o diff preserva a intenção dos artifacts.
+   - Execute \`openspec status --change "<nome>" --json\` e leia apenas os caminhos em \`artifactPaths\` (ou \`contextFiles\` via \`openspec instructions apply\`)
+   - Não assuma \`proposal.md\`, \`design.md\`, \`tasks.md\` ou delta specs fixos
+   - Verifique se o diff preserva a intenção dos artifacts
    - Não transforme esta review em \`/opsx:verify\`; use os artifacts apenas como contexto adicional para revisar o código.
 
 6. **Revise o código em profundidade**

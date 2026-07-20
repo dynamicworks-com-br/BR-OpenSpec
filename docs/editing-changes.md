@@ -18,7 +18,7 @@ Use whichever fits the moment. Small wording tweak? Edit the file. Substantive r
 
 Just update it. Same change, refined.
 
-If you're using the expanded commands, the natural flow is: edit the artifact, then run `/opsx:continue` to pick up from the new state, or `/opsx:apply` to keep implementing against the updated plan. If you're on the default `core` commands, edit the artifact and run `/opsx:apply`; it reads the current files, so it builds against whatever the artifacts now say.
+If you're using the expanded commands, you can run `/opsx:update` to revise planning artifacts with guided reconciliation, or edit files directly and then run `/opsx:continue` to pick up from the new state, or `/opsx:apply` to keep implementing against the updated plan. If you're on the default `core` commands, `/opsx:update` is also available; alternatively, edit the artifact and run `/opsx:apply` — it reads the current files, so it builds against whatever the artifacts now say.
 
 The mental model: artifacts are the live plan, not a signed contract. The AI always works from their current contents, so editing them steers the work.
 
@@ -33,7 +33,7 @@ AI:  Updated design.md. The task list still fits; want me to continue applying?
 You: /opsx:apply
 ```
 
-This answers a very common question: there's no separate "update proposal" command because you don't need one. The file is the source of truth, and editing it (by hand or via the AI) is the update.
+This answers a very common question: `/opsx:update` is the supported command for revising an existing proposal or its artifacts with guided reconciliation. You can also edit the Markdown files directly (by hand or via the AI) — the file is the source of truth either way.
 
 ## "How do I go back to review after implementing?"
 

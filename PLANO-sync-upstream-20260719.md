@@ -4,7 +4,7 @@
 > **Branch de trabalho:** `sync/upstream_20260719`
 > **Fork:** `@dynamicworks/br-openspec` v2.1.0 (PT-BR first)
 > **Upstream:** `@fission-ai/openspec` — ponto de partida `1b06fddd` (v1.4.1, 2026-06-03) → tip `596d6ba7` (pós-v1.6.0, 2026-07-18)
-> **Novos commits:** 55 (47 STABLE · 8 WORKSPACE beta)
+> **Novos commits:** 55 total — 47 STABLE · 8 WORKSPACE beta (disjuntos; soma = 55)
 
 ---
 
@@ -35,12 +35,14 @@ Trazer as **melhorias, correções e atualizações** do upstream (v1.4.1 → p�
 
 ## 3. Resumo executivo dos 47 commits STABLE
 
+> **Nota de contagem:** STABLE (47) e WORKSPACE (8) são **disjuntos** — total upstream = 55. Os 4 commits listados como ADIAR (stores/workspace) na tabela abaixo **pertencem ao bucket WORKSPACE** (§6–§7) e **não entram** na soma STABLE. Portanto: 38 PORTAR + 2 ADIAR (decisão de produto) + 7 PULAR = **47 STABLE**.
+
 | Destino | Qtde | Commits |
 |---------|:----:|---------|
 | **PORTAR** | 38 | ver sequência C1–C29 (§4) |
-| **ADIAR (stores/workspace)** | 4 | `15ef3bcf`, `93e27a75`, `5199f41a`, `520aa8c4` |
+| **ADIAR (stores/workspace)** | 4 | `15ef3bcf`, `93e27a75`, `5199f41a`, `520aa8c4` — *subset dos 8 WORKSPACE; não somar em STABLE* |
 | **ADIAR (decisão de produto)** | 2 | website `65a7233f`(parcial), beta `8e9e457c` — ver §6 |
-| **PULAR** | 6 | `546224e0`, `e1b51d11` (Version Packages), `96f6cacb`, `15527310` (changesets), `0a99f410`, `871dece1` (deploy-docs, inexistente no fork), `da3907b8` (bug inexistente na arquitetura do fork) |
+| **PULAR** | 7 | `546224e0`, `e1b51d11` (Version Packages), `96f6cacb`, `15527310` (changesets), `0a99f410`, `871dece1` (deploy-docs, inexistente no fork), `da3907b8` (bug inexistente na arquitetura do fork) |
 
 Os 8 commits classificados WORKSPACE pelo helper seguem adiados (ver §7).
 

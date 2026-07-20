@@ -54,7 +54,7 @@ Os termos estão agrupados por tópico e em ordem alfabética dentro de cada gru
 
 **Arquivo de comando.** Um arquivo de slash command específico de uma ferramenta (`.../commands/opsx-*`). O mecanismo de entrega mais antigo, ainda suportado junto às skills. Você raramente mexe neles diretamente.
 
-**Perfil.** O conjunto de slash commands instalados no seu projeto. **Core** (o padrão) é `propose`, `explore`, `apply`, `sync`, `archive`. O conjunto **expandido** adiciona `new`, `continue`, `ff`, `verify`, `bulk-archive`, `onboard`. Mude com `openspec config profile`.
+**Perfil.** O conjunto de slash commands instalados no seu projeto. **Core** (o padrão) é `propose`, `explore`, `apply`, `update`, `sync`, `archive`. O conjunto **expandido** adiciona `new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`. Mude com `openspec config profile`.
 
 **Entrega.** Se o BR-OpenSpec instala skills, arquivos de comando, ou ambos para suas ferramentas. Configurado globalmente e aplicado com `openspec update`.
 

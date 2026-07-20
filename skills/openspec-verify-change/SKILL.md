@@ -1,7 +1,7 @@
 ---
 name: openspec-verify-change
 description: Verifica se a implementação corresponde aos artifacts da change. Use quando o usuário quiser validar que a implementação está completa, correta e coerente antes de arquivar.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:
@@ -17,9 +17,10 @@ Verifica se uma implementação corresponde aos artifacts da change (specs, task
 
 1. **Se nenhum nome de change for fornecido, solicite a seleção**
 
-   Execute `openspec list --json` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Execute `openspec list --json` para obter as changes disponíveis. Para cada change, execute `openspec status --change "<nome>" --json` e use os IDs de artifacts e `contextFiles` (via `openspec instructions apply --change "<nome>" --json`) para identificar qual artifact rastreia a implementação — não fixe `tasks`.
 
-   Mostre as changes que possuem tarefas de implementação (o artifact tasks existe).
+   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
@@ -61,14 +62,14 @@ Verifica se uma implementação corresponde aos artifacts da change (specs, task
      - Recomendação: "Complete task: <descrição>" ou "Mark as done if already implemented"
 
    **Cobertura de Specs**:
-   - Se delta specs existirem em `openspec/changes/<nome>/specs/`:
-     - Extraia todos os requisitos (marcados com "### Requirement:")
-     - Para cada requisito:
-       - Procure no codebase por palavras-chave relacionadas ao requisito
-       - Avalie se a implementação provavelmente existe
-     - Se requisitos parecerem não implementados:
-       - Adicione issue CRITICAL: "Requirement not found: <nome do requisito>"
-       - Recomendação: "Implement requirement X: <descrição>"
+   - Use `contextFiles` e `artifactPaths` do status/instructions para localizar delta specs — não assuma caminhos fixos
+   - Extraia todos os requisitos (marcados com "### Requirement:")
+   - Para cada requisito:
+     - Procure no codebase por evidências objetivas de implementação (símbolos, testes, endpoints)
+     - Não classifique como CRITICAL apenas por busca heurística de palavras-chave inconclusiva
+     - Se houver evidência clara de que o requisito não foi implementado: issue CRITICAL
+     - Se a análise for inconclusiva: registre WARNING ou SUGGESTION conforme o risco de falso positivo
+     - Recomendação: "Implement requirement X: <descrição>" ou "Verify requirement X manually: <descrição>"
 
 6. **Verifique Correctness**
 

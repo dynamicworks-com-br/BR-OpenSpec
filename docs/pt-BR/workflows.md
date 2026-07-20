@@ -469,7 +469,7 @@ Para detalhes completos e opções dos comandos, consulte [Comandos](commands.md
 | `/opsx:ff` | Criar todos os artefatos de planejamento | Modo expandido, escopo claro |
 | `/opsx:apply` | Implementar tarefas | Pronto para escrever código |
 | `/opsx:verify` | Validar a implementação | Modo expandido, antes de arquivar |
-| `/opsx:sync` | Mesclar delta specs | Modo expandido, opcional |
+| `/opsx:sync` | Mesclar delta specs | Fluxo padrão (perfil `core`), opcional antes de arquivar |
 | `/opsx:archive` | Concluir a mudança | Todo o trabalho finalizado |
 | `/opsx:bulk-archive` | Arquivar múltiplas mudanças | Modo expandido, trabalho paralelo |
 

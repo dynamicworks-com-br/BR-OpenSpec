@@ -1,7 +1,7 @@
 ---
 name: openspec-continue-change
 description: Continue trabalhando em uma change do BR-OpenSpec criando o próximo artifact. Use quando o usuário quiser progredir sua change, criar o próximo artifact ou continuar seu workflow.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:

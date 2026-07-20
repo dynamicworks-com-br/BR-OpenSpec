@@ -1,7 +1,7 @@
 ---
 name: openspec-ff-change
 description: Avance rapidamente pela criação de artifacts do BR-OpenSpec. Use quando o usuário quiser criar rapidamente todos os artifacts necessários para implementação sem passar por cada um individualmente.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:

@@ -132,7 +132,7 @@ Agora fale com a sua IA:
 - **Ainda não sabe o que construir?** Comece com `/opsx:explore`, um parceiro de raciocínio sem risco algum que lê seu código, pesa opções e molda um plano antes que qualquer coisa seja escrita. ([Guia Explore](docs/pt-BR/explore.md))
 - **Já sabe o que quer?** Vá direto para `/opsx:propose <o-que-você-quer-construir>`.
 
-Ambos estão no perfil padrão. Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:bulk-archive`, `/opsx:onboard`), selecione-o com `openspec config profile` e aplique com `openspec update`.
+Ambos estão no perfil padrão. Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:code-review`, `/opsx:bulk-archive`, `/opsx:onboard`), selecione-o com `openspec config profile` e aplique com `openspec update`.
 
 > [!NOTE]
 > Não tem certeza se sua ferramenta é suportada? [Veja a lista completa](docs/pt-BR/supported-tools.md) – suportamos mais de 25 ferramentas e crescendo.

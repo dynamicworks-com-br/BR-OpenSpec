@@ -14,6 +14,7 @@ export function getOpsxProposeSkillTemplate(): SkillTemplate {
 
 Vou criar uma change com artifacts:
 - proposal.md (o que & por que)
+- specs/ (delta specs de capabilities)
 - design.md (como)
 - tasks.md (passos de implementação)
 
@@ -125,6 +126,7 @@ export function getOpsxProposeCommandTemplate(): CommandTemplate {
 
 Vou criar uma change com artifacts:
 - proposal.md (o que & por que)
+- specs/ (delta specs de capabilities)
 - design.md (como)
 - tasks.md (passos de implementação)
 

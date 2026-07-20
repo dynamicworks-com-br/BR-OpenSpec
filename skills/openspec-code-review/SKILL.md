@@ -1,7 +1,7 @@
 ---
 name: openspec-code-review
 description: Realiza code review genérico e consciente do projeto. Use quando o usuário quiser revisar um diff, branch, PR, working tree ou conjunto de arquivos antes de mesclar ou continuar.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer acesso aos arquivos do projeto. Git é recomendado para revisar diffs e branches.
 metadata:
@@ -65,8 +65,9 @@ Realize um code review rigoroso, genérico e consciente do projeto. Seu objetivo
 5. **Inclua contexto OpenSpec quando existir**
 
    Se houver uma change relacionada:
-   - Leia `proposal.md`, `design.md`, `tasks.md` e delta specs disponíveis.
-   - Verifique se o diff preserva a intenção dos artifacts.
+   - Execute `openspec status --change "<nome>" --json` e leia apenas os caminhos em `artifactPaths` (ou `contextFiles` via `openspec instructions apply`)
+   - Não assuma `proposal.md`, `design.md`, `tasks.md` ou delta specs fixos
+   - Verifique se o diff preserva a intenção dos artifacts
    - Não transforme esta review em `/opsx:verify`; use os artifacts apenas como contexto adicional para revisar o código.
 
 6. **Revise o código em profundidade**

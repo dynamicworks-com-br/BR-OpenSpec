@@ -173,8 +173,9 @@ export class PowerShellInstaller {
         try {
           await fs.access(profilePath);
           profileExists = true;
-        } catch (err: any) {
-          if (err?.code !== 'ENOENT') {
+        } catch (err: unknown) {
+          const code = (err as NodeJS.ErrnoException)?.code;
+          if (code !== 'ENOENT') {
             throw err;
           }
         }

@@ -79,10 +79,9 @@ A intenção é idêntica em todo lugar. A pontuação difere. Use a forma que c
 | Cursor | `/opsx-propose`, `/opsx-apply` |
 | Windsurf | `/opsx-propose`, `/opsx-apply` |
 | GitHub Copilot (IDE) | `/opsx-propose`, `/opsx-apply` |
-| CodeArts | estilo skill, ex. `/openspec-propose` |
 | Codex | estilo skill via `.codex/skills/openspec-*` |
 | Oh My Pi | `/opsx-propose`, `/opsx-apply` |
-| Kimi CLI | estilo skill, ex. `/skill:openspec-propose` |
+| Kimi Code | estilo skill, ex. `/skill:openspec-propose` |
 | Trae | `/opsx-propose`, `/opsx-apply` |
 
 A maioria das ferramentas usa a forma com dois-pontos (`/opsx:propose`) ou a forma com hífen (`/opsx-propose`). Algumas ferramentas expõem o BR-OpenSpec como skills nomeadas em vez de slash commands; para essas, você invoca a skill pelo nome. A lista completa por ferramenta, incluindo exatamente quais arquivos são escritos onde, está em [Ferramentas Suportadas](supported-tools.md).
@@ -116,12 +115,13 @@ Por padrão, o BR-OpenSpec instala o conjunto **core** de slash commands:
 - `/opsx:explore`: pense uma ideia com a IA antes de se comprometer com uma mudança (ótimo primeiro passo quando você está em dúvida)
 - `/opsx:propose`: crie uma mudança e elabore todos os seus artefatos de planejamento em um passo
 - `/opsx:apply`: construa a mudança trabalhando pela lista de tarefas
+- `/opsx:update`: revise os artefatos de planejamento de uma mudança e mantenha-os coerentes
 - `/opsx:sync`: mescle as atualizações de spec de uma mudança nas suas specs principais (geralmente automático)
 - `/opsx:archive`: conclua uma mudança e a arquive
 
 Um bom ritmo padrão: `explore` quando você está descobrindo o que fazer, depois `propose`, `apply`, `archive`. O guia [Explore Primeiro](explore.md) explica por que esse passo inicial compensa.
 
-Há também um conjunto **expandido** para quem quer controle mais fino (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:bulk-archive`, `/opsx:onboard`). Você o ativa com `openspec config profile` e depois o aplica com `openspec update`.
+Há também um conjunto **expandido** para quem quer controle mais fino (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:code-review`, `/opsx:bulk-archive`, `/opsx:onboard`). Você o ativa com `openspec config profile` e depois o aplica com `openspec update`.
 
 Novo em tudo isso? `/opsx:onboard` (no conjunto expandido) guia você por uma mudança completa na sua própria base de código, narrando cada passo. É a introdução mais amigável possível.
 

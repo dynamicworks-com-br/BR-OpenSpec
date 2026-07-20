@@ -1,7 +1,7 @@
 ---
 name: openspec-archive-change
 description: Arquiva uma change concluída no workflow experimental. Use quando o usuário quiser finalizar e arquivar uma change após a implementação estar completa.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:
@@ -39,23 +39,27 @@ Arquiva uma change concluída no workflow experimental.
 
 3. **Verifique o status de conclusão das tarefas**
 
-   Leia o arquivo de tarefas (tipicamente `tasks.md`) para verificar tarefas incompletas.
+   Execute `openspec status --change "<nome>" --json` e use `artifactPaths` para localizar o artifact de tarefas do schema ativo (tipicamente `tasks`, mas confira o JSON).
 
-   Conte as tarefas marcadas com `- [ ]` (incompleto) vs `- [x]` (concluído).
+   Leia os caminhos em `artifactPaths.<id>.existingOutputPaths` (ou o equivalente retornado) em vez de assumir `tasks.md`.
+
+   Use o formato de conclusão definido pelo schema ativo e pela saída de `openspec instructions apply --change "<nome>" --json` (lista de tarefas e instrução dinâmica) para contar pendentes vs concluídas.
 
    **Se tarefas incompletas forem encontradas:**
    - Exiba um aviso mostrando a quantidade de tarefas incompletas
    - Use a ferramenta **AskUserQuestion** para confirmar se o usuário deseja prosseguir
    - Prossiga se o usuário confirmar
 
-   **Se não existir arquivo de tarefas:** Prossiga sem aviso relacionado a tarefas.
+   **Se não existir artifact de tarefas:** Prossiga sem aviso relacionado a tarefas.
 
 4. **Avalie o estado de sincronização dos delta specs**
 
-   Verifique se existem delta specs em `openspec/changes/<nome>/specs/`. Se não existirem, prossiga sem prompt de sync.
+   Execute `openspec status --change "<nome>" --json` e leia `artifactPaths` para localizar delta specs (tipicamente sob o artifact `specs`). Use apenas os caminhos retornados — não assuma `openspec/changes/<nome>/specs/`.
+
+   Se nenhum delta spec existir nos caminhos retornados, prossiga sem prompt de sync.
 
    **Se delta specs existirem:**
-   - Compare cada delta spec com seu spec principal correspondente em `openspec/specs/<capability>/spec.md`
+   - Compare cada delta spec com seu spec principal correspondente em `openspec/specs/`
    - Determine quais alterações seriam aplicadas (adições, modificações, remoções, renomeações)
    - Mostre um resumo combinado antes de solicitar
 
@@ -63,24 +67,17 @@ Arquiva uma change concluída no workflow experimental.
    - Se alterações forem necessárias: "Sincronizar agora (recomendado)", "Arquivar sem sincronizar"
    - Se já estiver sincronizado: "Arquivar agora", "Sincronizar mesmo assim", "Cancelar"
 
-   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). Se o usuário escolher "Cancelar", pare — não arquive. Para qualquer outra escolha, prossiga para o arquivamento.
+   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). **Somente prossiga para o arquivamento depois que a sincronização reportar conclusão bem-sucedida.** Se a sincronização falhar, ficar incompleta ou não confirmar sucesso, pare o fluxo ou peça confirmação explícita antes de arquivar. Se o usuário escolher "Cancelar", pare — não arquive. Para "Arquivar sem sincronizar" ou "Arquivar agora" quando já sincronizado, prossiga para o arquivamento.
 
 5. **Realize o arquivamento**
 
-   Crie o diretório de arquivo se não existir:
-   ```bash
-   mkdir -p openspec/changes/archive
-   ```
-
-   Gere o nome do destino usando a data atual: `YYYY-MM-DD-<nome-change>`
-
-   **Verifique se o destino já existe:**
-   - Se sim: Falhe com erro, sugira renomear o arquivo existente ou usar uma data diferente
-   - Se não: Mova o diretório da change para o arquivo
+   Use o CLI para mover a change de forma atômica:
 
    ```bash
-   mv openspec/changes/<nome> openspec/changes/archive/YYYY-MM-DD-<nome>
+   openspec archive "<nome>"
    ```
+
+   O comando trata colisões no destino, prefixo de data e validação. Se o destino já existir, falhe com erro e sugira renomear o arquivo existente ou usar outra data — **não** use `mv` manual nem aninhe o diretório da change.
 
 6. **Exiba o resumo**
 

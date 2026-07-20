@@ -1,7 +1,7 @@
 ---
 name: openspec-update-change
 description: Atualize uma change do BR-OpenSpec revisando seus artifacts de planejamento existentes e mantendo-os coerentes entre si. Use quando o usuário quiser revisar o plano de uma change, incorporar novas decisões a ela ou reconciliar seus artifacts após uma edição. Nunca edita código.
-allowed-tools: Bash(openspec:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
 metadata:
