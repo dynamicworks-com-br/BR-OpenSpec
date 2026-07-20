@@ -91,6 +91,8 @@ openspec init [path] [options]
 
 **Supported tool IDs (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
 
+> This list mirrors `AI_TOOLS` in `src/core/config.ts`. See [Supported Tools](supported-tools.md) for each tool's skill and command paths.
+
 **Examples:**
 
 ```bash
@@ -402,6 +404,37 @@ openspec archive update-ci-config --skip-specs
 ## Workflow Commands
 
 These commands support the artifact-driven OPSX workflow. They're useful for both humans checking progress and agents determining next steps.
+
+### `openspec new change`
+
+Create a change directory in the project's `openspec/changes/` folder.
+
+```bash
+openspec new change <name> [options]
+```
+
+Change names must use lowercase kebab-case. They start with a lowercase letter,
+then contain lowercase letters, numbers, and single hyphens. They cannot start
+with a number, contain spaces, underscores, uppercase letters, consecutive
+hyphens, or leading/trailing hyphens. When including an external ticket ID,
+prefix it with a word, for example `ticket-123-add-notifications` instead of
+`123-add-notifications`.
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--description <text>` | Description to add to the change's `README.md` |
+| `--schema <name>` | Workflow schema to use |
+
+**Examples:**
+
+```bash
+openspec new change add-billing-api
+openspec new change ticket-123-add-notifications --schema spec-driven
+```
+
+---
 
 ### `openspec status`
 
