@@ -2309,6 +2309,8 @@ export const SPECS_APPLY_MESSAGES = {
     `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
   modifiedFailedHeaderMismatch: (specName: string, reqName: string) =>
     `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - incompatibilidade de cabeçalho no conteúdo`,
+  modifiedFailedMissingScenarios: (specName: string, reqName: string, scenarioNames: string[]) =>
+    `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - o spec atual contém cenário(s) ausentes no bloco modificado: ${scenarioNames.map(name => `"${name}"`).join(', ')}. Atualize o spec da change antes de arquivar para evitar perder cenários.`,
   addedFailedAlreadyExists: (specName: string, reqName: string) =>
     `${specName} ADDED falhou para cabeçalho "### Requirement: ${reqName}" - já existe`,
   applyingChangesTo: (specPath: string) => `Aplicando alterações em openspec/specs/${specPath}/spec.md:`,

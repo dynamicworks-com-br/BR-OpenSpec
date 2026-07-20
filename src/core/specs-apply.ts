@@ -48,6 +48,11 @@ export interface SpecsApplyOutput {
   noChanges: boolean;
 }
 
+interface ScenarioBlock {
+  name: string;
+  raw: string;
+}
+
 // -----------------------------------------------------------------------------
 // Public API
 // -----------------------------------------------------------------------------
@@ -283,7 +288,8 @@ export async function buildUpdatedSpec(
   // MODIFIED
   for (const mod of plan.modified) {
     const key = normalizeRequirementName(mod.name);
-    if (!nameToBlock.has(key)) {
+    const currentBlock = nameToBlock.get(key);
+    if (!currentBlock) {
       throw new Error(SPECS_APPLY_MESSAGES.modifiedFailedNotFound(specName, mod.name));
     }
     // Replace block with provided raw (ensure header line matches key)
@@ -291,6 +297,12 @@ export async function buildUpdatedSpec(
     if (!modHeaderMatch || normalizeRequirementName(modHeaderMatch[1]) !== key) {
       throw new Error(
         SPECS_APPLY_MESSAGES.modifiedFailedHeaderMismatch(specName, mod.name)
+      );
+    }
+    const missingScenarios = findMissingCurrentScenarios(currentBlock, mod);
+    if (missingScenarios.length > 0) {
+      throw new Error(
+        SPECS_APPLY_MESSAGES.modifiedFailedMissingScenarios(specName, mod.name, missingScenarios)
       );
     }
     nameToBlock.set(key, mod);
@@ -374,6 +386,41 @@ export async function writeUpdatedSpec(
 export function buildSpecSkeleton(specFolderName: string, changeName: string): string {
   const titleBase = specFolderName;
   return `# ${titleBase} Specification\n\n## Purpose\n${SPECS_APPLY_MESSAGES.skeletonPurpose(changeName)}\n\n## Requirements\n`;
+}
+
+function findMissingCurrentScenarios(current: RequirementBlock, incoming: RequirementBlock): string[] {
+  const incomingScenarioNames = new Set(parseScenarioBlocks(incoming.raw).map((scenario) => scenario.name));
+  return parseScenarioBlocks(current.raw)
+    .filter((scenario) => !incomingScenarioNames.has(scenario.name))
+    .map((scenario) => scenario.name);
+}
+
+function parseScenarioBlocks(requirementRaw: string): ScenarioBlock[] {
+  const lines = requirementRaw.replace(/\r\n?/g, '\n').split('\n');
+  const scenarios: ScenarioBlock[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const headerMatch = lines[index].match(/^####\s*Scenario:\s*(.+)\s*$/);
+    if (!headerMatch) {
+      index++;
+      continue;
+    }
+
+    const start = index;
+    const name = headerMatch[1].trim();
+    index++;
+    while (index < lines.length && !/^####\s*Scenario:\s*(.+)\s*$/.test(lines[index])) {
+      index++;
+    }
+
+    scenarios.push({
+      name,
+      raw: lines.slice(start, index).join('\n').trimEnd(),
+    });
+  }
+
+  return scenarios;
 }
 
 /**

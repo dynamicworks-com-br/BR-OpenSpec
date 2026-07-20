@@ -151,6 +151,7 @@ export class ArchiveCommand {
       if (hasValidationErrors) {
         console.log(chalk.red(`\n${ARCHIVE_MESSAGES.validationFailed}`));
         console.log(chalk.yellow(ARCHIVE_MESSAGES.skipValidationHint));
+        process.exitCode = 1;
         return;
       }
     } else {
@@ -235,6 +236,7 @@ export class ArchiveCommand {
           } catch (err: any) {
             console.log(String(err.message || err));
             console.log(ARCHIVE_MESSAGES.abortedNoChanges);
+            process.exitCode = 1;
             return;
           }
 
@@ -251,6 +253,7 @@ export class ArchiveCommand {
                   else if (issue.level === 'WARNING') console.log(chalk.yellow(`  ⚠ ${issue.message}`));
                 }
                 console.log(ARCHIVE_MESSAGES.abortedNoChanges);
+                process.exitCode = 1;
                 return;
               }
             }
