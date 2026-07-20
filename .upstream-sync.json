@@ -3,11 +3,12 @@
   "upstreamRepo": "Fission-AI/OpenSpec",
   "upstreamRemote": "upstream",
   "upstreamBranch": "main",
-  "lastSyncedCommit": "1b06fddd59d8e592d5b5794a1970b22867e85b1f",
-  "lastSyncedVersion": "v1.4.1",
-  "lastSyncedDate": "2026-06-19",
+  "lastSyncedCommit": "596d6ba7f41160da9ab99cf4b891353baeb7eeb0",
+  "lastSyncedVersion": "v1.6.0-30-g596d6ba",
+  "lastSyncedDate": "2026-07-20",
   "deferred": [
-    "Subsistema workspace beta (src/core/workspace, src/core/context-store, src/core/planning-home, src/commands/workspace, initiative) — ver §9 de PLANO-sync-upstream-20260619.md"
+    "Subsistema workspace/stores beta (src/core/workspace, src/core/store, src/core/context-store, src/core/planning-home, src/commands/workspace, initiative, file-state.ts, root-selection, relationship-health) — inclui os STABLE 15ef3bcf, 93e27a75, 5199f41a, 520aa8c4 e o hunk file-state.ts de 41ceebe2 — ver §7 de PLANO-sync-upstream-20260719.md",
+    "website/ Cloudflare (65a7233f parcial + 0a99f410) e workflow de beta prerelease (8e9e457c) — adiados por decisão D4 (2026-07-19)"
   ],
   "history": [
     {
@@ -19,6 +20,16 @@
       "tag": "synced/upstream-v1.4.1",
       "scope": "Bloco A (código estável: correções, Mistral Vibe, /opsx:sync no core, docs). Subsistema workspace beta adiado.",
       "plan": "PLANO-sync-upstream-20260619.md"
+    },
+    {
+      "date": "2026-07-20",
+      "fromCommit": "1b06fddd59d8e592d5b5794a1970b22867e85b1f",
+      "toCommit": "596d6ba7f41160da9ab99cf4b891353baeb7eeb0",
+      "toVersion": "v1.6.0-30-g596d6ba",
+      "branch": "sync/upstream_20260719",
+      "tag": "synced/upstream-v1.6.0",
+      "scope": "Bloco A (38 commits STABLE portados em 30 commits temáticos): /opsx:update no core, skills.sh, Kimi Code, auto-approve do CLI, resolução canônica validate/view/archive, parser fence-aware, specs aninhados, archive idempotente, datas locais, completions/shell, docs overhaul (13 páginas EN+PT-BR), bumps de segurança. Stores/workspace adiados; website e beta prerelease adiados (D4).",
+      "plan": "PLANO-sync-upstream-20260719.md"
     }
   ]
 }

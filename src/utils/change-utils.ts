@@ -1,6 +1,7 @@
 import path from 'path';
 import { FileSystemUtils } from './file-system.js';
 import { writeChangeMetadata, validateSchemaName } from './change-metadata.js';
+import { formatLocalDate } from './date.js';
 import { readProjectConfig } from '../core/project-config.js';
 import { CHANGE_UTILS_MESSAGES } from '../messages/index.js';
 
@@ -151,10 +152,9 @@ export async function createChange(
   await FileSystemUtils.createDirectory(changeDir);
 
   // Write metadata file with schema and creation date
-  const today = new Date().toISOString().split('T')[0];
   writeChangeMetadata(changeDir, {
     schema: schemaName,
-    created: today,
+    created: formatLocalDate(),
   }, projectRoot);
 
   return { schema: schemaName };

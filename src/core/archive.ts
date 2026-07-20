@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { formatLocalDate } from '../utils/date.js';
 import { getTaskProgressForChange, formatTaskStatus } from '../utils/task-progress.js';
 import { Validator } from './validation/validator.js';
 import chalk from 'chalk';
@@ -10,6 +11,7 @@ import {
   writeUpdatedSpec,
   type SpecUpdate,
 } from './specs-apply.js';
+import { discoverSpecFiles } from '../utils/spec-discovery.js';
 
 /**
  * Recursively copy a directory. Used when fs.rename fails (e.g. EPERM on Windows).
@@ -47,6 +49,13 @@ async function moveDirectory(src: string, dest: string): Promise<void> {
     }
   }
 }
+
+/**
+ * Matches the `YYYY-MM-DD-` prefix that archiving prepends to a change name.
+ * A change whose name already starts with one (a common authoring convention)
+ * is archived under its existing name so the prefix is never stacked (#1309).
+ */
+const ARCHIVE_DATE_PREFIX_PATTERN = /^\d{4}-\d{2}-\d{2}-/;
 
 export class ArchiveCommand {
   async execute(
@@ -117,22 +126,15 @@ export class ArchiveCommand {
       // Validate delta-formatted spec files under the change directory if present
       const changeSpecsDir = path.join(changeDir, 'specs');
       let hasDeltaSpecs = false;
-      try {
-        const candidates = await fs.readdir(changeSpecsDir, { withFileTypes: true });
-        for (const c of candidates) {
-          if (c.isDirectory()) {
-            try {
-              const candidatePath = path.join(changeSpecsDir, c.name, 'spec.md');
-              await fs.access(candidatePath);
-              const content = await fs.readFile(candidatePath, 'utf-8');
-              if (/^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements/m.test(content)) {
-                hasDeltaSpecs = true;
-                break;
-              }
-            } catch {}
+      for (const { specFile } of await discoverSpecFiles(changeSpecsDir)) {
+        try {
+          const content = await fs.readFile(specFile, 'utf-8');
+          if (/^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements/m.test(content)) {
+            hasDeltaSpecs = true;
+            break;
           }
-        }
-      } catch {}
+        } catch {}
+      }
       if (hasDeltaSpecs) {
         const deltaReport = await validator.validateChangeDeltaSpecs(changeDir);
         if (!deltaReport.valid) {
@@ -151,6 +153,7 @@ export class ArchiveCommand {
       if (hasValidationErrors) {
         console.log(chalk.red(`\n${ARCHIVE_MESSAGES.validationFailed}`));
         console.log(chalk.yellow(ARCHIVE_MESSAGES.skipValidationHint));
+        process.exitCode = 1;
         return;
       }
     } else {
@@ -176,7 +179,7 @@ export class ArchiveCommand {
     }
 
     // Show progress and check for incomplete tasks
-    const progress = await getTaskProgressForChange(changesDir, changeName);
+    const progress = await getTaskProgressForChange(changesDir, changeName, path.resolve(changesDir, '..', '..'));
     const status = formatTaskStatus(progress);
     console.log(ARCHIVE_MESSAGES.taskStatus(status));
 
@@ -208,7 +211,7 @@ export class ArchiveCommand {
         console.log(`\n${ARCHIVE_MESSAGES.specsToUpdate}`);
         for (const update of specUpdates) {
           const status = update.exists ? ARCHIVE_MESSAGES.actionUpdate : ARCHIVE_MESSAGES.actionCreate;
-          const capability = path.basename(path.dirname(update.target));
+          const capability = update.id;
           console.log(ARCHIVE_MESSAGES.specUpdateStatus(capability, status));
         }
 
@@ -235,13 +238,14 @@ export class ArchiveCommand {
           } catch (err: any) {
             console.log(String(err.message || err));
             console.log(ARCHIVE_MESSAGES.abortedNoChanges);
+            process.exitCode = 1;
             return;
           }
 
           // All validations passed; pre-validate rebuilt full spec and then write files and display counts
           let totals = { added: 0, modified: 0, removed: 0, renamed: 0 };
           for (const p of prepared) {
-            const specName = path.basename(path.dirname(p.update.target));
+            const specName = p.update.id;
             if (!skipValidation) {
               const report = await new Validator().validateSpecContent(specName, p.rebuilt);
               if (!report.valid) {
@@ -251,6 +255,7 @@ export class ArchiveCommand {
                   else if (issue.level === 'WARNING') console.log(chalk.yellow(`  ⚠ ${issue.message}`));
                 }
                 console.log(ARCHIVE_MESSAGES.abortedNoChanges);
+                process.exitCode = 1;
                 return;
               }
             }
@@ -268,8 +273,13 @@ export class ArchiveCommand {
       }
     }
 
-    // Create archive directory with date prefix
-    const archiveName = `${this.getArchiveDate()}-${changeName}`;
+    // Create archive directory with date prefix. Names that already carry
+    // one keep it: re-prefixing would stutter the name, and when the archive
+    // runs on a later day the folder would sort under a day on which the
+    // change did not happen (#1309).
+    const archiveName = ARCHIVE_DATE_PREFIX_PATTERN.test(changeName)
+      ? changeName
+      : `${formatLocalDate()}-${changeName}`;
     const archivePath = path.join(archiveDir, archiveName);
 
     // Check if archive already exists
@@ -310,7 +320,7 @@ export class ArchiveCommand {
     try {
       const progressList: Array<{ id: string; status: string }> = [];
       for (const id of changeDirs) {
-        const progress = await getTaskProgressForChange(changesDir, id);
+        const progress = await getTaskProgressForChange(changesDir, id, path.resolve(changesDir, '..', '..'));
         const status = formatTaskStatus(progress);
         progressList.push({ id, status });
       }
@@ -334,10 +344,5 @@ export class ArchiveCommand {
       // User cancelled (Ctrl+C)
       return null;
     }
-  }
-
-  private getArchiveDate(): string {
-    // Returns date in YYYY-MM-DD format
-    return new Date().toISOString().split('T')[0];
   }
 }

@@ -1,6 +1,30 @@
 # Primeiros Passos
 
-Este guia explica como o BR-OpenSpec funciona após você tê-lo instalado e inicializado. Para instruções de instalação, consulte o [README principal](../../README.pt-BR.md#quick-start).
+Este guia explica como o BR-OpenSpec funciona após você tê-lo instalado e inicializado. Para instruções de instalação, consulte o [README principal](../../README.pt-BR.md#início-rápido) ou o [guia de Instalação](installation.md). Novo em todo o conjunto de docs? A [home da documentação](README.md) mapeia tudo.
+
+> **Onde eu digito esses comandos?** Em dois lugares, e confundi-los é o tropeço inicial mais comum.
+>
+> - Comandos `openspec ...` (como `openspec init`) rodam no seu **terminal**.
+> - Comandos `/opsx:...` (como `/opsx:propose`) rodam no **chat do seu assistente de IA**, a mesma caixa onde você pediria para ele escrever código.
+>
+> Não existe um "modo interativo" separado para iniciar. Você simplesmente digita o slash command no chat e seu assistente toma conta a partir daí. Explicação completa: [Como os Comandos Funcionam](how-commands-work.md).
+
+## Seus Primeiros Cinco Minutos
+
+O loop inteiro, com cada passo marcado pelo lugar onde acontece:
+
+```text
+TERMINAL     $ npm install -g @dynamicworks/br-openspec@latest
+TERMINAL     $ cd seu-projeto && openspec init
+CHAT DA IA   /opsx:explore                    (opcional: pense primeiro)
+CHAT DA IA   /opsx:propose add-dark-mode      (IA elabora o plano; você revisa)
+CHAT DA IA   /opsx:apply                      (IA constrói)
+CHAT DA IA   /opsx:archive                    (specs atualizadas, mudança arquivada)
+```
+
+Dois passos no terminal para configurar, depois você vive no chat. O resto deste guia desempacota o que cada passo faz e o que você verá.
+
+> **Ainda não sabe o que construir? Comece com `/opsx:explore`.** É um parceiro de raciocínio sem risco algum, que lê sua base de código, pesa opções e afia uma ideia difusa em um plano concreto, tudo antes que qualquer artefato ou código exista. Quando o quadro está claro, ele passa o bastão para `/opsx:propose`. Este é o melhor hábito para trabalhar com uma IA que, de outra forma, construiria confiantemente a coisa errada. Veja o [guia Explore](explore.md).
 
 ## Como Funciona
 
@@ -9,8 +33,11 @@ O BR-OpenSpec ajuda você e seu assistente de codificação com IA a chegarem a 
 **Caminho rápido padrão (perfil `core`):**
 
 ```text
-/opsx:propose ──► /opsx:apply ──► /opsx:sync ──► /opsx:archive
+/opsx:explore ──► /opsx:propose ──► /opsx:apply ──► /opsx:sync ──► /opsx:archive
+   (opcional)
 ```
+
+Comece com `/opsx:explore` quando você estiver descobrindo o que fazer, ou pule direto para `/opsx:propose` quando já souber. O explore está no perfil padrão, então está sempre lá quando você quiser.
 
 **Caminho expandido (seleção de workflow personalizado):**
 
@@ -53,7 +80,7 @@ Cada pasta de mudança contém artefatos que orientam o trabalho:
 | Artefato | Propósito |
 |----------|-----------|
 | `proposal.md` | O "por quê" e o "o quê" — captura a intenção, o escopo e a abordagem |
-| `specs/` | Delta specs mostrando requisitos ADICIONADOS/MODIFICADOS/REMOVIDOS |
+| `specs/` | Delta specs mostrando requisitos ADDED/MODIFIED/REMOVED |
 | `design.md` | O "como" — abordagem técnica e decisões de arquitetura |
 | `tasks.md` | Lista de verificação de implementação com checkboxes |
 
@@ -247,7 +274,15 @@ openspec view
 
 ## Próximos Passos
 
+- [Explore Primeiro](explore.md) — Use `/opsx:explore` para pensar uma ideia antes de se comprometer
+- [Revisando uma Mudança](reviewing-changes.md) — O que verificar no plano que a IA elabora, antes de qualquer código
+- [Escrevendo Boas Specs](writing-specs.md) — Como são um bom requisito e um bom cenário
+- [Usando o BR-OpenSpec em um Projeto Existente](existing-projects.md) — Comece numa base de código brownfield grande
+- [Editando e Iterando em uma Mudança](editing-changes.md) — Atualize artefatos, volte atrás, reconcilie edições manuais
+- [Conceitos Essenciais em Resumo](overview.md) — Todo o modelo mental em uma página
+- [Exemplos e Receitas](examples.md) — Mudanças reais, do início ao fim
 - [Fluxos de Trabalho](workflows.md) — Padrões comuns e quando usar cada comando
 - [Comandos](commands.md) — Referência completa de todos os comandos slash
 - [Conceitos](concepts.md) — Compreensão mais profunda de specs, mudanças e schemas
 - [Personalização](customization.md) — Faça o BR-OpenSpec funcionar do seu jeito
+- [FAQ](faq.md) e [Solução de Problemas](troubleshooting.md) — Quando você travar

@@ -2,7 +2,8 @@ import ora from 'ora';
 import path from 'path';
 import { Validator } from '../core/validation/validator.js';
 import { isInteractive, resolveNoInteractive } from '../utils/interactive.js';
-import { getActiveChangeIds, getSpecIds } from '../utils/item-discovery.js';
+import { getSpecIds } from '../utils/item-discovery.js';
+import { getAvailableChanges } from './workflow/shared.js';
 import { nearestMatches } from '../utils/match.js';
 import { VALIDATE_MESSAGES } from '../messages/index.js';
 
@@ -64,6 +65,18 @@ export class ValidateCommand {
     return undefined;
   }
 
+  /**
+   * Resolve change IDs by directory existence — the same rule
+   * `openspec status`/`instructions` use (`getAvailableChanges`) — rather than
+   * requiring `proposal.md`. This lets `validate` resolve a scaffolded or
+   * still-authoring change that the sibling commands already resolve (#1182).
+   * Sorted to preserve the prior `getActiveChangeIds` ordering.
+   */
+  private async listChangeIds(): Promise<string[]> {
+    const ids = await getAvailableChanges(process.cwd());
+    return ids.sort();
+  }
+
   private async runInteractiveSelector(opts: { strict: boolean; json: boolean; concurrency?: string }): Promise<void> {
     const { select } = await import('@inquirer/prompts');
     const choice = await select({
@@ -81,7 +94,7 @@ export class ValidateCommand {
     if (choice === 'specs') return this.runBulkValidation({ changes: false, specs: true }, opts);
 
     // one
-    const [changes, specs] = await Promise.all([getActiveChangeIds(), getSpecIds()]);
+    const [changes, specs] = await Promise.all([this.listChangeIds(), getSpecIds()]);
     const items: { name: string; value: { type: ItemType; id: string } }[] = [];
     items.push(...changes.map(id => ({ name: `change/${id}`, value: { type: 'change' as const, id } })));
     items.push(...specs.map(id => ({ name: `spec/${id}`, value: { type: 'spec' as const, id } })));
@@ -104,7 +117,7 @@ export class ValidateCommand {
   }
 
   private async validateDirectItem(itemName: string, opts: { typeOverride?: ItemType; strict: boolean; json: boolean }): Promise<void> {
-    const [changes, specs] = await Promise.all([getActiveChangeIds(), getSpecIds()]);
+    const [changes, specs] = await Promise.all([this.listChangeIds(), getSpecIds()]);
     const isChange = changes.includes(itemName);
     const isSpec = specs.includes(itemName);
 
@@ -185,7 +198,7 @@ export class ValidateCommand {
   private async runBulkValidation(scope: { changes: boolean; specs: boolean }, opts: { strict: boolean; json: boolean; concurrency?: string; noInteractive?: boolean }): Promise<void> {
     const spinner = !opts.json && !opts.noInteractive ? ora(VALIDATE_MESSAGES.validating).start() : undefined;
     const [changeIds, specIds] = await Promise.all([
-      scope.changes ? getActiveChangeIds() : Promise.resolve<string[]>([]),
+      scope.changes ? this.listChangeIds() : Promise.resolve<string[]>([]),
       scope.specs ? getSpecIds() : Promise.resolve<string[]>([]),
     ]);
 

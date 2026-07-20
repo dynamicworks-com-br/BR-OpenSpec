@@ -71,7 +71,7 @@ export function getApplyChangeSkillTemplate(): SkillTemplate {
    - Mostre qual tarefa está sendo trabalhada
    - Faça as alterações de código necessárias
    - Mantenha as alterações mínimas e focadas
-   - Marque a tarefa como concluída no arquivo de tasks: \`- [ ]\` → \`- [x]\`
+   - Marque a tarefa como concluída no artifact de rastreamento retornado por \`openspec instructions apply\` (caminho em \`contextFiles\` e formato definido pelo schema ativo — não presuma \`tasks.md\` nem a sintaxe \`- [ ]\`/\`- [x]\`)
    - Continue para a próxima tarefa
 
    **Pare se:**
@@ -228,7 +228,7 @@ export function getOpsxApplyCommandTemplate(): CommandTemplate {
    - Mostre qual tarefa está sendo trabalhada
    - Faça as alterações de código necessárias
    - Mantenha as alterações mínimas e focadas
-   - Marque a tarefa como concluída no arquivo de tasks: \`- [ ]\` → \`- [x]\`
+   - Marque a tarefa como concluída no artifact de rastreamento retornado por \`openspec instructions apply\` (caminho em \`contextFiles\` e formato definido pelo schema ativo — não presuma \`tasks.md\` nem a sintaxe \`- [ ]\`/\`- [x]\`)
    - Continue para a próxima tarefa
 
    **Pare se:**

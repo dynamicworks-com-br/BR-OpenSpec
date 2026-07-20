@@ -16,7 +16,6 @@ export const VALIDATION_MESSAGES = {
   // Required content
   SCENARIO_EMPTY: 'O texto do cenário não pode estar vazio',
   REQUIREMENT_EMPTY: 'O texto do requisito não pode estar vazio',
-  REQUIREMENT_NO_SHALL: 'O requisito deve conter as palavras-chave SHALL ou MUST',
   REQUIREMENT_NO_SCENARIOS: 'O requisito deve ter pelo menos um cenário',
   SPEC_NAME_EMPTY: 'O nome da especificação não pode estar vazio',
   SPEC_PURPOSE_EMPTY: 'A seção Purpose não pode estar vazia',

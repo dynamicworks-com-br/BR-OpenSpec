@@ -140,6 +140,59 @@ Old instructions content
       consoleSpy.mockRestore();
     });
 
+    it('should migrate OpenSpec skills from legacy .kimi to .kimi-code, preserving user files', async () => {
+      // Managed skill in the legacy Kimi CLI location
+      const legacySkillDir = path.join(testDir, '.kimi', 'skills', 'openspec-explore');
+      await fs.mkdir(legacySkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(legacySkillDir, 'SKILL.md'),
+        `---\nname: openspec-explore\nmetadata:\n  author: openspec\n  version: "0.9"\n---\n\nOld instructions content\n`
+      );
+
+      // User-owned files in the legacy location that must be preserved
+      const userSkillDir = path.join(testDir, '.kimi', 'skills', 'my-custom-skill');
+      await fs.mkdir(userSkillDir, { recursive: true });
+      await fs.writeFile(path.join(userSkillDir, 'SKILL.md'), 'user skill');
+      await fs.writeFile(path.join(testDir, '.kimi', 'config.toml'), 'user config');
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      // Managed skill migrated to .kimi-code and refreshed by the update
+      const migratedSkill = await fs.readFile(
+        path.join(testDir, '.kimi-code', 'skills', 'openspec-explore', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(migratedSkill).toContain('name: openspec-explore');
+      expect(migratedSkill).not.toContain('Old instructions content');
+
+      // Legacy managed skill is gone; user files stay where they were
+      await expect(fs.access(legacySkillDir)).rejects.toThrow();
+      expect(await fs.readFile(path.join(userSkillDir, 'SKILL.md'), 'utf-8')).toBe('user skill');
+      expect(await fs.readFile(path.join(testDir, '.kimi', 'config.toml'), 'utf-8')).toBe('user config');
+
+      const logCalls = consoleSpy.mock.calls.flat().map(String);
+      expect(logCalls.some((entry) => entry.includes('.kimi/skills') && entry.includes('.kimi-code/skills'))).toBe(true);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should remove the legacy .kimi directory entirely when it only held OpenSpec skills', async () => {
+      const legacySkillDir = path.join(testDir, '.kimi', 'skills', 'openspec-explore');
+      await fs.mkdir(legacySkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(legacySkillDir, 'SKILL.md'),
+        `---\nname: openspec-explore\nmetadata:\n  author: openspec\n  version: "0.9"\n---\n\nOld instructions content\n`
+      );
+
+      await updateCommand.execute(testDir);
+
+      await expect(fs.access(path.join(testDir, '.kimi'))).rejects.toThrow();
+      const migratedSkill = path.join(testDir, '.kimi-code', 'skills', 'openspec-explore', 'SKILL.md');
+      await expect(fs.access(migratedSkill)).resolves.toBeUndefined();
+    });
+
     it('should update core profile skill files when tool is configured', async () => {
       // Set up a configured tool with one skill directory
       const skillsDir = path.join(testDir, '.claude', 'skills');
@@ -155,10 +208,11 @@ Old instructions content
 
       await updateCommand.execute(testDir);
 
-      // Verify core profile skill files were created/updated (propose, explore, apply, sync, archive)
+      // Verify core profile skill files were created/updated (propose, explore, apply, update, sync, archive)
       const coreSkillNames = [
         'openspec-explore',
         'openspec-apply-change',
+        'openspec-update-change',
         'openspec-sync-specs',
         'openspec-archive-change',
         'openspec-propose',
@@ -1325,6 +1379,7 @@ More user content after markers.
         'openspec-propose',
         'openspec-explore',
         'openspec-apply-change',
+        'openspec-update-change',
         'openspec-sync-specs',
         'openspec-archive-change',
       ];
@@ -1428,7 +1483,7 @@ More user content after markers.
       )).toBe(false);
     });
 
-    it('should suggest core preset when custom profile preserves the old core workflow set', async () => {
+    it('should list missing core workflows when custom profile preserves the old core workflow set', async () => {
       setMockConfig({
         featureFlags: {},
         profile: 'custom',
@@ -1447,10 +1502,10 @@ More user content after markers.
         call.map(arg => String(arg)).join(' ')
       );
       expect(calls.some(call =>
-        call.includes('o perfil core agora inclui o fluxo de trabalho sync')
+        call.includes('seu perfil personalizado não inclui 2 fluxos de trabalho do core: update, sync')
       )).toBe(true);
       expect(calls.some(call =>
-        call.includes('openspec config profile core') && call.includes('openspec update')
+        call.includes('para adicioná-los, ou') && call.includes('openspec config profile core')
       )).toBe(true);
 
       expect(await FileSystemUtils.fileExists(
@@ -1458,6 +1513,59 @@ More user content after markers.
       )).toBe(false);
       expect(await FileSystemUtils.fileExists(
         path.join(testDir, '.claude', 'commands', 'opsx', 'sync.md')
+      )).toBe(false);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should list a single missing core workflow when custom profile lacks only update', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'custom',
+        delivery: 'both',
+        workflows: ['propose', 'explore', 'apply', 'sync', 'archive'],
+      });
+
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+      await initCommand.execute(testDir);
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      const calls = consoleSpy.mock.calls.map(call =>
+        call.map(arg => String(arg)).join(' ')
+      );
+      expect(calls.some(call =>
+        call.includes('seu perfil personalizado não inclui 1 fluxo de trabalho do core: update')
+      )).toBe(true);
+      expect(calls.some(call =>
+        call.includes('para adicioná-lo, ou')
+      )).toBe(true);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should not display a missing-core note when custom profile covers core workflows', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'custom',
+        delivery: 'both',
+        workflows: ['propose', 'explore', 'apply', 'update', 'sync', 'archive', 'verify'],
+      });
+
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+      await initCommand.execute(testDir);
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      const calls = consoleSpy.mock.calls.map(call =>
+        call.map(arg => String(arg)).join(' ')
+      );
+      expect(calls.some(call =>
+        call.includes('seu perfil personalizado não inclui')
       )).toBe(false);
 
       consoleSpy.mockRestore();
@@ -1486,6 +1594,25 @@ More user content after markers.
       expect(await FileSystemUtils.fileExists(
         path.join(commandsDir, 'explore.md')
       )).toBe(false);
+
+      // Skill content should reference skills, not commands that were never generated
+      const skillContent = await fs.readFile(
+        path.join(skillsDir, 'openspec-explore', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(skillContent).not.toContain('/opsx:');
+      expect(skillContent).not.toContain('/opsx-');
+      expect(skillContent).toContain('/openspec-');
+
+      // update-change references several other workflows; a command missing
+      // from the reference map would leave a raw /opsx: reference behind
+      const updateSkillContent = await fs.readFile(
+        path.join(skillsDir, 'openspec-update-change', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(updateSkillContent).not.toContain('/opsx:');
+      expect(updateSkillContent).not.toContain('/opsx-');
+      expect(updateSkillContent).toContain('/openspec-');
     });
 
     it('should respect commands-only delivery setting', async () => {

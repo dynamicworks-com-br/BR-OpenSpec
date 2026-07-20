@@ -163,6 +163,7 @@ docs/            # Markdown documentation (English + pt-BR)
 - **AI tool adapters**: Each supported AI tool has an adapter in `src/core/command-generation/adapters/`. New tool support requires adding an adapter and registering it in the factory.
 - **Shell completions**: New CLI commands should update completion generators in `src/core/completions/`.
 - **Legacy cleanup**: The init command detects and optionally cleans up legacy file layouts.
+- **skills.sh distribution**: The committed `skills/<name>/SKILL.md` tree is generated from the workflow templates — never edit it by hand. Any change to `src/core/templates/workflows/*.ts` or to `src/core/shared/skill-generation.ts` requires `pnpm build && pnpm generate:skills` (plus regenerating the hashes in `test/core/templates/skill-templates-parity.test.ts`); otherwise `test/core/templates/skillssh-parity.test.ts` fails.
 - **Windows awareness**: Any file system or path logic must work on Windows. CI tests on `windows-latest` with PowerShell.
 
 ## Useful Environment Variables

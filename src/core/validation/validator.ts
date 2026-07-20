@@ -10,9 +10,15 @@ import {
   MAX_REQUIREMENT_TEXT_LENGTH,
   VALIDATION_MESSAGES
 } from './constants.js';
-import { parseDeltaSpec, normalizeRequirementName } from '../parsers/requirement-blocks.js';
+import { parseDeltaSpec, normalizeRequirementName, extractRequirementsSection } from '../parsers/requirement-blocks.js';
+import {
+  extractRequirementBody as extractRequirementBodyShared,
+  containsShallOrMust as containsShallOrMustShared,
+  countScenarios as countScenariosShared,
+} from '../parsers/requirement-text.js';
 import { findMainSpecStructureIssues } from '../parsers/spec-structure.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
+import { discoverSpecFiles } from '../../utils/spec-discovery.js';
 import { VALIDATOR_MESSAGES } from '../../messages/index.js';
 
 export class Validator {
@@ -121,11 +127,12 @@ export class Validator {
     const emptySectionSpecs: Array<{ path: string; sections: string[] }> = [];
 
     try {
-      const entries = await fs.readdir(specsDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        const specName = entry.name;
-        const specFile = path.join(specsDir, specName, 'spec.md');
+      // Discover delta specs at any depth so the nested multi-area layout
+      // (specs/<area>/<capability>/spec.md) is validated, not just the
+      // one-level specs/<capability>/spec.md layout (#1182b). The spec-driven
+      // specs glob is specs/**/*.md; delta files are always named spec.md.
+      const specFiles = await this.findDeltaSpecFiles(specsDir);
+      for (const specFile of specFiles) {
         let content: string | undefined;
         try {
           content = await fs.readFile(specFile, 'utf-8');
@@ -134,7 +141,26 @@ export class Validator {
         }
 
         const plan = parseDeltaSpec(content);
-        const entryPath = `${specName}/spec.md`;
+        const entryPath = FileSystemUtils.toPosixPath(path.relative(specsDir, specFile));
+
+        // Surface (as INFO, never a failure) the non-canonical level-3 headers
+        // the delta reader skipped while parsing ADDED/MODIFIED sections —
+        // without this note a stray divider like "### Documentation
+        // Requirements" would pass validate <change> while failing
+        // archive/validate <spec>. The list comes from the parse itself, so it
+        // reflects exactly what the reader skipped.
+        for (const stray of plan.skippedHeaders) {
+          const nameless = /^requirement:?$/i.test(stray.header);
+          issues.push({
+            level: 'INFO',
+            path: entryPath,
+            line: stray.line,
+            message: nameless
+              ? VALIDATOR_MESSAGES.skippedHeaderNameless(stray.header, stray.section)
+              : VALIDATOR_MESSAGES.skippedHeaderNotRequirement(stray.header, stray.section),
+          });
+        }
+
         const sectionNames: string[] = [];
         if (plan.sectionPresence.added) sectionNames.push('## ADDED Requirements');
         if (plan.sectionPresence.modified) sectionNames.push('## MODIFIED Requirements');
@@ -164,7 +190,13 @@ export class Validator {
           }
           const requirementText = this.extractRequirementText(block.raw);
           if (!requirementText) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingRequirementTextAdded(block.name) });
+            issues.push({
+              level: 'ERROR',
+              path: entryPath,
+              message: this.containsShallOrMust(block.name)
+                ? VALIDATOR_MESSAGES.missingShallOrMustAdded(block.name, true)
+                : VALIDATOR_MESSAGES.missingRequirementTextAdded(block.name),
+            });
           } else if (!this.containsShallOrMust(requirementText)) {
             issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustAdded(block.name, this.containsShallOrMust(block.name)) });
           }
@@ -185,7 +217,13 @@ export class Validator {
           }
           const requirementText = this.extractRequirementText(block.raw);
           if (!requirementText) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingRequirementTextModified(block.name) });
+            issues.push({
+              level: 'ERROR',
+              path: entryPath,
+              message: this.containsShallOrMust(block.name)
+                ? VALIDATOR_MESSAGES.missingShallOrMustModified(block.name, true)
+                : VALIDATOR_MESSAGES.missingRequirementTextModified(block.name),
+            });
           } else if (!this.containsShallOrMust(requirementText)) {
             issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustModified(block.name, this.containsShallOrMust(block.name)) });
           }
@@ -274,6 +312,17 @@ export class Validator {
     return this.createReport(issues);
   }
 
+  /**
+   * Recursively collect every delta `spec.md` under a change's specs directory,
+   * so both the one-level (specs/<capability>/spec.md) and nested multi-area
+   * (specs/<area>/<capability>/spec.md) layouts are discovered (#1182b).
+   * Returns absolute paths, sorted for deterministic issue ordering.
+   */
+  private async findDeltaSpecFiles(specsDir: string): Promise<string[]> {
+    const discovered = await discoverSpecFiles(specsDir);
+    return discovered.map((spec) => spec.specFile).sort();
+  }
+
   private convertZodErrors(error: ZodError): ValidationIssue[] {
     return error.issues.map(err => {
       let message = err.message;
@@ -325,7 +374,25 @@ export class Validator {
         });
       }
     });
-    
+
+    // SHALL/MUST body-keyword enforcement for main specs (#1156). The main-spec
+    // parser collapses the requirement header into `text`, so we recover the
+    // header+body pairs here (the same source the delta path trusts) and reuse
+    // the delta detection: a body that omits the keyword errors, with the
+    // targeted "move it to the body line" hint when the keyword is in the header
+    // only and the generic message otherwise. Emitted exactly once per
+    // requirement (the Zod refine that used to emit a generic error is removed).
+    extractRequirementsSection(content).bodyBlocks.forEach((block, index) => {
+      const requirementText = this.extractRequirementText(block.raw);
+      if (!requirementText || !this.containsShallOrMust(requirementText)) {
+        issues.push({
+          level: 'ERROR',
+          path: `requirements[${index}]`,
+          message: VALIDATOR_MESSAGES.missingShallOrMustRequirement(block.name, this.containsShallOrMust(block.name)),
+        });
+      }
+    });
+
     return issues;
   }
 
@@ -414,40 +481,23 @@ export class Validator {
   }
 
   private extractRequirementText(blockRaw: string): string | undefined {
-    const lines = blockRaw.split('\n');
-    // Skip header line (index 0)
-    let i = 1;
-
-    // Find the first substantial text line, skipping metadata and blank lines
-    for (; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Stop at scenario headers
-      if (/^####\s+/.test(line)) break;
-
-      const trimmed = line.trim();
-
-      // Skip blank lines
-      if (trimmed.length === 0) continue;
-
-      // Skip metadata lines (lines starting with ** like **ID**, **Priority**, etc.)
-      if (/^\*\*[^*]+\*\*:/.test(trimmed)) continue;
-
-      // Found first non-metadata, non-blank line - this is the requirement text
-      return trimmed;
-    }
-
-    // No requirement text found
-    return undefined;
+    // Delegate to the shared, fence-/metadata-/multi-line-aware body reader.
+    // Validation intentionally does not use the parser/display header-title
+    // fallback for canonical `### Requirement:` blocks: #1280 requires a
+    // SHALL/MUST that appears only in the header to receive the body-keyword
+    // hint. Line 0 is the `### Requirement: ...` header.
+    const [, ...bodyLines] = blockRaw.split('\n');
+    return extractRequirementBodyShared(bodyLines) || undefined;
   }
 
   private containsShallOrMust(text: string): boolean {
-    return /\b(SHALL|MUST)\b/.test(text);
+    return containsShallOrMustShared(text);
   }
 
   private countScenarios(blockRaw: string): number {
-    const matches = blockRaw.match(/^####\s+/gm);
-    return matches ? matches.length : 0;
+    // Fence-aware count via the shared reader: a `#### Scenario:` inside a fenced
+    // example is not a real scenario. Drop the header line (index 0).
+    return countScenariosShared(blockRaw.split('\n').slice(1));
   }
 
   private formatSectionList(sections: string[]): string {

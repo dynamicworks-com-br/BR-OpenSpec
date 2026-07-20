@@ -168,9 +168,24 @@ export class PowerShellInstaller {
 
     for (const profilePath of profilePaths) {
       try {
-        // Create profile file if it doesn't exist
         const profileDir = path.dirname(profilePath);
-        await fs.mkdir(profileDir, { recursive: true });
+        let profileExists = false;
+        try {
+          await fs.access(profilePath);
+          profileExists = true;
+        } catch (err: unknown) {
+          const code = (err as NodeJS.ErrnoException)?.code;
+          if (code !== 'ENOENT') {
+            throw err;
+          }
+        }
+
+        if (!profileExists) {
+          if (!(await FileSystemUtils.canWriteFile(profilePath))) {
+            throw new Error(COMPLETION_MESSAGES.pathNotWritable(profilePath));
+          }
+          await fs.mkdir(profileDir, { recursive: true });
+        }
 
         let profileContent = '';
         let fileEncoding: BufferEncoding = 'utf-8';
@@ -207,6 +222,9 @@ export class PowerShellInstaller {
         ].join('\n');
 
         const newContent = profileContent + openspecBlock;
+        if (!(await FileSystemUtils.canWriteFile(profilePath))) {
+          throw new Error(COMPLETION_MESSAGES.pathNotWritable(profilePath));
+        }
         await this.writeProfileFile(profilePath, newContent, fileEncoding, fileBom);
         anyConfigured = true;
       } catch (error) {
@@ -269,6 +287,9 @@ export class PowerShellInstaller {
         // Clean up extra newlines
         const newContent = (beforeBlock.trimEnd() + '\n' + afterBlock.trimStart()).trim() + '\n';
 
+        if (!(await FileSystemUtils.canWriteFile(profilePath))) {
+          throw new Error(COMPLETION_MESSAGES.pathNotWritable(profilePath));
+        }
         await this.writeProfileFile(profilePath, newContent, fileEncoding, fileBom);
         anyRemoved = true;
       } catch (error) {
@@ -310,6 +331,10 @@ export class PowerShellInstaller {
       } catch (error: any) {
         // File doesn't exist or can't be read, proceed with installation
         console.debug(`Unable to read existing completion file at ${targetPath}: ${error.message}`);
+      }
+
+      if (!(await FileSystemUtils.canWriteFile(targetPath))) {
+        throw new Error(COMPLETION_MESSAGES.pathNotWritable(targetPath));
       }
 
       // Ensure the directory exists
@@ -410,6 +435,11 @@ export class PowerShellInstaller {
           success: false,
           message: COMPLETION_MESSAGES.powershellNotInstalled,
         };
+      }
+
+      const targetDir = path.dirname(targetPath);
+      if (!(await FileSystemUtils.canWriteFile(targetDir))) {
+        throw new Error(COMPLETION_MESSAGES.pathNotWritable(targetDir));
       }
 
       // Remove the completion script

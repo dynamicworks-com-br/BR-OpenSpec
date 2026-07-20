@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+import { FileSystemUtils } from '../../../utils/file-system.js';
 import { COMPLETION_MESSAGES } from '../../../messages/index.js';
 import { InstallationResult } from '../factory.js';
 
@@ -77,6 +78,10 @@ export class FishInstaller {
         console.debug(`Unable to read existing completion file at ${targetPath}: ${error.message}`);
       }
 
+      if (!(await FileSystemUtils.canWriteFile(targetPath))) {
+        throw new Error(COMPLETION_MESSAGES.pathNotWritable(targetPath));
+      }
+
       // Ensure the directory exists
       const targetDir = path.dirname(targetPath);
       await fs.mkdir(targetDir, { recursive: true });
@@ -134,6 +139,11 @@ export class FishInstaller {
           success: false,
           message: COMPLETION_MESSAGES.fishNotInstalled,
         };
+      }
+
+      const targetDir = path.dirname(targetPath);
+      if (!(await FileSystemUtils.canWriteFile(targetDir))) {
+        throw new Error(COMPLETION_MESSAGES.pathNotWritable(targetDir));
       }
 
       // Remove the completion script

@@ -550,7 +550,7 @@ export const CONFIG_MESSAGES = {
   commandsOnlyDesc: 'Instala fluxos de trabalho apenas como comandos de barra',
   currentSuffix: ' [atual]',
   configChanges: 'Alterações na configuração:',
-  updateFailed: '`openspec update` falhou. Execute-o manualmente para aplicar as alterações do perfil.',
+  updateFailed: (reason: string) => `\`openspec update\` falhou: ${reason}. Execute-o manualmente para aplicar as alterações do perfil.`,
   configProfileCancelled: 'Configuração de perfil cancelada.',
   spaceToToggle: 'Espaço para alternar, Enter para confirmar',
   configScopeOption: 'Escopo da configuração (apenas "global" suportado atualmente)',
@@ -570,6 +570,8 @@ export const CONFIG_MESSAGES = {
   workflowContinueDesc: 'Retoma o trabalho em uma alteração existente',
   workflowApplyName: 'Aplicar tarefas',
   workflowApplyDesc: 'Implementa as tarefas da alteração atual',
+  workflowUpdateName: 'Atualizar alteração',
+  workflowUpdateDesc: 'Revisa artefatos de planejamento e os mantém coerentes',
   workflowFastForwardName: 'Avanço rápido',
   workflowFastForwardDesc: 'Executa um fluxo de implementação mais rápido',
   workflowSyncName: 'Sincronizar specs',
@@ -672,6 +674,7 @@ export const SCHEMA_MESSAGES = {
 
 export const COMPLETION_MESSAGES = {
   removeConfigConfirm: (path: string) => `Remover a configuração do BR-OpenSpec de ${path}?`,
+  pathNotWritable: (targetPath: string) => `Caminho sem permissão de escrita: ${targetPath}`,
   shellNotSupported: (shell: string, supported: string) => `Erro: Shell '${shell}' ainda não é suportado. Suportados atualmente: ${supported}`,
   couldNotDetectShell: 'Erro: Não foi possível detectar o shell automaticamente. Especifique o shell explicitamente.',
   usageCompletion: (operation: string) => `Uso: openspec completion ${operation} [shell]`,
@@ -857,6 +860,7 @@ export const UPDATE_MESSAGES = {
   noOpenspecDir: "Diretório do BR-OpenSpec não encontrado. Execute 'openspec init' primeiro.",
   noConfiguredTools: 'Nenhuma ferramenta configurada encontrada.',
   runInitHint: 'Execute "openspec init" para configurar ferramentas.',
+  migratedSkillDirs: (count: number, from: string, to: string) => `Migrada(s) ${count} pasta(s) de skill: ${from}/skills → ${to}/skills`,
   forceUpdating: (count: number, tools: string) => `Forçando atualização de ${count} ferramenta(s): ${tools}`,
   updatingTool: (name: string) => `Atualizando ${name}...`,
   updatedTool: (name: string) => `Atualizado ${name}`,
@@ -884,8 +888,8 @@ export const UPDATE_MESSAGES = {
   it: 'ela',
   them: 'elas',
   extraWorkflowsNote: (count: number) => `Nota: ${count} fluxos de trabalho extras não estão no perfil (use \`openspec config profile\` para gerenciar)`,
-  oldCoreProfileSyncNote: 'Nota: o perfil core agora inclui o fluxo de trabalho sync. Seu perfil personalizado está mantendo o conjunto antigo de fluxos de trabalho do core.',
-  oldCoreProfileSyncHint: 'Execute `openspec config profile core` e depois `openspec update` para adicionar o sync.',
+  missingCoreWorkflowsNote: (count: number, list: string) => `Nota: seu perfil personalizado não inclui ${count} ${count === 1 ? 'fluxo de trabalho' : 'fluxos de trabalho'} do core: ${list}`,
+  missingCoreWorkflowsHint: (count: number) => `Execute \`openspec config profile\` para adicioná-${count === 1 ? 'lo' : 'los'}, ou \`openspec config profile core\` para usar o conjunto core.`,
   cleaningLegacy: 'Limpando arquivos legados...',
   legacyCleaned: 'Arquivos legados limpos',
   forceLegacyHint: '⚠ Execute com --force para limpar automaticamente arquivos legados, ou execute de forma interativa.',
@@ -950,6 +954,14 @@ export const VALIDATOR_MESSAGES = {
       : base;
   },
   missingScenarioModified: (name: string) => `MODIFIED "${name}" deve incluir pelo menos um cenário`,
+  missingShallOrMustRequirement: (name: string, keywordInHeader = false) => {
+    const base = `Requirement "${name}" deve conter SHALL ou MUST`;
+    return keywordInHeader
+      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
+      : base;
+  },
+  skippedHeaderNameless: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} está sem nome de requisito e é ignorado pela validação. Adicione um nome, ex.: "### Requirement: <nome>".`,
+  skippedHeaderNotRequirement: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} não é um cabeçalho "### Requirement:" e é ignorado pela validação. Use "### Requirement: ${header}" se ele deve ser validado como um requisito.`,
   duplicateRequirementRemoved: (name: string) => `Requisito duplicado em REMOVED: "${name}"`,
   duplicateFromRenamed: (name: string) => `FROM duplicado em RENAMED: "${name}"`,
   duplicateToRenamed: (name: string) => `TO duplicado em RENAMED: "${name}"`,
@@ -974,7 +986,7 @@ export const WORKFLOW_MESSAGES = {
   unmetDependenciesWarning: 'Este artefato possui dependências não satisfeitas. Complete-as primeiro ou prossiga com cautela.',
   missingDependencies: (deps: string) => `Pendentes: ${deps}`,
   createArtifactTask: (artifactId: string, changeName: string) => `Crie o artefato ${artifactId} para a alteração "${changeName}".`,
-  readFilesForContext: 'Leia estes arquivos para contexto antes de criar este artefato:',
+  readFilesForContext: 'Leia o conteúdo atual destes arquivos antes de criar este artefato (releia-os do disco mesmo que já os tenha visto antes - podem ter sido editados):',
   writeTo: (filePath: string) => `Escreva em: ${filePath}`,
   unlocksArtifacts: (artifacts: string) => `Completar este artefato habilita: ${artifacts}`,
   generatingApplyInstructions: 'Gerando instruções de aplicação...',
@@ -1009,6 +1021,11 @@ export const WORKFLOW_MESSAGES = {
   noChangesFound: 'Nenhuma alteração encontrada. Crie uma com: openspec new change <nome>',
   missingChangeOption: (available: string) => `Opção obrigatória --change ausente. Alterações disponíveis:\n  ${available}`,
   invalidChangeName: (name: string, error: string) => `Nome de alteração inválido '${name}': ${error}`,
+  changeLookupRelativePath: 'Nome de alteração não pode ser um segmento de caminho relativo',
+  changeLookupPathSeparator: 'Nome de alteração não pode conter separadores de caminho',
+  changeLookupNullChar: 'Nome de alteração não pode conter caracteres nulos',
+  changeLookupLeadingDot: 'Nome de alteração não pode começar com ponto',
+  changeLookupArchiveReserved: `'archive' é reservado para alterações arquivadas`,
   changeNotFoundNoChanges: (name: string) => `Alteração '${name}' não encontrada. Nenhuma alteração existe. Crie uma com: openspec new change <nome>`,
   changeNotFound: (name: string, available: string) => `Alteração '${name}' não encontrada. Alterações disponíveis:\n  ${available}`,
   schemaNotFound: (name: string, available?: string) => available ? `Esquema '${name}' não encontrado. Esquemas disponíveis:\n  ${available}` : `Esquema '${name}' não encontrado`,
@@ -1241,13 +1258,16 @@ export const ONBOARD_TEMPLATE_MESSAGES = {
 
 ## Pré-voo
 
-Antes de começar, verifique se o CLI do BR-OpenSpec está instalado:
+Antes de começar, verifique se o CLI do BR-OpenSpec está instalado. Use o bloco adequado ao SO do usuário:
 
 \`\`\`bash
 # Unix/macOS
 openspec --version 2>&1 || echo "CLI_NOT_INSTALLED"
+\`\`\`
+
+\`\`\`powershell
 # Windows (PowerShell)
-# if (Get-Command openspec -ErrorAction SilentlyContinue) { openspec --version } else { echo "CLI_NOT_INSTALLED" }
+if (Get-Command openspec -ErrorAction SilentlyContinue) { openspec --version } else { Write-Output "CLI_NOT_INSTALLED" }
 \`\`\`
 
 **Se o CLI não estiver instalado:**
@@ -1797,9 +1817,10 @@ export const VERIFY_CHANGE_TEMPLATE_MESSAGES = {
 
 1. **Se nenhum nome de change for fornecido, solicite a seleção**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
-   Mostre as changes que possuem tarefas de implementação (o artifact tasks existe).
+   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
@@ -1841,14 +1862,14 @@ export const VERIFY_CHANGE_TEMPLATE_MESSAGES = {
      - Recomendação: "Complete task: <descrição>" ou "Mark as done if already implemented"
 
    **Cobertura de Specs**:
-   - Se delta specs existirem em \`openspec/changes/<nome>/specs/\`:
-     - Extraia todos os requisitos (marcados com "### Requirement:")
-     - Para cada requisito:
-       - Procure no codebase por palavras-chave relacionadas ao requisito
-       - Avalie se a implementação provavelmente existe
-     - Se requisitos parecerem não implementados:
-       - Adicione issue CRITICAL: "Requirement not found: <nome do requisito>"
-       - Recomendação: "Implement requirement X: <descrição>"
+   - Use \`contextFiles\` e \`artifactPaths\` do status/instructions para localizar delta specs — não assuma caminhos fixos
+   - Extraia todos os requisitos (marcados com "### Requirement:")
+   - Para cada requisito:
+     - Procure no codebase por evidências objetivas de implementação (símbolos, testes, endpoints)
+     - Não classifique como CRITICAL apenas por busca heurística de palavras-chave inconclusiva
+     - Se houver evidência clara de que o requisito não foi implementado: issue CRITICAL
+     - Se a análise for inconclusiva: registre WARNING ou SUGGESTION conforme o risco de falso positivo
+     - Recomendação: "Implement requirement X: <descrição>" ou "Verify requirement X manually: <descrição>"
 
 6. **Verifique Correctness**
 
@@ -1954,9 +1975,10 @@ Use markdown claro com:
 
 1. **Se nenhum nome de change for fornecido, solicite a seleção**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
-   Mostre as changes que possuem tarefas de implementação (o artifact tasks existe).
+   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
@@ -1998,14 +2020,14 @@ Use markdown claro com:
      - Recomendação: "Complete task: <descrição>" ou "Mark as done if already implemented"
 
    **Cobertura de Specs**:
-   - Se delta specs existirem em \`openspec/changes/<nome>/specs/\`:
-     - Extraia todos os requisitos (marcados com "### Requirement:")
-     - Para cada requisito:
-       - Procure no codebase por palavras-chave relacionadas ao requisito
-       - Avalie se a implementação provavelmente existe
-     - Se requisitos parecerem não implementados:
-       - Adicione issue CRITICAL: "Requirement not found: <nome do requisito>"
-       - Recomendação: "Implement requirement X: <descrição>"
+   - Use \`contextFiles\` e \`artifactPaths\` do status/instructions para localizar delta specs — não assuma caminhos fixos
+   - Extraia todos os requisitos (marcados com "### Requirement:")
+   - Para cada requisito:
+     - Procure no codebase por evidências objetivas de implementação (símbolos, testes, endpoints)
+     - Não classifique como CRITICAL apenas por busca heurística de palavras-chave inconclusiva
+     - Se houver evidência clara de que o requisito não foi implementado: issue CRITICAL
+     - Se a análise for inconclusiva: registre WARNING ou SUGGESTION conforme o risco de falso positivo
+     - Recomendação: "Implement requirement X: <descrição>" ou "Verify requirement X manually: <descrição>"
 
 6. **Verifique Correctness**
 
@@ -2169,8 +2191,9 @@ export const CODE_REVIEW_TEMPLATE_MESSAGES = {
 5. **Inclua contexto OpenSpec quando existir**
 
    Se houver uma change relacionada:
-   - Leia \`proposal.md\`, \`design.md\`, \`tasks.md\` e delta specs disponíveis.
-   - Verifique se o diff preserva a intenção dos artifacts.
+   - Execute \`openspec status --change "<nome>" --json\` e leia apenas os caminhos em \`artifactPaths\` (ou \`contextFiles\` via \`openspec instructions apply\`)
+   - Não assuma \`proposal.md\`, \`design.md\`, \`tasks.md\` ou delta specs fixos
+   - Verifique se o diff preserva a intenção dos artifacts
    - Não transforme esta review em \`/opsx:verify\`; use os artifacts apenas como contexto adicional para revisar o código.
 
 6. **Revise o código em profundidade**
@@ -2295,6 +2318,8 @@ export const SPECS_APPLY_MESSAGES = {
     `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
   modifiedFailedHeaderMismatch: (specName: string, reqName: string) =>
     `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - incompatibilidade de cabeçalho no conteúdo`,
+  modifiedFailedMissingScenarios: (specName: string, reqName: string, scenarioNames: string[]) =>
+    `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - o spec atual contém cenário(s) ausentes no bloco modificado: ${scenarioNames.map(name => `"${name}"`).join(', ')}. Atualize o spec da change antes de arquivar para evitar perder cenários.`,
   addedFailedAlreadyExists: (specName: string, reqName: string) =>
     `${specName} ADDED falhou para cabeçalho "### Requirement: ${reqName}" - já existe`,
   applyingChangesTo: (specPath: string) => `Aplicando alterações em openspec/specs/${specPath}/spec.md:`,
@@ -2316,8 +2341,8 @@ export const SPECS_APPLY_MESSAGES = {
 export const PROJECT_CONFIG_SUGGEST_MESSAGES = {
   configNotValidYaml: 'openspec/config.yaml não é um objeto YAML válido',
   configFailedToParse: 'Falha ao analisar openspec/config.yaml:',
-  unknownArtifactId: (artifactId: string, schemaName: string, validIds: string) =>
-    `ID de artefato desconhecido nas regras: "${artifactId}". IDs válidos para o schema "${schemaName}": ${validIds}`,
+  unknownArtifactId: (artifactId: string, validIds: string) =>
+    `ID de artefato desconhecido nas regras: "${artifactId}". Não corresponde a nenhum artefato em nenhum schema disponível. IDs de artefato conhecidos: ${validIds}`,
   schemaNotFound: (schemaName: string) => `Schema '${schemaName}' não encontrado em openspec/config.yaml\n\n`,
   didYouMean: 'Você quis dizer algum destes?\n',
   schemaType: (isBuiltIn: boolean) => isBuiltIn ? 'nativo' : 'local do projeto',

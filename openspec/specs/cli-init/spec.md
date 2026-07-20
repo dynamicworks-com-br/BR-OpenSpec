@@ -218,6 +218,12 @@ The command SHALL generate opsx slash commands for selected AI tools.
 - **AND** use tool-specific path conventions (e.g., `.claude/commands/opsx/` for Claude)
 - **AND** include tool-specific frontmatter format
 
+#### Scenario: Kimi Code skips command-file generation
+
+- **WHEN** the user selects Kimi Code during initialization
+- **THEN** OpenSpec SHALL treat it as a supported tool with `skillsDir: '.kimi-code'`
+- **AND** command-file generation SHALL be skipped because no Kimi adapter is registered
+
 ### Requirement: Config File Generation
 
 The command SHALL create an OpenSpec config file with schema settings.

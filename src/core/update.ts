@@ -11,7 +11,7 @@ import ora from 'ora';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { transformToHyphenCommands } from '../utils/command-references.js';
+import { getTransformerForTool } from '../utils/command-references.js';
 import { AI_TOOLS, OPENSPEC_DIR_NAME } from './config.js';
 import {
   generateCommands,
@@ -36,7 +36,7 @@ import {
 import { isInteractive } from '../utils/interactive.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { UPDATE_MESSAGES } from '../messages/index.js';
-import { getProfileWorkflows, ALL_WORKFLOWS } from './profiles.js';
+import { getProfileWorkflows, ALL_WORKFLOWS, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
 import {
   WORKFLOW_TO_SKILL_DIR,
@@ -47,11 +47,11 @@ import {
 import {
   scanInstalledWorkflows as scanInstalledWorkflowsShared,
   migrateIfNeeded as migrateIfNeededShared,
+  migrateLegacySkillDirs,
 } from './migration.js';
 
 const require = createRequire(import.meta.url);
 const { version: OPENSPEC_VERSION } = require('../../package.json');
-const OLD_CORE_WORKFLOWS = ['propose', 'explore', 'apply', 'archive'] as const;
 
 /**
  * Options for the update command.
@@ -90,7 +90,14 @@ export class UpdateCommand {
       throw new Error(UPDATE_MESSAGES.noOpenspecDir);
     }
 
-    // 2. Perform one-time migration if needed before any legacy upgrade generation.
+    // 2. Migrate OpenSpec-managed skills left in renamed tool directories
+    // (e.g. .kimi -> .kimi-code) so they stay detected and get refreshed,
+    // then perform the one-time profile migration if needed before any
+    // legacy upgrade generation.
+    for (const migration of migrateLegacySkillDirs(resolvedProjectPath)) {
+      console.log(chalk.dim(UPDATE_MESSAGES.migratedSkillDirs(migration.movedSkillDirs, migration.from, migration.to)));
+    }
+
     // Use detected tool directories to preserve existing opsx skills/commands.
     const detectedTools = getAvailableTools(resolvedProjectPath);
     migrateIfNeededShared(resolvedProjectPath, detectedTools);
@@ -157,7 +164,7 @@ export class UpdateCommand {
       // Still check for new tool directories and extra workflows
       this.detectNewTools(resolvedProjectPath, configuredTools);
       this.displayExtraWorkflowsNote(resolvedProjectPath, configuredTools, desiredWorkflows);
-      this.displayOldCoreCustomProfileNote(profile, globalConfig.workflows);
+      this.displayMissingCoreWorkflowsNote(profile, globalConfig.workflows);
       return;
     }
 
@@ -197,8 +204,7 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            // Use hyphen-based command references for OpenCode
-            const transformer = (tool.value === 'opencode' || tool.value === 'pi') ? transformToHyphenCommands : undefined;
+            const transformer = getTransformerForTool(tool.value, delivery);
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
@@ -285,7 +291,7 @@ export class UpdateCommand {
 
     // 14. Display note about extra workflows not in profile
     this.displayExtraWorkflowsNote(resolvedProjectPath, configuredAndNewTools, desiredWorkflows);
-    this.displayOldCoreCustomProfileNote(profile, globalConfig.workflows);
+    this.displayMissingCoreWorkflowsNote(profile, globalConfig.workflows);
 
     // 15. List affected tools
     if (updatedTools.length > 0) {
@@ -374,26 +380,25 @@ export class UpdateCommand {
   }
 
   /**
-   * Sugere voltar ao perfil core quando um perfil personalizado ainda
-   * corresponde ao conjunto core antigo (anterior ao sync). Mantém os perfis
-   * personalizados sob controle do usuário; não os altera.
+   * Aponta os fluxos de trabalho do core que faltam em um perfil
+   * personalizado, para que releases que ampliam CORE_WORKFLOWS continuem
+   * visíveis. Mantém os perfis personalizados sob controle do usuário;
+   * não os altera.
    */
-  private displayOldCoreCustomProfileNote(profile: Profile, workflows?: readonly string[]): void {
+  private displayMissingCoreWorkflowsNote(profile: Profile, workflows?: readonly string[]): void {
     if (profile !== 'custom' || !workflows) {
       return;
     }
 
     const workflowSet = new Set(workflows);
-    const matchesOldCore =
-      workflowSet.size === OLD_CORE_WORKFLOWS.length &&
-      OLD_CORE_WORKFLOWS.every((workflow) => workflowSet.has(workflow));
+    const missing = CORE_WORKFLOWS.filter((workflow) => !workflowSet.has(workflow));
 
-    if (!matchesOldCore) {
+    if (missing.length === 0) {
       return;
     }
 
-    console.log(chalk.dim(UPDATE_MESSAGES.oldCoreProfileSyncNote));
-    console.log(chalk.dim(UPDATE_MESSAGES.oldCoreProfileSyncHint));
+    console.log(chalk.dim(UPDATE_MESSAGES.missingCoreWorkflowsNote(missing.length, missing.join(', '))));
+    console.log(chalk.dim(UPDATE_MESSAGES.missingCoreWorkflowsHint(missing.length)));
   }
 
   /**
@@ -692,8 +697,7 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            // Use hyphen-based command references for OpenCode
-            const transformer = (tool.value === 'opencode' || tool.value === 'pi') ? transformToHyphenCommands : undefined;
+            const transformer = getTransformerForTool(tool.value, delivery);
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }

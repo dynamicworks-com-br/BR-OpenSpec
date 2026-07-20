@@ -33,8 +33,8 @@ OPSX (ações fluidas):
 ### Caminho Rápido Padrão (perfil `core`)
 
 Novas instalações usam `core` por padrão, que fornece:
-- `/opsx:propose`
 - `/opsx:explore`
+- `/opsx:propose`
 - `/opsx:apply`
 - `/opsx:sync`
 - `/opsx:archive`
@@ -42,8 +42,36 @@ Novas instalações usam `core` por padrão, que fornece:
 Fluxo típico:
 
 ```text
-/opsx:propose ──► /opsx:apply ──► /opsx:sync ──► /opsx:archive
+/opsx:explore ──► /opsx:propose ──► /opsx:apply ──► /opsx:sync ──► /opsx:archive
+  (opcional)
 ```
+
+#### Comece explorando (o hábito que vale formar)
+
+`/opsx:explore` faz parte do perfil padrão, não é um extra avançado. É o movimento a fazer sempre que você tem um problema, mas ainda não um plano — o que, com um assistente de IA, é na maior parte do tempo.
+
+```text
+Você: /opsx:explore
+
+IA:   O que você gostaria de explorar?
+
+Você: Nossos resultados de busca parecem desatualizados. Não sei se
+      é cache, indexação ou a query em si.
+
+IA:   Deixe-me olhar... [lê o serviço de busca e a camada de cache]
+      É o índice: ele só é reconstruído de madrugada, então edições
+      só aparecem no dia seguinte. Duas opções: reconstruir na
+      escrita (simples, mais carga) ou invalidação de cache com TTL
+      curto (mais partes móveis, menos carga). Como seu volume de
+      escrita é baixo, reconstruir-na-escrita é a correção mais
+      limpa. Quer que eu dimensione isso?
+
+Você: Sim.
+
+Você: /opsx:propose rebuild-search-index-on-write
+```
+
+O explore não cria artefatos e não escreve código. É uma conversa gratuita e sem risco que transforma uma preocupação vaga numa mudança precisa, de modo que a proposta que segue é afiada. Já sabe exatamente o que quer? Pule e vá direto para `/opsx:propose`. Guia completo: [Explore Primeiro](explore.md).
 
 ### Workflow Expandido/Completo (seleção personalizada)
 
@@ -435,18 +463,21 @@ Para detalhes completos e opções dos comandos, consulte [Comandos](commands.md
 | Comando | Propósito | Quando Usar |
 |---------|-----------|-------------|
 | `/opsx:propose` | Criar mudança + artefatos de planejamento | Caminho rápido padrão (perfil `core`) |
-| `/opsx:explore` | Pensar sobre ideias | Requisitos pouco claros, investigação |
+| `/opsx:explore` | Pensar ideias com a IA | Comece aqui quando estiver em dúvida: requisitos pouco claros, investigação, comparação de opções |
 | `/opsx:new` | Iniciar um scaffold de mudança | Modo expandido, controle explícito de artefatos |
 | `/opsx:continue` | Criar o próximo artefato | Modo expandido, criação de artefatos passo a passo |
 | `/opsx:ff` | Criar todos os artefatos de planejamento | Modo expandido, escopo claro |
 | `/opsx:apply` | Implementar tarefas | Pronto para escrever código |
 | `/opsx:verify` | Validar a implementação | Modo expandido, antes de arquivar |
-| `/opsx:sync` | Mesclar delta specs | Modo expandido, opcional |
+| `/opsx:sync` | Mesclar delta specs | Fluxo padrão (perfil `core`), opcional antes de arquivar |
 | `/opsx:archive` | Concluir a mudança | Todo o trabalho finalizado |
 | `/opsx:bulk-archive` | Arquivar múltiplas mudanças | Modo expandido, trabalho paralelo |
 
 ## Próximos Passos
 
+- [Escrevendo Boas Specs](writing-specs.md) — Como são um bom requisito e um bom cenário, e como dimensionar uma mudança
+- [Revisando uma Mudança](reviewing-changes.md) — A passada de dois minutos num plano elaborado, antes de qualquer código
+- [BR-OpenSpec em Equipe](team-workflow.md) — Como as mudanças se encaixam em branches e pull requests
 - [Comandos](commands.md) — Referência completa de comandos com opções
 - [Conceitos](concepts.md) — Aprofundamento em specs, artefatos e schemas
 - [Personalização](customization.md) — Crie workflows personalizados

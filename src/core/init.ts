@@ -11,7 +11,7 @@ import ora from 'ora';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { transformToHyphenCommands } from '../utils/command-references.js';
+import { getTransformerForTool } from '../utils/command-references.js';
 import {
   AI_TOOLS,
   OPENSPEC_DIR_NAME,
@@ -49,7 +49,7 @@ import {
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { getProfileWorkflows, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
-import { migrateIfNeeded } from './migration.js';
+import { migrateIfNeeded, migrateLegacySkillDirs } from './migration.js';
 
 const require = createRequire(import.meta.url);
 const { version: OPENSPEC_VERSION } = require('../../package.json');
@@ -104,6 +104,10 @@ export class InitCommand {
 
     // Check for legacy artifacts and handle cleanup
     await this.handleLegacyCleanup(projectPath, extendMode);
+
+    // Migrate OpenSpec-managed skills left in renamed tool directories
+    // (e.g. .kimi -> .kimi-code) before detection so they stay recognized.
+    migrateLegacySkillDirs(projectPath);
 
     // Detect available tools in the project (task 7.1)
     const detectedTools = getAvailableTools(projectPath);
@@ -529,8 +533,7 @@ export class InitCommand {
             const skillFile = path.join(skillDir, 'SKILL.md');
 
             // Generate SKILL.md content with YAML frontmatter including generatedBy
-            // Use hyphen-based command references for tools where filename = command name
-            const transformer = (tool.value === 'opencode' || tool.value === 'pi') ? transformToHyphenCommands : undefined;
+            const transformer = getTransformerForTool(tool.value, delivery);
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
 
             // Write the skill file

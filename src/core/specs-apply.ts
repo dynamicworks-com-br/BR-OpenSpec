@@ -16,6 +16,7 @@ import {
 } from './parsers/requirement-blocks.js';
 import { findMainSpecStructureIssues } from './parsers/spec-structure.js';
 import { Validator } from './validation/validator.js';
+import { discoverSpecFiles } from '../utils/spec-discovery.js';
 import { ARCHIVE_MESSAGES, SPECS_APPLY_MESSAGES } from '../messages/index.js';
 
 // -----------------------------------------------------------------------------
@@ -23,6 +24,8 @@ import { ARCHIVE_MESSAGES, SPECS_APPLY_MESSAGES } from '../messages/index.js';
 // -----------------------------------------------------------------------------
 
 export interface SpecUpdate {
+  /** Capability id relative to the specs root, forward-slash separated (e.g. "web" or "platform/session-layout"). */
+  id: string;
   source: string;
   target: string;
   exists: boolean;
@@ -48,6 +51,11 @@ export interface SpecsApplyOutput {
   noChanges: boolean;
 }
 
+interface ScenarioBlock {
+  name: string;
+  raw: string;
+}
+
 // -----------------------------------------------------------------------------
 // Public API
 // -----------------------------------------------------------------------------
@@ -59,38 +67,29 @@ export async function findSpecUpdates(changeDir: string, mainSpecsDir: string): 
   const updates: SpecUpdate[] = [];
   const changeSpecsDir = path.join(changeDir, 'specs');
 
-  try {
-    const entries = await fs.readdir(changeSpecsDir, { withFileTypes: true });
+  // Discover delta specs recursively so nested layouts like
+  // specs/<area>/<capability>/spec.md merge into the same relative path
+  // under the main specs directory (#1353)
+  const discovered = await discoverSpecFiles(changeSpecsDir);
 
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const specFile = path.join(changeSpecsDir, entry.name, 'spec.md');
-        const targetFile = path.join(mainSpecsDir, entry.name, 'spec.md');
+  for (const { id, specFile } of discovered) {
+    const targetFile = path.join(mainSpecsDir, ...id.split('/'), 'spec.md');
 
-        try {
-          await fs.access(specFile);
-
-          // Check if target exists
-          let exists = false;
-          try {
-            await fs.access(targetFile);
-            exists = true;
-          } catch {
-            exists = false;
-          }
-
-          updates.push({
-            source: specFile,
-            target: targetFile,
-            exists,
-          });
-        } catch {
-          // Source spec doesn't exist, skip
-        }
-      }
+    // Check if target exists
+    let exists = false;
+    try {
+      await fs.access(targetFile);
+      exists = true;
+    } catch {
+      exists = false;
     }
-  } catch {
-    // No specs directory in change
+
+    updates.push({
+      id,
+      source: specFile,
+      target: targetFile,
+      exists,
+    });
   }
 
   return updates;
@@ -109,7 +108,7 @@ export async function buildUpdatedSpec(
 
   // Parse deltas from the change spec file
   const plan = parseDeltaSpec(changeContent);
-  const specName = path.basename(path.dirname(update.target));
+  const specName = update.id;
 
   // Pre-validate duplicates within sections
   const addedNames = new Set<string>();
@@ -195,7 +194,7 @@ export async function buildUpdatedSpec(
   const hasAnyDelta = plan.added.length + plan.modified.length + plan.removed.length + plan.renamed.length > 0;
   if (!hasAnyDelta) {
     throw new Error(
-      SPECS_APPLY_MESSAGES.noDeltaOperations(path.basename(path.dirname(update.source)))
+      SPECS_APPLY_MESSAGES.noDeltaOperations(update.id)
     );
   }
 
@@ -243,10 +242,17 @@ export async function buildUpdatedSpec(
 
   // Apply operations in order: RENAMED → REMOVED → MODIFIED → ADDED
   // RENAMED
+  let renamedApplied = 0;
   for (const r of plan.renamed) {
     const from = normalizeRequirementName(r.from);
     const to = normalizeRequirementName(r.to);
     if (!nameToBlock.has(from)) {
+      // Source gone but target present means the rename was already synced
+      // to the baseline (early-sync pattern) — re-applying it is a no-op,
+      // not a failure. Only a missing source AND target is a genuine error.
+      if (nameToBlock.has(to)) {
+        continue;
+      }
       throw new Error(SPECS_APPLY_MESSAGES.renamedFailedSourceNotFound(specName, r.from));
     }
     if (nameToBlock.has(to)) {
@@ -263,6 +269,7 @@ export async function buildUpdatedSpec(
     };
     nameToBlock.delete(from);
     nameToBlock.set(to, renamedBlock);
+    renamedApplied++;
   }
 
   // REMOVED
@@ -283,7 +290,8 @@ export async function buildUpdatedSpec(
   // MODIFIED
   for (const mod of plan.modified) {
     const key = normalizeRequirementName(mod.name);
-    if (!nameToBlock.has(key)) {
+    const currentBlock = nameToBlock.get(key);
+    if (!currentBlock) {
       throw new Error(SPECS_APPLY_MESSAGES.modifiedFailedNotFound(specName, mod.name));
     }
     // Replace block with provided raw (ensure header line matches key)
@@ -293,16 +301,31 @@ export async function buildUpdatedSpec(
         SPECS_APPLY_MESSAGES.modifiedFailedHeaderMismatch(specName, mod.name)
       );
     }
+    const missingScenarios = findMissingCurrentScenarios(currentBlock, mod);
+    if (missingScenarios.length > 0) {
+      throw new Error(
+        SPECS_APPLY_MESSAGES.modifiedFailedMissingScenarios(specName, mod.name, missingScenarios)
+      );
+    }
     nameToBlock.set(key, mod);
   }
 
   // ADDED
+  let addedApplied = 0;
   for (const add of plan.added) {
     const key = normalizeRequirementName(add.name);
-    if (nameToBlock.has(key)) {
+    const existing = nameToBlock.get(key);
+    if (existing) {
+      // Identical content means the requirement was already synced to the
+      // baseline (early-sync pattern) — re-applying it is a no-op, not a
+      // conflict. Only differing content is a genuine collision.
+      if (normalizeBlockRaw(existing.raw) === normalizeBlockRaw(add.raw)) {
+        continue;
+      }
       throw new Error(SPECS_APPLY_MESSAGES.addedFailedAlreadyExists(specName, add.name));
     }
     nameToBlock.set(key, add);
+    addedApplied++;
   }
 
   // Duplicates within resulting map are implicitly prevented by key uniqueness.
@@ -339,12 +362,16 @@ export async function buildUpdatedSpec(
   return {
     rebuilt,
     counts: {
-      added: plan.added.length,
+      added: addedApplied,
       modified: plan.modified.length,
       removed: plan.removed.length,
-      renamed: plan.renamed.length,
+      renamed: renamedApplied,
     },
   };
+}
+
+function normalizeBlockRaw(raw: string): string {
+  return raw.replace(/\r\n?/g, '\n').trim();
 }
 
 /**
@@ -360,7 +387,7 @@ export async function writeUpdatedSpec(
   await fs.mkdir(targetDir, { recursive: true });
   await fs.writeFile(update.target, rebuilt);
 
-  const specName = path.basename(path.dirname(update.target));
+  const specName = update.id;
   console.log(SPECS_APPLY_MESSAGES.applyingChangesTo(specName));
   if (counts.added) console.log(SPECS_APPLY_MESSAGES.countAdded(counts.added));
   if (counts.modified) console.log(SPECS_APPLY_MESSAGES.countModified(counts.modified));
@@ -374,6 +401,41 @@ export async function writeUpdatedSpec(
 export function buildSpecSkeleton(specFolderName: string, changeName: string): string {
   const titleBase = specFolderName;
   return `# ${titleBase} Specification\n\n## Purpose\n${SPECS_APPLY_MESSAGES.skeletonPurpose(changeName)}\n\n## Requirements\n`;
+}
+
+function findMissingCurrentScenarios(current: RequirementBlock, incoming: RequirementBlock): string[] {
+  const incomingScenarioNames = new Set(parseScenarioBlocks(incoming.raw).map((scenario) => scenario.name));
+  return parseScenarioBlocks(current.raw)
+    .filter((scenario) => !incomingScenarioNames.has(scenario.name))
+    .map((scenario) => scenario.name);
+}
+
+function parseScenarioBlocks(requirementRaw: string): ScenarioBlock[] {
+  const lines = requirementRaw.replace(/\r\n?/g, '\n').split('\n');
+  const scenarios: ScenarioBlock[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const headerMatch = lines[index].match(/^####\s*Scenario:\s*(.+)\s*$/);
+    if (!headerMatch) {
+      index++;
+      continue;
+    }
+
+    const start = index;
+    const name = headerMatch[1].trim();
+    index++;
+    while (index < lines.length && !/^####\s*Scenario:\s*(.+)\s*$/.test(lines[index])) {
+      index++;
+    }
+
+    scenarios.push({
+      name,
+      raw: lines.slice(start, index).join('\n').trimEnd(),
+    });
+  }
+
+  return scenarios;
 }
 
 /**
@@ -434,7 +496,7 @@ export async function applySpecs(
   if (!options.skipValidation) {
     const validator = new Validator();
     for (const p of prepared) {
-      const specName = path.basename(path.dirname(p.update.target));
+      const specName = p.update.id;
       const report = await validator.validateSpecContent(specName, p.rebuilt);
       if (!report.valid) {
         const errors = report.issues
@@ -451,7 +513,7 @@ export async function applySpecs(
   const totals = { added: 0, modified: 0, removed: 0, renamed: 0 };
 
   for (const p of prepared) {
-    const capability = path.basename(path.dirname(p.update.target));
+    const capability = p.update.id;
 
     if (!options.dryRun) {
       // Write the updated spec

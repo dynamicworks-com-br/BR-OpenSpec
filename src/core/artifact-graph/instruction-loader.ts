@@ -1,8 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { getSchemaDir, resolveSchema } from './resolver.js';
+import { getSchemaDir, resolveSchema, listSchemasWithInfo } from './resolver.js';
 import { ArtifactGraph } from './graph.js';
 import { detectCompleted } from './state.js';
+import { resolveArtifactOutputs } from './outputs.js';
 import { resolveSchemaForChange } from '../../utils/change-metadata.js';
 import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
@@ -115,6 +116,14 @@ export interface ChangeStatus {
   applyRequires: string[];
   /** Status of each artifact */
   artifacts: ArtifactStatus[];
+  /** Absolute artifact path details keyed by artifact ID */
+  artifactPaths: Record<string, ArtifactPathSummary>;
+}
+
+export interface ArtifactPathSummary {
+  outputPath: string;
+  resolvedOutputPath: string;
+  existingOutputPaths: string[];
 }
 
 /**
@@ -241,14 +250,14 @@ export function generateInstructions(
     }
   }
 
-  // Validate rules artifact IDs if config has rules (only once per session)
+  // Validate rules artifact IDs if config has rules (only once per session).
+  // The rules map is global while each change can use a different schema, so a
+  // key is only "unknown" when it matches no artifact in ANY available schema.
   if (projectConfig?.rules) {
-    const validArtifactIds = new Set(context.graph.getAllArtifacts().map((a) => a.id));
-    const warnings = validateConfigRules(
-      projectConfig.rules,
-      validArtifactIds,
-      context.schemaName
+    const validArtifactIds = new Set(
+      listSchemasWithInfo(effectiveProjectRoot ?? undefined).flatMap((s) => s.artifacts)
     );
+    const warnings = validateConfigRules(projectConfig.rules, validArtifactIds);
 
     // Show each unique warning only once per session
     for (const warning of warnings) {
@@ -329,7 +338,14 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
   const ready = new Set(context.graph.getNextArtifacts(context.completed));
   const blocked = context.graph.getBlocked(context.completed);
 
+  const artifactPaths: Record<string, ArtifactPathSummary> = {};
   const artifactStatuses: ArtifactStatus[] = artifacts.map(artifact => {
+    artifactPaths[artifact.id] = {
+      outputPath: artifact.generates,
+      resolvedOutputPath: path.join(context.changeDir, artifact.generates),
+      existingOutputPaths: resolveArtifactOutputs(context.changeDir, artifact.generates),
+    };
+
     if (context.completed.has(artifact.id)) {
       return {
         id: artifact.id,
@@ -365,5 +381,6 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
     isComplete: context.graph.isComplete(context.completed),
     applyRequires,
     artifacts: artifactStatuses,
+    artifactPaths,
   };
 }

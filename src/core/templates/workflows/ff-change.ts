@@ -57,7 +57,7 @@ export function getFfChangeSkillTemplate(): SkillTemplate {
         - \`instruction\`: Orientação específica do schema para este tipo de artifact
         - \`outputPath\`: Onde escrever o artifact
         - \`dependencies\`: Artifacts concluídos para ler como contexto
-      - Leia quaisquer arquivos de dependências concluídos para contexto
+      - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
       - Crie o arquivo do artifact usando \`template\` como a estrutura
       - Aplique \`context\` e \`rules\` como restrições - mas NÃO copie-os para o arquivo
       - Mostre breve progresso: "✓ Criado <artifact-id>"
@@ -96,7 +96,7 @@ Após completar todos os artifacts, resuma:
 
 **Guardrails**
 - Crie TODOS os artifacts necessários para implementação (conforme definido pelo \`apply.requires\` do schema)
-- Sempre leia artifacts de dependência antes de criar um novo
+- Sempre leia artifacts de dependência antes de criar um novo - releia do disco, não da memória da conversa (os arquivos podem ter mudado desde a última vez que você os viu)
 - Se o contexto estiver criticamente incerto, pergunte ao usuário - mas prefira tomar decisões razoáveis para manter o momento
 - Se uma change com aquele nome já existir, pergunte se o usuário quer continuar ela ou criar uma nova
 - Verifique se cada arquivo do artifact existe após escrever antes de prosseguir para o próximo`,
@@ -159,7 +159,7 @@ export function getOpsxFfCommandTemplate(): CommandTemplate {
         - \`instruction\`: Orientação específica do schema para este tipo de artifact
         - \`outputPath\`: Onde escrever o artifact
         - \`dependencies\`: Artifacts concluídos para ler como contexto
-      - Leia quaisquer arquivos de dependências concluídos para contexto
+      - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
       - Crie o arquivo do artifact usando \`template\` como a estrutura
       - Aplique \`context\` e \`rules\` como restrições - mas NÃO copie-os para o arquivo
       - Mostre breve progresso: "✓ Criado <artifact-id>"
@@ -198,7 +198,7 @@ Após completar todos os artifacts, resuma:
 
 **Guardrails**
 - Crie TODOS os artifacts necessários para implementação (conforme definido pelo \`apply.requires\` do schema)
-- Sempre leia artifacts de dependência antes de criar um novo
+- Sempre leia artifacts de dependência antes de criar um novo - releia do disco, não da memória da conversa (os arquivos podem ter mudado desde a última vez que você os viu)
 - Se o contexto estiver criticamente incerto, pergunte ao usuário - mas prefira tomar decisões razoáveis para manter o momento
 - Se uma change com aquele nome já existir, pergunte se o usuário quer continuar ela ou criar uma nova
 - Verifique se cada arquivo do artifact existe após escrever antes de prosseguir para o próximo`

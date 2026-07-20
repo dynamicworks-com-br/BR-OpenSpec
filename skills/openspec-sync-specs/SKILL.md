@@ -1,0 +1,141 @@
+---
+name: openspec-sync-specs
+description: Sincroniza delta specs de uma change para os specs principais. Use quando o usuário quiser atualizar os specs principais com alterações de um delta spec, sem arquivar a change.
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
+license: MIT
+compatibility: Requer openspec CLI.
+metadata:
+  author: openspec
+  version: "1.0"
+---
+
+Sincroniza delta specs de uma change para os specs principais.
+
+Esta é uma operação **dirigida por agente** — você lerá os delta specs e editará diretamente os specs principais para aplicar as alterações. Isso permite mesclagem inteligente (por exemplo, adicionar um cenário sem copiar o requisito inteiro).
+
+**Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
+
+**Passos**
+
+1. **Se nenhum nome de change for fornecido, solicite a seleção**
+
+   Execute `openspec list --json` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+
+   Mostre as changes que possuem delta specs (no diretório `specs/`).
+
+   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+
+2. **Encontre os delta specs**
+
+   Procure arquivos de delta spec em `openspec/changes/<nome>/specs/*/spec.md`.
+
+   Cada arquivo de delta spec contém seções como:
+   - `## ADDED Requirements` — Novos requisitos a adicionar
+   - `## MODIFIED Requirements` — Alterações em requisitos existentes
+   - `## REMOVED Requirements` — Requisitos a remover
+   - `## RENAMED Requirements` — Requisitos a renomear (formato FROM:/TO:)
+
+   Se nenhum delta spec for encontrado, informe o usuário e pare.
+
+3. **Para cada delta spec, aplique as alterações nos specs principais**
+
+   Para cada capability com um delta spec em `openspec/changes/<nome>/specs/<capability>/spec.md`:
+
+   a. **Leia o delta spec** para entender as alterações pretendidas
+
+   b. **Leia o spec principal** em `openspec/specs/<capability>/spec.md` (pode ainda não existir)
+
+   c. **Aplique as alterações de forma inteligente**:
+
+      **ADDED Requirements:**
+      - Antes de adicionar, compare nome e conteúdo com o spec principal; se já existir um requisito equivalente, trate como no-op
+      - Se o requisito não existir no spec principal → adicione-o
+      - Se o requisito já existir com conteúdo idêntico → não duplique (no-op)
+      - Se o requisito já existir com conteúdo diferente → atualize-o para corresponder (trate como MODIFIED implícito)
+
+      **MODIFIED Requirements:**
+      - Encontre o requisito no spec principal
+      - Antes de adicionar cenários ou alterar conteúdo, compare com o que já existe; se já for equivalente, trate como no-op
+      - Aplique apenas diferenças reais — isso pode ser:
+        - Adicionar novos cenários (não é necessário copiar os existentes)
+        - Modificar cenários existentes
+        - Alterar a descrição do requisito
+      - Preserve cenários/conteúdo não mencionados no delta
+
+      **REMOVED Requirements:**
+      - Remova o bloco inteiro do requisito do spec principal
+
+      **RENAMED Requirements:**
+      - Encontre o requisito FROM, renomeie para TO
+
+   d. **Crie um novo spec principal** se a capability ainda não existir:
+      - Crie `openspec/specs/<capability>/spec.md`
+      - Adicione a seção Purpose (pode ser breve, marque como TBD)
+      - Adicione a seção Requirements com os requisitos ADDED
+
+4. **Exiba o resumo**
+
+   Após aplicar todas as alterações, resuma:
+   - Quais capabilities foram atualizadas
+   - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
+
+**Referência de Formato de Delta Spec**
+
+```markdown
+## ADDED Requirements
+
+### Requirement: New Feature
+The system SHALL do something new.
+
+#### Scenario: Basic case
+- **WHEN** user does X
+- **THEN** system does Y
+
+## MODIFIED Requirements
+
+### Requirement: Existing Feature
+#### Scenario: New scenario to add
+- **WHEN** user does A
+- **THEN** system does B
+
+## REMOVED Requirements
+
+### Requirement: Deprecated Feature
+
+## RENAMED Requirements
+
+- FROM: `### Requirement: Old Name`
+- TO: `### Requirement: New Name`
+```
+
+**Princípio-Chave: Mesclagem Inteligente**
+
+Ao contrário da mesclagem programática, você pode aplicar **atualizações parciais**:
+- Para adicionar um cenário, basta incluí-lo sob MODIFIED — não copie os cenários existentes
+- O delta representa *intenção*, não uma substituição total
+- Use seu julgamento para mesclar as alterações de forma sensata
+
+**Saída em Sucesso**
+
+```markdown
+## Specs Sincronizados: <nome-change>
+
+Specs principais atualizados:
+
+**<capability-1>**:
+- Added requirement: "New Feature"
+- Modified requirement: "Existing Feature" (added 1 scenario)
+
+**<capability-2>**:
+- Created new spec file
+- Added requirement: "Another Feature"
+
+Os specs principais foram atualizados. A change permanece ativa — arquive quando a implementação estiver completa.
+```
+
+**Guardrails**
+- Leia tanto os delta specs quanto os specs principais antes de fazer alterações
+- Preserve o conteúdo existente não mencionado no delta
+- Se algo não estiver claro, peça esclarecimento
+- Mostre o que está alterando à medida que avança
+- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado

@@ -48,6 +48,15 @@ Nossa filosofia:
 ## Veja em ação
 
 ```text
+Você: /opsx:explore
+IA:   O que você gostaria de explorar?
+Você: Quero dark mode, mas não sei como fazê-lo de forma limpa.
+IA:   Deixe-me olhar sua configuração de estilos...
+      O caminho mais limpo aqui: variáveis CSS + um pequeno contexto
+      de tema, com detecção da preferência do sistema. Sem novas
+      dependências. Dimensiono?
+Você: Sim, vamos em frente.
+
 Você: /opsx:propose add-dark-mode
 IA:   Criado openspec/changes/add-dark-mode/
       ✓ proposal.md — por que estamos fazendo isso, o que está mudando
@@ -68,6 +77,29 @@ Você: /opsx:archive
 IA:   Arquivado em openspec/changes/archive/2025-01-23-add-dark-mode/
       Specs atualizadas. Pronto para a próxima funcionalidade.
 ```
+
+<details>
+<summary><strong>Como são as specs na prática?</strong></summary>
+
+Markdown puro — requisitos com cenários concretos, sem sintaxe especial para aprender. Aqui está o que vai para a pasta `specs/` criada acima:
+
+```markdown
+## ADDED Requirements
+
+### Requirement: Seleção de tema
+O app SHALL permitir que usuários alternem entre temas claro e escuro,
+com a preferência do sistema como padrão.
+
+#### Scenario: Usuário alterna para o dark mode
+- **WHEN** o usuário clica no botão de alternância de tema
+- **THEN** o app muda para o dark mode e persiste a escolha
+```
+
+Sua IA escreve isso; você revisa o plano antes de qualquer código ser escrito.
+
+O BR-OpenSpec é construído com o BR-OpenSpec — navegue pelas [specs](openspec/specs) vivas e pelas [mudanças](openspec/changes) em andamento deste repo para exemplos reais em escala.
+
+</details>
 
 <details>
 <summary><strong>Dashboard do BR-OpenSpec</strong></summary>
@@ -95,9 +127,12 @@ cd your-project
 openspec init
 ```
 
-Agora diga à sua IA: `/opsx:propose <o-que-você-quer-construir>`
+Agora fale com a sua IA:
 
-Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:bulk-archive`, `/opsx:onboard`), selecione-o com `openspec config profile` e aplique com `openspec update`.
+- **Ainda não sabe o que construir?** Comece com `/opsx:explore`, um parceiro de raciocínio sem risco algum que lê seu código, pesa opções e molda um plano antes que qualquer coisa seja escrita. ([Guia Explore](docs/pt-BR/explore.md))
+- **Já sabe o que quer?** Vá direto para `/opsx:propose <o-que-você-quer-construir>`.
+
+Ambos estão no perfil padrão. Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:code-review`, `/opsx:bulk-archive`, `/opsx:onboard`), selecione-o com `openspec config profile` e aplique com `openspec update`.
 
 > [!NOTE]
 > Não tem certeza se sua ferramenta é suportada? [Veja a lista completa](docs/pt-BR/supported-tools.md) – suportamos mais de 25 ferramentas e crescendo.
@@ -106,14 +141,23 @@ Se você quiser o fluxo de trabalho expandido (`/opsx:new`, `/opsx:continue`, `/
 
 ## Documentação
 
+**Comece aqui:** a **[Home da Documentação](docs/pt-BR/README.md)** mapeia tudo. Novo no BR-OpenSpec? Leia [Primeiros Passos](docs/pt-BR/getting-started.md), depois [Como os Comandos Funcionam](docs/pt-BR/how-commands-work.md) (onde você realmente digita `/opsx:propose`).
+
 → **[Primeiros Passos](docs/pt-BR/getting-started.md)**: primeiros passos<br>
+→ **[Explore Primeiro](docs/pt-BR/explore.md)**: pense com `/opsx:explore` antes de se comprometer<br>
+→ **[Como os Comandos Funcionam](docs/pt-BR/how-commands-work.md)**: onde os slash commands rodam vs a CLI<br>
+→ **[Conceitos Essenciais em Resumo](docs/pt-BR/overview.md)**: todo o modelo mental, uma página<br>
+→ **[Exemplos e Receitas](docs/pt-BR/examples.md)**: mudanças reais, do início ao fim<br>
 → **[Fluxos de Trabalho](docs/pt-BR/workflows.md)**: combinações e padrões<br>
+→ **[Projetos Existentes](docs/pt-BR/existing-projects.md)**: adote o BR-OpenSpec numa base de código brownfield<br>
+→ **[Editando uma Mudança](docs/pt-BR/editing-changes.md)**: atualize artefatos, volte atrás, reconcilie edições manuais<br>
 → **[Comandos](docs/pt-BR/commands.md)**: slash commands e skills<br>
 → **[CLI](docs/pt-BR/cli.md)**: referência do terminal<br>
 → **[Ferramentas Suportadas](docs/pt-BR/supported-tools.md)**: integrações e caminhos de instalação<br>
 → **[Conceitos](docs/pt-BR/concepts.md)**: como tudo se encaixa<br>
 → **[Multi-Idioma](docs/pt-BR/multi-language.md)**: suporte a múltiplos idiomas<br>
-→ **[Personalização](docs/pt-BR/customization.md)**: faça do seu jeito
+→ **[Personalização](docs/pt-BR/customization.md)**: faça do seu jeito<br>
+→ **[FAQ](docs/pt-BR/faq.md)** · **[Solução de Problemas](docs/pt-BR/troubleshooting.md)** · **[Glossário](docs/pt-BR/glossary.md)**: ajuda rápida
 
 
 ## Schemas da comunidade
