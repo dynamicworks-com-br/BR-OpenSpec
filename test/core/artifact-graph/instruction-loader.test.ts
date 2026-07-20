@@ -609,7 +609,10 @@ rules:
 
     it('should include artifactPaths with resolved and existing output paths', () => {
       const canonical = (targetPath: string): string => FileSystemUtils.canonicalizeExistingPath(targetPath);
-      const changeDir = path.join(tempDir, 'openspec', 'changes', 'my-change');
+      // loadChangeContext canonicalizes the change dir (realpath), so expectations
+      // must be built from the canonical dir to match on macOS (/private/var)
+      // and Windows (8.3 short-path expansion).
+      const changeDir = canonical(path.join(tempDir, 'openspec', 'changes', 'my-change'));
       fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
       fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# Proposal');
       fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '# Spec');
