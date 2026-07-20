@@ -17,6 +17,7 @@
   "license": "MIT",
   "author": "BR-OpenSpec Contributors",
   "type": "module",
+  "packageManager": "pnpm@9.15.9",
   "publishConfig": {
     "access": "public"
   },
