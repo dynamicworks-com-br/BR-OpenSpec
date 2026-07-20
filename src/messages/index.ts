@@ -672,6 +672,7 @@ export const SCHEMA_MESSAGES = {
 
 export const COMPLETION_MESSAGES = {
   removeConfigConfirm: (path: string) => `Remover a configuração do BR-OpenSpec de ${path}?`,
+  pathNotWritable: (targetPath: string) => `Caminho sem permissão de escrita: ${targetPath}`,
   shellNotSupported: (shell: string, supported: string) => `Erro: Shell '${shell}' ainda não é suportado. Suportados atualmente: ${supported}`,
   couldNotDetectShell: 'Erro: Não foi possível detectar o shell automaticamente. Especifique o shell explicitamente.',
   usageCompletion: (operation: string) => `Uso: openspec completion ${operation} [shell]`,
