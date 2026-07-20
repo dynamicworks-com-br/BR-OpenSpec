@@ -2330,8 +2330,8 @@ export const SPECS_APPLY_MESSAGES = {
 export const PROJECT_CONFIG_SUGGEST_MESSAGES = {
   configNotValidYaml: 'openspec/config.yaml não é um objeto YAML válido',
   configFailedToParse: 'Falha ao analisar openspec/config.yaml:',
-  unknownArtifactId: (artifactId: string, schemaName: string, validIds: string) =>
-    `ID de artefato desconhecido nas regras: "${artifactId}". IDs válidos para o schema "${schemaName}": ${validIds}`,
+  unknownArtifactId: (artifactId: string, validIds: string) =>
+    `ID de artefato desconhecido nas regras: "${artifactId}". Não corresponde a nenhum artefato em nenhum schema disponível. IDs de artefato conhecidos: ${validIds}`,
   schemaNotFound: (schemaName: string) => `Schema '${schemaName}' não encontrado em openspec/config.yaml\n\n`,
   didYouMean: 'Você quis dizer algum destes?\n',
   schemaType: (isBuiltIn: boolean) => isBuiltIn ? 'nativo' : 'local do projeto',

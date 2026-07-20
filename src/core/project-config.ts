@@ -162,19 +162,18 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
 }
 
 /**
- * Validate artifact IDs in rules against a schema's artifacts.
- * Called during instruction loading (when schema is known).
- * Returns warnings for unknown artifact IDs.
+ * Validate artifact IDs in rules against the artifacts of every available
+ * schema. The `rules:` map is global, but each change can use a different
+ * schema, so a key is only unknown when it matches no artifact in ANY schema.
+ * Returns warnings for keys that are unknown everywhere.
  *
  * @param rules - The rules object from config
- * @param validArtifactIds - Set of valid artifact IDs from the schema
- * @param schemaName - Name of the schema for error messages
+ * @param validArtifactIds - Set of valid artifact IDs across all schemas
  * @returns Array of warning messages for unknown artifact IDs
  */
 export function validateConfigRules(
   rules: Record<string, string[]>,
-  validArtifactIds: Set<string>,
-  schemaName: string
+  validArtifactIds: Set<string>
 ): string[] {
   const warnings: string[] = [];
 
@@ -182,7 +181,7 @@ export function validateConfigRules(
     if (!validArtifactIds.has(artifactId)) {
       const validIds = Array.from(validArtifactIds).sort().join(', ');
       warnings.push(
-        PROJECT_CONFIG_SUGGEST_MESSAGES.unknownArtifactId(artifactId, schemaName, validIds)
+        PROJECT_CONFIG_SUGGEST_MESSAGES.unknownArtifactId(artifactId, validIds)
       );
     }
   }
