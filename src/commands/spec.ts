@@ -1,11 +1,12 @@
 import { program } from 'commander';
-import { existsSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { MarkdownParser } from '../core/parsers/markdown-parser.js';
 import { Validator } from '../core/validation/validator.js';
 import type { Spec } from '../core/schemas/index.js';
 import { isInteractive } from '../utils/interactive.js';
 import { getSpecIds } from '../utils/item-discovery.js';
+import { discoverSpecFiles } from '../utils/spec-discovery.js';
 import { CLI_DESCRIPTIONS, CLI_MESSAGES, SPEC_MESSAGES } from '../messages/index.js';
 
 const SPECS_DIR = 'openspec/specs';
@@ -142,37 +143,32 @@ export function registerSpecCommand(rootProgram: typeof program) {
     .description(CLI_DESCRIPTIONS.specList)
     .option('--json', CLI_DESCRIPTIONS.specListJson)
     .option('--long', CLI_DESCRIPTIONS.specListLong)
-    .action((options: { json?: boolean; long?: boolean }) => {
+    .action(async (options: { json?: boolean; long?: boolean }) => {
       try {
         if (!existsSync(SPECS_DIR)) {
           console.log(SPEC_MESSAGES.noItemsFound);
           return;
         }
 
-        const specs = readdirSync(SPECS_DIR, { withFileTypes: true })
-          .filter(dirent => dirent.isDirectory())
-          .map(dirent => {
-            const specPath = join(SPECS_DIR, dirent.name, 'spec.md');
-            if (existsSync(specPath)) {
-              try {
-                const spec = parseSpecFromFile(specPath, dirent.name);
-                
-                return {
-                  id: dirent.name,
-                  title: spec.name,
-                  requirementCount: spec.requirements.length
-                };
-              } catch {
-                return {
-                  id: dirent.name,
-                  title: dirent.name,
-                  requirementCount: 0
-                };
-              }
+        const discovered = await discoverSpecFiles(SPECS_DIR);
+        const specs = discovered
+          .map(({ id, specFile }) => {
+            try {
+              const spec = parseSpecFromFile(specFile, id);
+
+              return {
+                id,
+                title: spec.name,
+                requirementCount: spec.requirements.length
+              };
+            } catch {
+              return {
+                id,
+                title: id,
+                requirementCount: 0
+              };
             }
-            return null;
           })
-          .filter((spec): spec is { id: string; title: string; requirementCount: number } => spec !== null)
           .sort((a, b) => a.id.localeCompare(b.id));
 
         if (options.json) {

@@ -10,6 +10,7 @@ import {
   writeUpdatedSpec,
   type SpecUpdate,
 } from './specs-apply.js';
+import { discoverSpecFiles } from '../utils/spec-discovery.js';
 
 /**
  * Recursively copy a directory. Used when fs.rename fails (e.g. EPERM on Windows).
@@ -117,22 +118,15 @@ export class ArchiveCommand {
       // Validate delta-formatted spec files under the change directory if present
       const changeSpecsDir = path.join(changeDir, 'specs');
       let hasDeltaSpecs = false;
-      try {
-        const candidates = await fs.readdir(changeSpecsDir, { withFileTypes: true });
-        for (const c of candidates) {
-          if (c.isDirectory()) {
-            try {
-              const candidatePath = path.join(changeSpecsDir, c.name, 'spec.md');
-              await fs.access(candidatePath);
-              const content = await fs.readFile(candidatePath, 'utf-8');
-              if (/^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements/m.test(content)) {
-                hasDeltaSpecs = true;
-                break;
-              }
-            } catch {}
+      for (const { specFile } of await discoverSpecFiles(changeSpecsDir)) {
+        try {
+          const content = await fs.readFile(specFile, 'utf-8');
+          if (/^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements/m.test(content)) {
+            hasDeltaSpecs = true;
+            break;
           }
-        }
-      } catch {}
+        } catch {}
+      }
       if (hasDeltaSpecs) {
         const deltaReport = await validator.validateChangeDeltaSpecs(changeDir);
         if (!deltaReport.valid) {
@@ -209,7 +203,7 @@ export class ArchiveCommand {
         console.log(`\n${ARCHIVE_MESSAGES.specsToUpdate}`);
         for (const update of specUpdates) {
           const status = update.exists ? ARCHIVE_MESSAGES.actionUpdate : ARCHIVE_MESSAGES.actionCreate;
-          const capability = path.basename(path.dirname(update.target));
+          const capability = update.id;
           console.log(ARCHIVE_MESSAGES.specUpdateStatus(capability, status));
         }
 
@@ -243,7 +237,7 @@ export class ArchiveCommand {
           // All validations passed; pre-validate rebuilt full spec and then write files and display counts
           let totals = { added: 0, modified: 0, removed: 0, renamed: 0 };
           for (const p of prepared) {
-            const specName = path.basename(path.dirname(p.update.target));
+            const specName = p.update.id;
             if (!skipValidation) {
               const report = await new Validator().validateSpecContent(specName, p.rebuilt);
               if (!report.valid) {
