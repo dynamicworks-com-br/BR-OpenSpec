@@ -36,7 +36,7 @@ import {
 import { isInteractive } from '../utils/interactive.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { UPDATE_MESSAGES } from '../messages/index.js';
-import { getProfileWorkflows, ALL_WORKFLOWS } from './profiles.js';
+import { getProfileWorkflows, ALL_WORKFLOWS, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
 import {
   WORKFLOW_TO_SKILL_DIR,
@@ -51,7 +51,6 @@ import {
 
 const require = createRequire(import.meta.url);
 const { version: OPENSPEC_VERSION } = require('../../package.json');
-const OLD_CORE_WORKFLOWS = ['propose', 'explore', 'apply', 'archive'] as const;
 
 /**
  * Options for the update command.
@@ -157,7 +156,7 @@ export class UpdateCommand {
       // Still check for new tool directories and extra workflows
       this.detectNewTools(resolvedProjectPath, configuredTools);
       this.displayExtraWorkflowsNote(resolvedProjectPath, configuredTools, desiredWorkflows);
-      this.displayOldCoreCustomProfileNote(profile, globalConfig.workflows);
+      this.displayMissingCoreWorkflowsNote(profile, globalConfig.workflows);
       return;
     }
 
@@ -284,7 +283,7 @@ export class UpdateCommand {
 
     // 14. Display note about extra workflows not in profile
     this.displayExtraWorkflowsNote(resolvedProjectPath, configuredAndNewTools, desiredWorkflows);
-    this.displayOldCoreCustomProfileNote(profile, globalConfig.workflows);
+    this.displayMissingCoreWorkflowsNote(profile, globalConfig.workflows);
 
     // 15. List affected tools
     if (updatedTools.length > 0) {
@@ -373,26 +372,25 @@ export class UpdateCommand {
   }
 
   /**
-   * Sugere voltar ao perfil core quando um perfil personalizado ainda
-   * corresponde ao conjunto core antigo (anterior ao sync). Mantém os perfis
-   * personalizados sob controle do usuário; não os altera.
+   * Aponta os fluxos de trabalho do core que faltam em um perfil
+   * personalizado, para que releases que ampliam CORE_WORKFLOWS continuem
+   * visíveis. Mantém os perfis personalizados sob controle do usuário;
+   * não os altera.
    */
-  private displayOldCoreCustomProfileNote(profile: Profile, workflows?: readonly string[]): void {
+  private displayMissingCoreWorkflowsNote(profile: Profile, workflows?: readonly string[]): void {
     if (profile !== 'custom' || !workflows) {
       return;
     }
 
     const workflowSet = new Set(workflows);
-    const matchesOldCore =
-      workflowSet.size === OLD_CORE_WORKFLOWS.length &&
-      OLD_CORE_WORKFLOWS.every((workflow) => workflowSet.has(workflow));
+    const missing = CORE_WORKFLOWS.filter((workflow) => !workflowSet.has(workflow));
 
-    if (!matchesOldCore) {
+    if (missing.length === 0) {
       return;
     }
 
-    console.log(chalk.dim(UPDATE_MESSAGES.oldCoreProfileSyncNote));
-    console.log(chalk.dim(UPDATE_MESSAGES.oldCoreProfileSyncHint));
+    console.log(chalk.dim(UPDATE_MESSAGES.missingCoreWorkflowsNote(missing.length, missing.join(', '))));
+    console.log(chalk.dim(UPDATE_MESSAGES.missingCoreWorkflowsHint(missing.length)));
   }
 
   /**
