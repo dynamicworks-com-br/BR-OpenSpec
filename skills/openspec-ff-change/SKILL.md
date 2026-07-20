@@ -1,0 +1,101 @@
+---
+name: openspec-ff-change
+description: Avance rapidamente pela criação de artifacts do BR-OpenSpec. Use quando o usuário quiser criar rapidamente todos os artifacts necessários para implementação sem passar por cada um individualmente.
+allowed-tools: Bash(openspec:*)
+license: MIT
+compatibility: Requer openspec CLI.
+metadata:
+  author: openspec
+  version: "1.0"
+---
+
+Avance rapidamente pela criação de artifacts - gere tudo o que é necessário para iniciar a implementação de uma vez só.
+
+**Entrada**: A solicitação do usuário deve incluir um nome de change (kebab-case) OU uma descrição do que ele quer construir.
+
+**Passos**
+
+1. **Se nenhuma entrada clara for fornecida, pergunte o que ele quer construir**
+
+   Use a ferramenta **AskUserQuestion** (aberta, sem opções pré-definidas) para perguntar:
+   > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
+
+   A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → `add-user-auth`).
+
+   **IMPORTANTE**: NÃO prossiga sem entender o que o usuário quer construir.
+
+2. **Crie o diretório da change**
+   ```bash
+   openspec new change "<nome>"
+   ```
+   Isso cria uma change com scaffold em `openspec/changes/<nome>/`.
+
+3. **Obtenha a ordem de construção dos artifacts**
+   ```bash
+   openspec status --change "<nome>" --json
+   ```
+   Analise o JSON para obter:
+   - `applyRequires`: array de IDs de artifacts necessários antes da implementação (por exemplo, `["tasks"]`)
+   - `artifacts`: lista de todos os artifacts com seu status e dependências
+
+4. **Crie artifacts em sequência até estar pronto para apply**
+
+   Use a ferramenta **TodoWrite** para rastrear o progresso pelos artifacts.
+
+   Percorra os artifacts em ordem de dependência (artifacts sem dependências pendentes primeiro):
+
+   a. **Para cada artifact que está `ready` (dependências satisfeitas)**:
+      - Obtenha instruções:
+        ```bash
+        openspec instructions <artifact-id> --change "<nome>" --json
+        ```
+      - O JSON de instruções inclui:
+        - `context`: Contexto do projeto (restrições para você - NÃO inclua na saída)
+        - `rules`: Regras específicas do artifact (restrições para você - NÃO inclua na saída)
+        - `template`: A estrutura a ser usada para seu arquivo de saída
+        - `instruction`: Orientação específica do schema para este tipo de artifact
+        - `outputPath`: Onde escrever o artifact
+        - `dependencies`: Artifacts concluídos para ler como contexto
+      - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
+      - Crie o arquivo do artifact usando `template` como a estrutura
+      - Aplique `context` e `rules` como restrições - mas NÃO copie-os para o arquivo
+      - Mostre breve progresso: "✓ Criado <artifact-id>"
+
+   b. **Continue até todos os artifacts `applyRequires` estarem completos**
+      - Após criar cada artifact, reexecute `openspec status --change "<nome>" --json`
+      - Verifique se cada ID de artifact em `applyRequires` tem `status: "done"` no array de artifacts
+      - Pare quando todos os artifacts `applyRequires` estiverem done
+
+   c. **Se um artifact requerer entrada do usuário** (contexto incerto):
+      - Use a ferramenta **AskUserQuestion** para esclarecer
+      - Depois continue com a criação
+
+5. **Mostre o status final**
+   ```bash
+   openspec status --change "<nome>"
+   ```
+
+**Saída**
+
+Após completar todos os artifacts, resuma:
+- Nome da change e localização
+- Lista de artifacts criados com breves descrições
+- O que está pronto: "Todos os artifacts criados! Pronto para implementação."
+- Prompt: "Execute `/opsx:apply` ou peça-me para implementar para começar a trabalhar nas tarefas."
+
+**Diretrizes de Criação de Artifacts**
+
+- Siga o campo `instruction` de `openspec instructions` para cada tipo de artifact
+- O schema define o que cada artifact deve conter - siga-o
+- Leia artifacts de dependência para contexto antes de criar novos
+- Use `template` como a estrutura para seu arquivo de saída - preencha suas seções
+- **IMPORTANTE**: `context` e `rules` são restrições para VOCÊ, não conteúdo para o arquivo
+  - NÃO copie blocos `<context>`, `<rules>`, `<project_context>` para o artifact
+  - Eles guiam o que você escreve, mas nunca devem aparecer na saída
+
+**Guardrails**
+- Crie TODOS os artifacts necessários para implementação (conforme definido pelo `apply.requires` do schema)
+- Sempre leia artifacts de dependência antes de criar um novo - releia do disco, não da memória da conversa (os arquivos podem ter mudado desde a última vez que você os viu)
+- Se o contexto estiver criticamente incerto, pergunte ao usuário - mas prefira tomar decisões razoáveis para manter o momento
+- Se uma change com aquele nome já existir, pergunte se o usuário quer continuar ela ou criar uma nova
+- Verifique se cada arquivo do artifact existe após escrever antes de prosseguir para o próximo

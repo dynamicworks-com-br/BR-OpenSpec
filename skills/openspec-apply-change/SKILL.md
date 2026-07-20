@@ -1,0 +1,156 @@
+---
+name: openspec-apply-change
+description: Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas.
+allowed-tools: Bash(openspec:*)
+license: MIT
+compatibility: Requer openspec CLI.
+metadata:
+  author: openspec
+  version: "1.0"
+---
+
+Implementa tarefas de uma change do BR-OpenSpec.
+
+**Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
+
+**Passos**
+
+1. **Selecione a change**
+
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute `openspec list --json` para obter as changes disponíveis e use a ferramenta **AskUserQuestion** para permitir que o usuário selecione
+
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, `/opsx:apply <outra>`).
+
+2. **Verifique o status para entender o schema**
+   ```bash
+   openspec status --change "<nome>" --json
+   ```
+   Analise o JSON para entender:
+   - `schemaName`: O workflow sendo usado (por exemplo, "spec-driven")
+   - Qual artifact contém as tarefas (tipicamente "tasks" para spec-driven, verifique o status para outros)
+
+3. **Obtenha as instruções de apply**
+
+   ```bash
+   openspec instructions apply --change "<nome>" --json
+   ```
+
+   Isso retorna:
+   - `contextFiles`: artifact ID -> array de caminhos de arquivos concretos (varia por schema - pode ser proposal/specs/design/tasks ou spec/tests/implementation/docs)
+   - Progresso (total, completo, restante)
+   - Lista de tarefas com status
+   - Instrução dinâmica baseada no estado atual
+
+   **Trate os estados:**
+   - Se `state: "blocked"` (artifacts ausentes): exiba mensagem, sugira usar openspec-continue-change
+   - Se `state: "all_done"`: parabenize, sugira arquivar
+   - Caso contrário: prossiga para a implementação
+
+4. **Leia os arquivos de contexto**
+
+   Leia cada caminho de arquivo listado em `contextFiles` da saída das instruções de apply.
+   Os arquivos dependem do schema sendo usado:
+   - **spec-driven**: proposal, specs, design, tasks
+   - Outros schemas: siga os contextFiles da saída do CLI
+
+5. **Mostre o progresso atual**
+
+   Exiba:
+   - Schema sendo usado
+   - Progresso: "N/M tarefas concluídas"
+   - Visão geral das tarefas restantes
+   - Instrução dinâmica do CLI
+
+6. **Implemente as tarefas (loop até concluir ou bloquear)**
+
+   Para cada tarefa pendente:
+   - Mostre qual tarefa está sendo trabalhada
+   - Faça as alterações de código necessárias
+   - Mantenha as alterações mínimas e focadas
+   - Marque a tarefa como concluída no arquivo de tasks: `- [ ]` → `- [x]`
+   - Continue para a próxima tarefa
+
+   **Pare se:**
+   - A tarefa estiver incerta → peça esclarecimento
+   - A implementação revelar um problema de design → sugira atualizar artifacts
+   - Encontrar erro ou bloqueio → reporte e aguarde orientação
+   - O usuário interromper
+
+7. **Ao concluir ou pausar, mostre o status**
+
+   Exiba:
+   - Tarefas concluídas nesta sessão
+   - Progresso geral: "N/M tarefas concluídas"
+   - Se tudo concluído: sugira arquivar
+   - Se pausado: explique o porquê e aguarde orientação
+
+**Saída Durante a Implementação**
+
+```
+## Implementando: <nome-change> (schema: <nome-schema>)
+
+Trabalhando na tarefa 3/7: <descrição da tarefa>
+[...implementação acontecendo...]
+✓ Tarefa concluída
+
+Trabalhando na tarefa 4/7: <descrição da tarefa>
+[...implementação acontecendo...]
+✓ Tarefa concluída
+```
+
+**Saída ao Concluir**
+
+```
+## Implementação Concluída
+
+**Change:** <nome-change>
+**Schema:** <nome-schema>
+**Progresso:** 7/7 tarefas concluídas ✓
+
+### Concluídas Nesta Sessão
+- [x] Tarefa 1
+- [x] Tarefa 2
+...
+
+Todas as tarefas concluídas! Pronto para arquivar esta change.
+```
+
+**Saída ao Pausar (Problema Encontrado)**
+
+```
+## Implementação Pausada
+
+**Change:** <nome-change>
+**Schema:** <nome-schema>
+**Progresso:** 4/7 tarefas concluídas
+
+### Problema Encontrado
+<descrição do problema>
+
+**Opções:**
+1. <opção 1>
+2. <opção 2>
+3. Outra abordagem
+
+O que você gostaria de fazer?
+```
+
+**Guardrails**
+- Continue pelas tarefas até concluir ou bloquear
+- Sempre leia os arquivos de contexto antes de começar (da saída das instruções de apply)
+- Se a tarefa for ambígua, pause e pergunte antes de implementar
+- Se a implementação revelar problemas, pause e sugira atualizar artifacts
+- Mantenha as alterações de código mínimas e limitadas a cada tarefa
+- Atualize a checkbox da tarefa imediatamente após concluir cada tarefa
+- Pare em erros, bloqueios ou requisitos incertos - não adivinhe
+- Use os contextFiles da saída do CLI, não assuma nomes de arquivos específicos
+
+**Integração com Fluxo Fluido**
+
+Esta skill suporta o modelo de "ações em uma change":
+
+- **Pode ser invocada a qualquer momento**: Antes de todos os artifacts estarem prontos (se tasks existirem), após implementação parcial, intercalada com outras ações
+- **Permite atualizações de artifacts**: Se a implementação revelar problemas de design, sugira atualizar artifacts - não está travada em fases, trabalhe de forma fluida

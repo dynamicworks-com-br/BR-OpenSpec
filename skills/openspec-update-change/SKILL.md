@@ -1,0 +1,83 @@
+---
+name: openspec-update-change
+description: Atualize uma change do BR-OpenSpec revisando seus artifacts de planejamento existentes e mantendo-os coerentes entre si. Use quando o usuário quiser revisar o plano de uma change, incorporar novas decisões a ela ou reconciliar seus artifacts após uma edição. Nunca edita código.
+allowed-tools: Bash(openspec:*)
+license: MIT
+compatibility: Requer openspec CLI.
+metadata:
+  author: openspec
+  version: "1.0"
+---
+
+Revise os artifacts de planejamento existentes de uma change e mantenha-os coerentes. Nunca edite código.
+
+**Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
+
+**Passos**
+
+1. **Se nenhum nome de change for fornecido, solicite a seleção**
+
+   Execute `openspec list --json` para obter as changes disponíveis ordenadas pela mais recentemente modificada. Depois use a ferramenta **AskUserQuestion** para permitir que o usuário selecione qual change atualizar.
+
+   Apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
+   - Nome da change
+   - Schema (do campo `schema` se presente, caso contrário "spec-driven")
+   - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
+   - Quão recentemente foi modificada (do campo `lastModified`)
+
+   Marque a change mais recentemente modificada como "(Recomendada)" já que é provavelmente a que o usuário quer atualizar.
+
+   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+
+2. **Obtenha os artifacts da change**
+   ```bash
+   openspec status --change "<nome>" --json
+   ```
+   Analise o JSON para entender o estado atual. A resposta inclui:
+   - `schemaName`: O schema de workflow sendo usado (por exemplo, "spec-driven")
+   - `artifacts`: Array de artifacts com seu status ("done", "ready", "blocked")
+   - `isComplete`: Booleano indicando se todos os artifacts estão completos
+   - `artifactPaths`: Caminhos por artifact (`outputPath`, `resolvedOutputPath`, `existingOutputPaths`). Use-os em vez de assumir caminhos locais do repositório.
+
+   Os ids e caminhos dos artifacts vêm do schema ativo - NÃO os assuma e NÃO ramifique com base em nomes de artifact fixos. Schemas personalizados devem funcionar sem alterações.
+
+   Os arquivos a editar são `artifactPaths.<id>.existingOutputPaths` - os arquivos concretos que existem em disco, já expandidos do glob para artifacts com glob (por exemplo, `specs/**/*.md`). NÃO escreva em `resolvedOutputPath`: para um artifact com glob, ele ainda é o padrão glob, não um arquivo real.
+
+3. **Entenda a solicitação**
+   - Se o usuário pediu uma revisão específica ("o design agora usa X"), essa é a edição inicial.
+   - Se ele apenas disse "atualize" / "deixe coerente", trate como uma revisão de coerência: leia os artifacts existentes e compare-os entre si procurando contradições, lacunas e duplicações.
+
+4. **Leia e reconcilie**
+   - Leia o(s) artifact(s) que a solicitação afeta e os demais artifacts existentes da change.
+   - Aplique a edição solicitada. Depois verifique cada outro artifact existente contra ela - em QUALQUER direção: uma edição em um artifact posterior pode exigir revisar um anterior, não apenas o contrário. A ordem de construção é uma ordem de leitura útil, não uma restrição sobre quais artifacts podem ser revisados.
+   - Anote tudo o que ficou inconsistente, faltando ou contraditório.
+   - Revise apenas arquivos que já existem (`existingOutputPaths`). NÃO crie artifacts que ainda não existem e NÃO invente arquivos novos sob um artifact com glob - anote-os e aponte o usuário para `/opsx:continue` para criá-los.
+   - Se a change já estiver coerente, diga isso e não faça edições.
+
+5. **Confirme e aplique, um artifact por vez**
+   - Mostre cada revisão proposta e o porquê. Escreva somente após o usuário confirmar.
+   - Se o usuário rejeitar uma revisão, não a escreva - deixe aquele artifact inalterado.
+   - Quando uma reescrita substancial for necessária, obtenha primeiro as regras e o template daquele artifact:
+     ```bash
+     openspec instructions <artifact-id> --change "<nome>" --json
+     ```
+
+6. **Aponte o próximo passo (apenas orientação - NUNCA aja sobre ele)**
+   - Artifacts ainda faltando -> sugira `/opsx:continue` para criá-los.
+   - Change já implementada (tarefas marcadas / já aplicada) -> o código pode não corresponder mais ao plano revisado; sugira `/opsx:apply` para levar o delta ao código.
+   - Tudo pronto e implementado -> sugira `/opsx:archive`.
+
+**Saída**
+
+Após cada invocação, mostre:
+- Quais artifacts foram revisados (e quais revisões propostas foram rejeitadas)
+- Qualquer coisa adiada para `/opsx:continue` (artifacts ou arquivos ainda não criados)
+- Onde a change está e o próximo comando recomendado
+
+**Guardrails**
+- Apenas artifacts de planejamento - NUNCA edite código de implementação. Se o plano revisado implicar mudanças de código, pare e aponte para `/opsx:apply`.
+- Use os ids e caminhos de artifacts reportados por `openspec status`; nunca ramifique com base em nomes de artifact fixos.
+- Edite apenas os arquivos concretos em `existingOutputPaths`; nunca escreva em um `resolvedOutputPath` com glob.
+- Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do `/opsx:continue`.
+- Confirme cada edição com o usuário antes de escrever.
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com `/opsx:new` (a heurística "Atualizar vs. Começar do Zero").
