@@ -31,7 +31,7 @@ import {
   getUpdateChangeSkillTemplate,
   getVerifyChangeSkillTemplate,
 } from '../../../src/core/templates/skill-templates.js';
-import { generateSkillContent } from '../../../src/core/shared/skill-generation.js';
+import { generateSkillContent, getSkillTemplates } from '../../../src/core/shared/skill-generation.js';
 
 const EXPECTED_FUNCTION_HASHES: Record<string, string> = {
   getExploreSkillTemplate: '07c5e672fba9ffd4e03b0df49e94d5bf1800167d6a46a55041dab8c2028b298b',
@@ -64,19 +64,19 @@ const EXPECTED_FUNCTION_HASHES: Record<string, string> = {
 };
 
 const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
-  'openspec-explore': 'e0aa71c37ec9ab59f7deb422d84e68f7c8198de6ab729dcdbd489750eaa7730b',
-  'openspec-new-change': 'b321551e006d4cd4359361a4774ca5c3eb8336f8dd1bb80718e8073022ae8e9f',
-  'openspec-continue-change': '27a25f7b9d483b5136d5c2ccf8f2ff648c213c857201bdf184cf2bee1de329ca',
-  'openspec-apply-change': '298b1de718ab88bccd3e8690665fe2171fc54dc41bbe95a26de4d31e739b37d7',
-  'openspec-update-change': '6b68a466d6442a9824742ab9fcfe4dd93999db440ea18c43dcada64ab29156c6',
-  'openspec-ff-change': '36d35034b5b0c269c540defdef48a0780bdaef71a47bf250e6738d08afac7ed3',
-  'openspec-sync-specs': 'e04c83cd68e9f4e671b34423b307ae8a2a64112e2b051918b68b7792d5cc18ff',
-  'openspec-archive-change': '21abccc89a88ab0d5e3293333ae44fbe6394020d975091c524016777b84b5d96',
-  'openspec-bulk-archive-change': '2e7c35324be567fb222c902cc78ba64cda48263a4db45cbeced460c1e5470884',
-  'openspec-verify-change': '75fb464069eb0d61bef15f39ba90d64021741065152b7d3c14ab7d475ab03f8a',
-  'openspec-code-review': '55fa92c3af14884d7fb6714acfbdfe17f28b7a092ea30fd534591f49152d0281',
-  'openspec-onboard': '0c0eddd406229f0925782abd0d83f669dba79b99fd8043a1d8b31db3036c2e1f',
-  'openspec-propose': '94f406b91d410d3bef66df1819ac8462c13a58ce0e2812921eb08ea09b9ca265',
+  'openspec-explore': '5f0b206597f3ebc0383994d986bf11ebefa41fde8e7d6e495229e1d0b5b0a7f1',
+  'openspec-new-change': '845ccd271be19e750a9136f936fe5dc2def978717b7aba0eec3dad7620b587f4',
+  'openspec-continue-change': 'fb043d7ebceadedfc4b290a4c0b89a7a5c3e23dc6e53ad9987a840ab26706bc0',
+  'openspec-apply-change': 'aa62cff433b4cbe61d66d88f920c8ffc4b5cd8fc93a976249fa9ce1756f171e9',
+  'openspec-update-change': '39f92870dcf9a390918790e863aa96ca0e78cedb82e9cb64bd46318b52532f94',
+  'openspec-ff-change': '82e67ddebc708f6d2c7edcdef910264605af548b62f8b3276f59f4a97bd83a91',
+  'openspec-sync-specs': '3a4d9a4edeae5fac787a22d6b9ac9eab426b3ce44ef2a796e879f0dda57876a9',
+  'openspec-archive-change': '5a9531abd6e85793f38ad71f68f1cbff06bdc6319ad2300c1c18de4ad7a7e23f',
+  'openspec-bulk-archive-change': '38525f3ffe5e6075fb87228a3305703d3fbaa8294f91f58c62d97cf4435368a1',
+  'openspec-verify-change': 'dfa3c432c21d89013b2d51ae9cccfa344eea9754ab694d70bd4f7d72ef469ecf',
+  'openspec-code-review': '10c2990eb29c650603bd000805a181fe2dcc1faf3395d081d22c4e0c5f7c2f24',
+  'openspec-onboard': 'd70cf46974ad2667689d95af98bb112665d94358e2ea1a91a97402ea1d456f86',
+  'openspec-propose': '2a25bc547c20008d132f68a6e69eb17d087e0b8a9a7272ff3ce2628730ea6e17',
 };
 
 function stableStringify(value: unknown): string {
@@ -165,5 +165,15 @@ describe('skill templates split parity', () => {
     );
 
     expect(actualHashes).toEqual(EXPECTED_GENERATED_SKILL_CONTENT_HASHES);
+  });
+
+  // Auto-approve the OpenSpec CLI: every generated skill carries
+  // `allowed-tools: Bash(openspec:*)` so agents that honor it stop prompting
+  // on each `openspec` call. Iterating the registry covers new skills too.
+  it('pre-approves the openspec CLI via allowed-tools in every deployed skill', () => {
+    for (const { template, dirName } of getSkillTemplates()) {
+      const content = generateSkillContent(template, 'PARITY-BASELINE');
+      expect(content, dirName).toContain('allowed-tools: Bash(openspec:*)');
+    }
   });
 });
