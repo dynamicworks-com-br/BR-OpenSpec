@@ -748,6 +748,12 @@ export function registerSchemaCommand(program: Command): void {
 
           selectedArtifactIds = await checkbox({
             message: CONFIG_MESSAGES.selectArtifacts,
+            theme: {
+              icon: {
+                checked: '[x]',
+                unchecked: '[ ]',
+              },
+            },
             choices: artifactChoices,
           });
 

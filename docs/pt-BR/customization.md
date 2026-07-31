@@ -197,6 +197,10 @@ apply:
 | `instruction` | Instruções para a IA ao criar este artefato |
 | `requires` | Dependências — quais artefatos devem existir primeiro |
 
+Liste os artefatos na ordem em que você quer que sejam escritos. O `requires`
+decide o que é possível; a ordem da lista `artifacts:` decide o que vem primeiro
+quando vários artefatos estão prontos ao mesmo tempo.
+
 ### Templates
 
 Templates são arquivos markdown que guiam a IA. Eles são injetados no prompt ao criar aquele artefato.

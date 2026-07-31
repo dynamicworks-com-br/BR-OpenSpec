@@ -503,7 +503,8 @@ Os artefatos formam um grafo acíclico dirigido (DAG). Dependências são **faci
   │  │      {"id": "proposal", "status": "done"},                         │  │
   │  │      {"id": "specs", "status": "ready"},      ◄── Primeiro pronto  │  │
   │  │      {"id": "design", "status": "ready"},                          │  │
-  │  │      {"id": "tasks", "status": "blocked", "missingDeps": ["specs"]}│  │
+  │  │      {"id": "tasks", "status": "blocked",                          │  │
+  │  │       "missingDeps": ["specs", "design"]}                          │  │
   │  │    ]                                                               │  │
   │  │  }                                                                 │  │
   │  └────────────────────────────────────────────────────────────────────┘  │

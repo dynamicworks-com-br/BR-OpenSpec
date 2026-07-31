@@ -105,6 +105,22 @@ Regular text that should be ignored
       expect(logOutput.some(line => line.includes('✓ Concluído'))).toBe(true);
     });
 
+    it('does not report a change with unfinished sub-tasks as complete (#1485)', async () => {
+      const changesDir = path.join(tempDir, 'openspec', 'changes');
+      await fs.mkdir(path.join(changesDir, 'nested-change'), { recursive: true });
+
+      await fs.writeFile(
+        path.join(changesDir, 'nested-change', 'tasks.md'),
+        '- [x] 1.1 Parent task\n  - [ ] 1.1.1 Unfinished sub-task\n'
+      );
+
+      const listCommand = new ListCommand();
+      await listCommand.execute(tempDir, 'changes');
+
+      expect(logOutput.some(line => line.includes('1/2 tarefas'))).toBe(true);
+      expect(logOutput.some(line => line.includes('✓ Concluído'))).toBe(false);
+    });
+
     it('should handle changes without tasks.md', async () => {
       const changesDir = path.join(tempDir, 'openspec', 'changes');
       await fs.mkdir(path.join(changesDir, 'no-tasks'), { recursive: true });

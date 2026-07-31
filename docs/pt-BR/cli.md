@@ -512,8 +512,8 @@ Schema: spec-driven
 Progresso: 2/4 artefatos concluídos
 
 [x] proposal
-[ ] design
 [x] specs
+[ ] design
 [-] tasks (bloqueado por: design)
 ```
 
@@ -529,12 +529,18 @@ Uma mudança que declara `skip_specs: true` mostra seu estágio de specs como `[
   "applyRequires": ["tasks"],
   "artifacts": [
     {"id": "proposal", "outputPath": "proposal.md", "status": "done", "requires": []},
-    {"id": "design", "outputPath": "design.md", "status": "ready", "requires": ["proposal"]},
     {"id": "specs", "outputPath": "specs/**/*.md", "status": "done", "requires": ["proposal"]},
+    {"id": "design", "outputPath": "design.md", "status": "ready", "requires": ["proposal"]},
     {"id": "tasks", "outputPath": "tasks.md", "status": "blocked", "requires": ["specs", "design"], "missingDeps": ["design"]}
   ]
 }
 ```
+
+Os artefatos são listados em ordem de dependência — uma dependência nunca aparece
+depois de algo que a requer — e artefatos que ficam prontos ao mesmo tempo
+(os `specs` e `design` do spec-driven precisam apenas de `proposal`) mantêm a
+ordem em que o schema os declara, em vez de ordem alfabética. Assim, a primeira
+entrada `ready` é o artefato a ser escrito em seguida.
 
 ---
 
