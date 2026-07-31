@@ -49,5 +49,11 @@ export const AI_TOOLS: AIToolOption[] = [
   { name: 'RooCode', value: 'roocode', available: true, successLabel: 'RooCode', skillsDir: '.roo' },
   { name: 'Trae', value: 'trae', available: true, successLabel: 'Trae', skillsDir: '.trae' },
   { name: 'Windsurf', value: 'windsurf', available: true, successLabel: 'Windsurf', skillsDir: '.windsurf' },
-  { name: 'AGENTS.md (works with Amp, VS Code, …)', value: 'agents', available: false, successLabel: 'your AGENTS.md-compatible assistant' }
+  // Vendor-neutral target for assistants that read the shared `.agents` root.
+  // Detection keys off `.agents/skills` rather than the bare root: frameworks use
+  // `.agents/` for more than skills, so the root alone says nothing about skills.
+  // A project that does keep skills there is a project this target fits, the same
+  // way `.claude/` selects Claude Code — the signal is the user's setup, not
+  // OpenSpec's own files.
+  { name: 'Shared .agents skills', value: 'agents', available: true, successLabel: 'shared .agents skills', skillsDir: '.agents', detectionPaths: ['.agents/skills'] }
 ];

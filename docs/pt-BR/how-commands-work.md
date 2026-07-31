@@ -83,6 +83,7 @@ A intenção é idêntica em todo lugar. A pontuação difere. Use a forma que c
 | Oh My Pi | `/opsx-propose`, `/opsx-apply` |
 | Kimi Code | estilo skill, ex. `/skill:openspec-propose` |
 | Trae | `/opsx-propose`, `/opsx-apply` |
+| Skills `.agents` compartilhadas | estilo skill, ex. `/openspec-propose` |
 
 A maioria das ferramentas usa a forma com dois-pontos (`/opsx:propose`) ou a forma com hífen (`/opsx-propose`). Algumas ferramentas expõem o BR-OpenSpec como skills nomeadas em vez de slash commands; para essas, você invoca a skill pelo nome. A lista completa por ferramenta, incluindo exatamente quais arquivos são escritos onde, está em [Ferramentas Suportadas](supported-tools.md).
 
@@ -103,7 +104,7 @@ Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos exatos por fe
 
 Verificações rápidas, da mais rápida primeiro:
 
-1. **Digite uma barra no chat da sua IA.** Comece digitando `/opsx` e observe as sugestões de autocompletar. Se aparecerem, está tudo certo.
+1. **Digite uma barra no chat da sua IA.** Comece digitando `/opsx` e observe as sugestões de autocompletar. Se aparecerem, está tudo certo. Em uma ferramenta somente de skills (Kimi Code, ForgeCode, Mistral Vibe, Trae ou o alvo `.agents` compartilhado), `/opsx` nunca completa mesmo em uma instalação saudável — tente o nome da skill da tabela acima.
 2. **Procure os arquivos.** Para o Claude Code, verifique que `.claude/skills/` contém pastas `openspec-*`. Outras ferramentas usam seus próprios diretórios ([Ferramentas Suportadas](supported-tools.md) lista todos).
 3. **Rode a configuração de novo.** Da raiz do seu projeto, rode `openspec update`. Isso regenera os arquivos de skill e comando para as ferramentas que você configurou.
 4. **Reinicie seu assistente.** Muitas ferramentas varrem skills e comandos na inicialização, então uma janela nova pode ser o passo que faltava.

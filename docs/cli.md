@@ -86,10 +86,13 @@ openspec init [path] [options]
 | `--tools <list>` | Configure AI tools non-interactively. Use `all`, `none`, or comma-separated list |
 | `--force` | Auto-cleanup legacy files without prompting |
 | `--profile <profile>` | Override global profile for this init run (`core` or `custom`) |
+| `--no-animation` | Show a static welcome screen instead of the animated one |
 
 `--profile custom` uses whatever workflows are currently selected in global config (`openspec config profile`).
 
-**Supported tool IDs (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
+The welcome animation is also skipped when the `OPENSPEC_NO_ANIMATION` environment variable is set (any value, including empty), when `NO_COLOR` is set to a non-empty value, or when the OS reduced-motion preference is enabled (macOS Reduce Motion, GNOME animations disabled).
+
+**Supported tool IDs (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`, `agents`
 
 > This list mirrors `AI_TOOLS` in `src/core/config.ts`. See [Supported Tools](supported-tools.md) for each tool's skill and command paths.
 
@@ -126,6 +129,7 @@ openspec/
 .claude/skills/         # Claude Code skills (if claude selected)
 .cursor/skills/         # Cursor skills (if cursor selected)
 .cursor/commands/       # Cursor OPSX commands (if delivery includes commands)
+.agents/skills/         # Shared skills for AGENTS.md-compatible tools (if agents selected)
 ... (other tool configs)
 ```
 
@@ -968,6 +972,7 @@ openspec completion uninstall
 | `OPENSPEC_CONCURRENCY` | Default concurrency for bulk validation (default: 6) |
 | `EDITOR` or `VISUAL` | Editor for `openspec config edit` |
 | `NO_COLOR` | Disable color output when set |
+| `OPENSPEC_NO_ANIMATION` | Disable the `openspec init` welcome animation when set |
 
 ---
 

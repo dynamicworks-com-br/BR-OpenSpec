@@ -55,7 +55,7 @@ Se `/opsx:propose` (ou o equivalente da sua ferramenta) não aparece ou não faz
 
 5. **Verifique que você inicializou este projeto.** Skills são escritas por projeto. Se você clonou um repo ou trocou de pasta, rode `openspec init` (ou `openspec update`) lá.
 
-6. **Confirme que sua ferramenta suporta arquivos de comando.** O Codex e algumas outras ferramentas (Kimi Code, ForgeCode, Mistral Vibe) não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills. Para o Codex, verifique `.codex/skills/openspec-*`. As formas diferem por ferramenta: veja [Ferramentas Suportadas](supported-tools.md) e [Como os Comandos Funcionam](how-commands-work.md#sintaxe-de-slash-command-por-ferramenta).
+6. **Confirme que sua ferramenta suporta arquivos de comando.** O Codex e algumas outras ferramentas (Kimi Code, ForgeCode, Mistral Vibe, Trae e o alvo `.agents` compartilhado) não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills. Para o Codex, verifique `.codex/skills/openspec-*`. O alvo `.agents` compartilhado é neutro em relação a fornecedores, então `/openspec-propose` é a forma comum, não uma garantida — se o seu assistente não responder a ela, consulte a documentação dele sobre como invocar uma skill. As formas diferem por ferramenta: veja [Ferramentas Suportadas](supported-tools.md) e [Como os Comandos Funcionam](how-commands-work.md#sintaxe-de-slash-command-por-ferramenta).
 
 ## Trabalhando com mudanças
 

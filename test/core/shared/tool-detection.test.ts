@@ -51,6 +51,9 @@ describe('tool-detection', () => {
       expect(tools).toContain('claude');
       expect(tools).toContain('cursor');
       expect(tools).toContain('windsurf');
+      // `--tools all` resolves to exactly this list, so `agents` being here is what
+      // puts the shared target in an `--tools all` run.
+      expect(tools).toContain('agents');
       expect(tools.length).toBeGreaterThan(0);
     });
   });

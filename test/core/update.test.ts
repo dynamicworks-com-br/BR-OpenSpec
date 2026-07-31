@@ -41,6 +41,7 @@ function resetMockConfig() {
 describe('UpdateCommand', () => {
   let testDir: string;
   let updateCommand: UpdateCommand;
+  let originalCodexHome: string | undefined;
 
   beforeEach(async () => {
     // Create a temporary test directory
@@ -53,6 +54,11 @@ describe('UpdateCommand', () => {
 
     updateCommand = new UpdateCommand();
 
+    // Isolate from the real Codex home: the codex adapter path is global, so
+    // configured-tool detection would otherwise see this machine's actual prompts.
+    originalCodexHome = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = path.join(testDir, 'codex-home');
+
     // Reset mock config to defaults
     resetMockConfig();
 
@@ -63,6 +69,12 @@ describe('UpdateCommand', () => {
   afterEach(async () => {
     // Restore all mocks after each test
     vi.restoreAllMocks();
+
+    if (originalCodexHome === undefined) {
+      delete process.env.CODEX_HOME;
+    } else {
+      process.env.CODEX_HOME = originalCodexHome;
+    }
 
     // Clean up test directory
     await fs.rm(testDir, { recursive: true, force: true });
@@ -166,6 +178,12 @@ Old instructions content
       );
       expect(migratedSkill).toContain('name: openspec-explore');
       expect(migratedSkill).not.toContain('Old instructions content');
+      // Kimi Code has no command adapter, so the refreshed skill must use
+      // its documented /skill:<name> invocations, never /opsx:* commands
+      // that were not generated
+      expect(migratedSkill).not.toContain('/opsx:');
+      expect(migratedSkill).not.toContain('/opsx-');
+      expect(migratedSkill).toContain('/skill:openspec-');
 
       // Legacy managed skill is gone; user files stay where they were
       await expect(fs.access(legacySkillDir)).rejects.toThrow();
@@ -244,6 +262,21 @@ Old instructions content
         const exists = await FileSystemUtils.fileExists(skillFile);
         expect(exists).toBe(false);
       }
+    });
+
+    it('should update skill files for configured shared agents target', async () => {
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      const exploreSkillDir = path.join(skillsDir, 'openspec-explore');
+      await fs.mkdir(exploreSkillDir, { recursive: true });
+      await fs.writeFile(path.join(exploreSkillDir, 'SKILL.md'), 'old content');
+
+      await updateCommand.execute(testDir);
+
+      const updatedSkill = await fs.readFile(
+        path.join(exploreSkillDir, 'SKILL.md'),
+        'utf-8'
+      );
+      expect(updatedSkill).toContain('name: openspec-explore');
     });
   });
 
@@ -1192,13 +1225,19 @@ More user content after markers.
         expect.stringContaining('Claude Code')
       );
 
-      // Should show getting started message for newly configured tools
+      // Should show getting started message for newly configured tools,
+      // limited to the commands the core profile installs (not new/continue)
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Início rápido')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('/opsx:new')
+        expect.stringContaining('/opsx:propose')
       );
+      const gettingStartedCalls = consoleSpy.mock.calls
+        .map((call) => call.map((arg) => String(arg)).join(' '))
+        .join('\n');
+      expect(gettingStartedCalls).not.toContain('/opsx:new');
+      expect(gettingStartedCalls).not.toContain('/opsx:continue');
 
       // Skills should be created
       const skillFile = path.join(testDir, '.claude', 'skills', 'openspec-explore', 'SKILL.md');
@@ -1360,6 +1399,66 @@ More user content after markers.
       expect(hasGettingStarted).toBe(false);
 
       consoleSpy.mockRestore();
+    });
+
+    it('should list the expanded commands a custom profile installs', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'custom',
+        delivery: 'both',
+        workflows: ['new', 'continue', 'apply'],
+      });
+
+      const legacyCommandDir = path.join(testDir, '.claude', 'commands', 'openspec');
+      await fs.mkdir(legacyCommandDir, { recursive: true });
+      await fs.writeFile(
+        path.join(legacyCommandDir, 'proposal.md'),
+        'old command content'
+      );
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await new UpdateCommand({ force: true }).execute(testDir);
+
+      const output = consoleSpy.mock.calls
+        .map((call) => call.map((arg) => String(arg)).join(' '))
+        .join('\n');
+      expect(output).toContain('/opsx:new');
+      expect(output).toContain('/opsx:continue');
+      expect(output).not.toContain('/opsx:propose');
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should print a skill-based getting-started menu when a legacy upgrade runs under skills delivery', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'skills',
+      });
+
+      // Legacy managed Codex prompt with codex not yet configured: the
+      // upgrade newly configures codex. Under skills delivery no /opsx:*
+      // commands are generated, so the onboarding menu must reference the
+      // skills instead.
+      const promptDir = path.join(testDir, '.codex', 'prompts');
+      await fs.mkdir(promptDir, { recursive: true });
+      await fs.writeFile(path.join(promptDir, 'openspec-propose.md'), 'legacy propose prompt');
+
+      const consoleSpy = vi.spyOn(console, 'log');
+      const forceUpdateCommand = new UpdateCommand({ force: true });
+      await forceUpdateCommand.execute(testDir);
+
+      const logCalls = consoleSpy.mock.calls.flat().map(String);
+      consoleSpy.mockRestore();
+
+      expect(logCalls.some((entry) => entry.includes('Início rápido'))).toBe(true);
+      expect(logCalls.some((entry) => entry.includes('/openspec-propose'))).toBe(true);
+      expect(logCalls.some((entry) => entry.includes('/openspec-apply-change'))).toBe(true);
+      // Only the workflows the core profile installs are advertised
+      expect(logCalls.some((entry) => entry.includes('/opsx:new'))).toBe(false);
+      expect(logCalls.some((entry) => entry.includes('/opsx:continue'))).toBe(false);
+      expect(logCalls.some((entry) => entry.includes('/opsx:apply'))).toBe(false);
     });
 
     it('should create only effective profile skills when upgrading legacy tools', async () => {

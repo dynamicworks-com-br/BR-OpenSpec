@@ -174,6 +174,7 @@ docs/            # Markdown documentation (English + pt-BR)
 - `OPENSPEC_INTERACTIVE=0` — Force non-interactive mode (used in tests)
 - `OPENSPEC_CONCURRENCY=N` — Max concurrent validations (default 6)
 - `NO_COLOR=1` — Disable colored output (also `--no-color` flag)
+- `OPENSPEC_NO_ANIMATION=1` — Disable the `openspec init` welcome animation (also `--no-animation` flag)
 - `XDG_CONFIG_HOME` — Override global config directory
 
 ## Key Files for Agents

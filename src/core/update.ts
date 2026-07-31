@@ -11,7 +11,15 @@ import ora from 'ora';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { getTransformerForTool } from '../utils/command-references.js';
+import {
+  getSkillReferenceTransformer,
+  getTransformerForTool,
+  transformToSkillReferences,
+} from '../utils/command-references.js';
+import {
+  resolveCommandSurfaceCapability,
+  shouldGenerateCommandsForTool,
+} from './command-surface.js';
 import { AI_TOOLS, OPENSPEC_DIR_NAME } from './config.js';
 import {
   generateCommands,
@@ -35,8 +43,9 @@ import {
 } from './legacy-cleanup.js';
 import { isInteractive } from '../utils/interactive.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
-import { UPDATE_MESSAGES } from '../messages/index.js';
+import { ONBOARDING_MESSAGES, UPDATE_MESSAGES } from '../messages/index.js';
 import { getProfileWorkflows, ALL_WORKFLOWS, CORE_WORKFLOWS } from './profiles.js';
+import { getOnboardingCommands } from './onboarding-commands.js';
 import { getAvailableTools } from './available-tools.js';
 import {
   WORKFLOW_TO_SKILL_DIR,
@@ -205,7 +214,7 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            const transformer = getTransformerForTool(tool.value, delivery);
+            const transformer = getTransformerForTool(tool.value, delivery, resolveCommandSurfaceCapability(tool.value));
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
@@ -291,14 +300,41 @@ export class UpdateCommand {
       console.log(chalk.dim(UPDATE_MESSAGES.removedDeselectedSkills(removedDeselectedSkillCount)));
     }
 
-    // 12. Show onboarding message for newly configured tools from legacy upgrade
+    // 12. Show onboarding message for newly configured tools from legacy upgrade.
+    // Command tools keep the shared /opsx:* form (hyphen form for tools that
+    // invoke commands by filename), skill-only tools get their documented
+    // skill invocation, and disagreements fall back to naming the skill. Only
+    // workflows these tools actually received are hinted (the effective profile).
     if (newlyConfiguredTools.length > 0) {
+      const referenceFor = (command: string): string => {
+        const neutralForm = ONBOARDING_MESSAGES.skillReference(transformToSkillReferences(command).slice(1));
+        const forms = new Set(
+          newlyConfiguredTools.map((toolId) => {
+            const capability = resolveCommandSurfaceCapability(toolId);
+            if (shouldGenerateCommandsForTool(toolId, delivery)) {
+              const transformer = getTransformerForTool(toolId, delivery, capability);
+              return transformer ? transformer(command) : command;
+            }
+            if (capability === 'skills-invocable') {
+              return neutralForm;
+            }
+            return getSkillReferenceTransformer(toolId)(command);
+          })
+        );
+        return forms.size === 1 ? [...forms][0] : neutralForm;
+      };
+      const entries: Array<[string, string]> = getOnboardingCommands(desiredWorkflows).map(
+        ({ command, description }) => [referenceFor(command), description]
+      );
       console.log();
-      console.log(chalk.bold(UPDATE_MESSAGES.gettingStarted));
-      console.log(UPDATE_MESSAGES.cmdNew);
-      console.log(UPDATE_MESSAGES.cmdContinue);
-      console.log(UPDATE_MESSAGES.cmdApply);
-      console.log();
+      if (entries.length > 0) {
+        const width = Math.max(...entries.map(([reference]) => reference.length));
+        console.log(chalk.bold(UPDATE_MESSAGES.gettingStarted));
+        for (const [reference, description] of entries) {
+          console.log(`  ${reference.padEnd(width)}  ${description}`);
+        }
+        console.log();
+      }
       console.log(UPDATE_MESSAGES.learnMore(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec')));
     }
 
@@ -715,7 +751,7 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            const transformer = getTransformerForTool(tool.value, delivery);
+            const transformer = getTransformerForTool(tool.value, delivery, resolveCommandSurfaceCapability(tool.value));
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }

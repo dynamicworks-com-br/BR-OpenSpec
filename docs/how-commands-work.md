@@ -83,6 +83,7 @@ The intent is identical everywhere. The punctuation differs. Use the form that m
 | Oh My Pi | `/opsx-propose`, `/opsx-apply` |
 | Kimi Code | skill-style, e.g. `/skill:openspec-propose` |
 | Trae | `/opsx-propose`, `/opsx-apply` |
+| Shared `.agents` skills | skill-style, e.g. `/openspec-propose` |
 
 Most tools use either the colon form (`/opsx:propose`) or the dash form (`/opsx-propose`). A few tools surface BR-OpenSpec as named skills instead of slash commands; for those you invoke the skill by name. The full per-tool list, including exactly which files get written where, lives in [Supported Tools](supported-tools.md).
 
@@ -103,7 +104,7 @@ See [Supported Tools](supported-tools.md) for the exact paths per tool, and [Mig
 
 Quick checks, fastest first:
 
-1. **Type a slash in your AI chat.** Start typing `/opsx` and watch for autocomplete suggestions. If they appear, you're set.
+1. **Type a slash in your AI chat.** Start typing `/opsx` and watch for autocomplete suggestions. If they appear, you're set. On a skills-only tool (Kimi Code, ForgeCode, Mistral Vibe, Trae, or the shared `.agents` target) `/opsx` never completes even on a healthy install — try the skill name from the table above instead.
 2. **Look for the files.** For Claude Code, check that `.claude/skills/` contains `openspec-*` folders. Other tools use their own directories ([Supported Tools](supported-tools.md) lists them).
 3. **Re-run setup.** From your project root, run `openspec update`. This regenerates the skill and command files for whatever tools you configured.
 4. **Restart your assistant.** Many tools scan for skills and commands at startup, so a fresh window can be the missing step.

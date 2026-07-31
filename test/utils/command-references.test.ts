@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  getSkillReferenceTransformer,
   getTransformerForTool,
   transformToHyphenCommands,
   transformToSkillReferences,
@@ -167,13 +168,42 @@ Then /openspec-apply-change to implement`;
   });
 });
 
+describe('getSkillReferenceTransformer', () => {
+  it('uses the default /<name> form for tools without a custom prefix', () => {
+    expect(getSkillReferenceTransformer('vibe')).toBe(transformToSkillReferences);
+    expect(getSkillReferenceTransformer('forgecode')('/opsx:apply')).toBe('/openspec-apply-change');
+  });
+
+  it('uses /skill:<name> for Kimi Code, per its documented invocation syntax', () => {
+    const transformer = getSkillReferenceTransformer('kimi');
+    expect(transformer('/opsx:propose')).toBe('/skill:openspec-propose');
+    expect(transformer('Run `/opsx:apply` then /opsx:archive')).toBe(
+      'Run `/skill:openspec-apply-change` then /skill:openspec-archive-change'
+    );
+    expect(transformer('/opsx:unknown-command')).toBe('/opsx:unknown-command');
+  });
+});
+
 describe('getTransformerForTool', () => {
   it('selects skill references for skills-only delivery for every tool', () => {
-    expect(getTransformerForTool('claude', 'skills')).toBe(transformToSkillReferences);
-    expect(getTransformerForTool('codex', 'skills')).toBe(transformToSkillReferences);
+    expect(getTransformerForTool('claude', 'skills', 'adapter-backed')).toBe(transformToSkillReferences);
+    expect(getTransformerForTool('codex', 'skills', 'adapter-backed')).toBe(transformToSkillReferences);
     // hyphen-command tools must not fall back to hyphen commands when no commands are generated
     for (const toolId of ['bob', 'oh-my-pi', 'opencode', 'pi', 'qwen'] as const) {
-      expect(getTransformerForTool(toolId, 'skills')).toBe(transformToSkillReferences);
+      expect(getTransformerForTool(toolId, 'skills', 'adapter-backed')).toBe(transformToSkillReferences);
+    }
+  });
+
+  it('selects skill references for tools without a command surface, regardless of delivery', () => {
+    // Tools like Kimi Code, Trae, ForgeCode or Mistral Vibe have no command
+    // adapter, so their skills must never reference /opsx:* commands that
+    // were not generated.
+    expect(getTransformerForTool('vibe', 'both', 'none')).toBe(transformToSkillReferences);
+    expect(getTransformerForTool('trae', 'both', 'none')).toBe(transformToSkillReferences);
+    // Kimi Code documents /skill:<name> invocations (docs/supported-tools.md)
+    for (const delivery of ['both', 'commands', 'skills'] as const) {
+      const transformer = getTransformerForTool('kimi', delivery, 'none');
+      expect(transformer?.('/opsx:propose')).toBe('/skill:openspec-propose');
     }
   });
 
@@ -182,13 +212,13 @@ describe('getTransformerForTool', () => {
     // então as skills devem referenciar a forma com hífen a que seus arquivos
     // de comando realmente respondem.
     for (const toolId of ['bob', 'oh-my-pi', 'opencode', 'pi', 'qwen'] as const) {
-      expect(getTransformerForTool(toolId, 'both')).toBe(transformToHyphenCommands);
-      expect(getTransformerForTool(toolId, 'commands')).toBe(transformToHyphenCommands);
+      expect(getTransformerForTool(toolId, 'both', 'adapter-backed')).toBe(transformToHyphenCommands);
+      expect(getTransformerForTool(toolId, 'commands', 'adapter-backed')).toBe(transformToHyphenCommands);
     }
   });
 
   it('selects no transformer for other tools when commands are generated', () => {
-    expect(getTransformerForTool('claude', 'both')).toBeUndefined();
-    expect(getTransformerForTool('claude', 'commands')).toBeUndefined();
+    expect(getTransformerForTool('claude', 'both', 'adapter-backed')).toBeUndefined();
+    expect(getTransformerForTool('claude', 'commands', 'adapter-backed')).toBeUndefined();
   });
 });

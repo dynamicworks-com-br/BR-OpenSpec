@@ -52,10 +52,31 @@ Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `ve
 | RooCode (`roocode`) | `.roo/skills/openspec-*/SKILL.md` | `.roo/commands/opsx-<id>.md` |
 | Trae (`trae`) | `.trae/skills/openspec-*/SKILL.md` | Não gerado (sem adaptador de comando; use invocações `/openspec-*` baseadas em skill) |
 | Windsurf (`windsurf`) | `.windsurf/skills/openspec-*/SKILL.md` | `.windsurf/workflows/opsx-<id>.md` |
+| Skills `.agents` compartilhadas (`agents`) | `.agents/skills/openspec-*/SKILL.md` | Não gerado (sem adaptador de comando; use invocações `/openspec-*` baseadas em skill) |
 
 \* Os comandos do Codex são instalados no diretório global do Codex (`$CODEX_HOME/prompts/` se definido, caso contrário `~/.codex/prompts/`), não no diretório do seu projeto.
 
 \*\* Os arquivos de prompt do GitHub Copilot são reconhecidos como slash commands personalizados nas extensões de IDE (VS Code, JetBrains, Visual Studio). O Copilot CLI atualmente não consome arquivos `.github/prompts/*.prompt.md` diretamente.
+
+### Quando escolher o alvo `.agents` compartilhado
+
+`agents` é a opção neutra em relação a fornecedores: ele escreve skills em `.agents/skills/`, a raiz compartilhada que muitas ferramentas de agente leem, em vez de um diretório específico de ferramenta.
+
+| Situação | Escolha |
+|----------|---------|
+| Sua ferramenta tem sua própria linha acima | O ID dela — você obtém a integração da ferramenta, incluindo slash commands onde ela os suporta |
+| Vários agentes em um repositório, todos lendo `.agents/skills` | `agents` — uma única árvore de skills em vez de uma por ferramenta |
+| Sua ferramenta ainda não está listada, mas lê `.agents/skills` | `agents` |
+
+Selecioná-lo junto com um ID específico de ferramenta não é problema; cada um escreve em sua própria raiz.
+O BR-OpenSpec também o oferece automaticamente quando um projeto tem um diretório `.agents/skills/` — um `.agents/` vazio não é suficiente, já que ferramentas usam essa raiz para regras e definições de subagentes também. Note que `.agents` não é `.agent`: o diretório singular pertence ao Antigravity.
+
+Duas coisas para saber:
+
+- **Somente skills.** Não existe adaptador de comando, então nenhum arquivo de comando `opsx-*` é escrito; com um modo de entrega que inclui comandos, o `openspec init` relata `agents` entre as ferramentas para as quais pulou a geração de comandos (sem adaptador). Invoque os fluxos de trabalho pelo nome da skill — a maioria dos assistentes que leem `.agents/skills` escreve isso como `/openspec-propose`, a forma que a dica de configuração do BR-OpenSpec exibe. O alvo é neutro em relação a fornecedores, então consulte a documentação do seu assistente se ele usar outra forma.
+- **Nenhum `AGENTS.md` é criado ou editado.** O alvo é o diretório `.agents/`. Se o seu `AGENTS.md` raiz ainda tiver blocos de marcadores do BR-OpenSpec de uma versão antiga, o `openspec update` os remove — veja o [Guia de Migração](migration-guide.md).
+
+Como `.agents/skills/` é compartilhado, vale saber o que o BR-OpenSpec reivindica lá: ele escreve, atualiza e remove apenas os diretórios de skill `openspec-*` dos fluxos de trabalho selecionados. Qualquer outra coisa nesse diretório é deixada intacta. Trate os nomes `openspec-*` como sendo do BR-OpenSpec — edições dentro deles são substituídas no próximo `openspec update`, assim como em qualquer outra ferramenta.
 
 ## Configuração Não Interativa
 
@@ -75,7 +96,7 @@ openspec init --tools none
 openspec init --profile core
 ```
 
-**IDs de ferramentas disponíveis (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
+**IDs de ferramentas disponíveis (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`, `agents`
 
 ## Instalação Dependente de Fluxo de Trabalho
 

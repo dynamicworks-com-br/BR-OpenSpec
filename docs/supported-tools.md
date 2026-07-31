@@ -52,10 +52,47 @@ You can enable expanded workflows (`new`, `continue`, `ff`, `verify`, `code-revi
 | RooCode (`roocode`) | `.roo/skills/openspec-*/SKILL.md` | `.roo/commands/opsx-<id>.md` |
 | Trae (`trae`) | `.trae/skills/openspec-*/SKILL.md` | Not generated (no command adapter; use skill-based `/openspec-*` invocations) |
 | Windsurf (`windsurf`) | `.windsurf/skills/openspec-*/SKILL.md` | `.windsurf/workflows/opsx-<id>.md` |
+| Shared `.agents` skills (`agents`) | `.agents/skills/openspec-*/SKILL.md` | Not generated (no command adapter; use skill-based `/openspec-*` invocations) |
 
 \* Codex commands are installed in the global Codex home (`$CODEX_HOME/prompts/` if set, otherwise `~/.codex/prompts/`), not your project directory.
 
 \*\* GitHub Copilot prompt files are recognized as custom slash commands in IDE extensions (VS Code, JetBrains, Visual Studio). Copilot CLI does not currently consume `.github/prompts/*.prompt.md` directly.
+
+### When to pick the shared `.agents` target
+
+`agents` is the vendor-neutral option: it writes skills to `.agents/skills/`, the
+shared root many agent tools read, instead of a tool-specific directory.
+
+| Situation | Pick |
+|-----------|------|
+| Your tool has its own row above | Its own ID — you get that tool's integration, including slash commands where it supports them |
+| Several agents on one repo, all reading `.agents/skills` | `agents` — one skill tree instead of one per tool |
+| Your tool isn't listed yet but reads `.agents/skills` | `agents` |
+
+Selecting it alongside a tool-specific ID is fine; each writes to its own root.
+BR-OpenSpec also offers it automatically once a project has a `.agents/skills/`
+directory — a bare `.agents/` is not enough, since tools use that root for rules
+and subagent definitions too. Note `.agents` is not `.agent`: the singular
+directory belongs to Antigravity.
+
+Two things to know:
+
+- **Skills only.** No command adapter exists, so no `opsx-*` command files are
+  written; with a commands-inclusive delivery mode `openspec init` reports
+  `agents` among the tools it skipped command generation for (no adapter).
+  Invoke the workflows by skill name —
+  most assistants that read `.agents/skills` spell that `/openspec-propose`, the form
+  BR-OpenSpec's setup hint prints. The target is vendor-neutral, so check your
+  assistant's own docs if it uses another form.
+- **No `AGENTS.md` is created or edited.** The target is the `.agents/` directory.
+  If your root `AGENTS.md` still carries BR-OpenSpec marker blocks from an older
+  version, `openspec update` strips them — see the [Migration Guide](migration-guide.md).
+
+Because `.agents/skills/` is shared, it is worth knowing what BR-OpenSpec claims there:
+it writes, refreshes, and removes only the `openspec-*` skill directories for your
+selected workflows. Anything else in that directory is left alone. Treat the
+`openspec-*` names as BR-OpenSpec's — edits inside them are replaced on the next
+`openspec update`, the same as for every other tool.
 
 ## Non-Interactive Setup
 
@@ -75,7 +112,7 @@ openspec init --tools none
 openspec init --profile core
 ```
 
-**Available tool IDs (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
+**Available tool IDs (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`, `agents`
 
 ## Workflow-Dependent Installation
 

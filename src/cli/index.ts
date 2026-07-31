@@ -97,7 +97,8 @@ program
   .option('--tools <tools>', CLI_DESCRIPTIONS.tools(availableToolIds.join(', ')))
   .option('--force', CLI_DESCRIPTIONS.force)
   .option('--profile <profile>', CLI_DESCRIPTIONS.profile)
-  .action(async (targetPath = '.', options?: { tools?: string; force?: boolean; profile?: string }) => {
+  .option('--no-animation', CLI_DESCRIPTIONS.noAnimation)
+  .action(async (targetPath = '.', options?: { tools?: string; force?: boolean; profile?: string; animation?: boolean }) => {
     try {
       // Validate that the path is a valid directory
       const resolvedPath = path.resolve(targetPath);
@@ -123,6 +124,7 @@ program
         tools: options?.tools,
         force: options?.force,
         profile: options?.profile,
+        animation: options?.animation,
       });
       await initCommand.execute(targetPath);
     } catch (error) {

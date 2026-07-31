@@ -66,6 +66,7 @@ export const CLI_DESCRIPTIONS = {
   tools: (availableToolIds: string) => `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${availableToolIds}`,
   force: 'Limpa arquivos legados automaticamente sem perguntar',
   profile: 'Sobrescreve o perfil da configuração global (core ou custom)',
+  noAnimation: 'Exibe uma tela de boas-vindas estática em vez da animada',
 
   // Opções — init / experimental
   experimentalTool: 'Ferramenta de IA alvo (mapeia para --tools)',
@@ -400,15 +401,12 @@ export const ARCHIVE_MESSAGES = {
 
 export const INIT_MESSAGES = {
   welcomeTitle: 'Bem-vindo ao BR-OpenSpec',
-  welcomeSubtitle: 'Um framework leve orientado a especificações',
+  welcomeSubtitle: 'Leve e orientado a especificações',
   setupWillConfigure: 'Esta configuração irá configurar:',
-  agentSkills: '  • Agent Skills para ferramentas de IA',
+  agentSkills: '  • Agent Skills para sua IA',
   slashCommands: '  • Comandos /opsx:*',
   quickStart: 'Início rápido após a configuração:',
-  cmdNewChange: 'Criar uma alteração',
-  cmdContinue: 'Próximo artefato',
-  cmdApply: 'Implementar tarefas',
-  pressEnter: 'Pressione Enter para selecionar ferramentas...',
+  pressEnter: 'Pressione Enter para continuar...',
   insufficientPermissions: (path: string) => `Permissões insuficientes para escrever em ${path}`,
   invalidProfile: (profile: string) => `Perfil inválido "${profile}". Perfis disponíveis: core, custom`,
   upgradeLegacyPrompt: 'Atualizar e limpar arquivos legados?',
@@ -446,12 +444,16 @@ export const INIT_MESSAGES = {
   configExists: (name: string) => `Config: openspec/${name} (existe)`,
   configSkipped: 'Config: ignorado (modo não interativo)',
   gettingStarted: 'Início rápido:',
-  startFirstChangePropose: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
-  startFirstChangeNew: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
+  startFirstChange: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
+  startFirstChangeWithSkill: (skillRef: string) => `Inicie sua primeira alteração com ${skillRef}`,
+  noSkillsOrCommandsGenerated: (names: string, singular: boolean) =>
+    `Nenhuma skill nem comando foi gerado para ${names}: a entrega está definida como 'commands', mas ${singular ? 'ela suporta' : 'elas suportam'} apenas skills. ` +
+    `Execute 'openspec config set delivery both' para gerar skills.`,
   configureWorkflowsHint: "Execute 'openspec config profile' para configurar seus fluxos de trabalho.",
   learnMore: (url: string) => `Saiba mais: ${url}`,
   feedback: (url: string) => `Feedback:   ${url}`,
   restartIDE: 'Reinicie sua IDE para que os comandos de barra tenham efeito.',
+  restartIDESkills: 'Reinicie sua IDE para que as novas skills tenham efeito.',
   configuredPreselected: (names: string) => `BR-OpenSpec configurado: ${names} (pré-selecionado)`,
   detectedToolsLabel: (names: string, label: string) => `Diretórios de ferramentas detectados: ${names} (${label})`,
   preselectedFirstTime: 'pré-selecionado para configuração inicial',
@@ -831,15 +833,30 @@ export const FEEDBACK_MESSAGES = {
 
 export const UI_MESSAGES = {
   welcomeTitle: 'Bem-vindo ao BR-OpenSpec',
-  welcomeSubtitle: 'Um framework leve orientado a especificações',
+  // As linhas desta tela precisam caber em 35 colunas de texto (59 - coluna de
+  // arte de 24) para não quebrar e dessincronizar a animação em 60 colunas.
+  welcomeSubtitle: 'Leve e orientado a especificações',
   setupWillConfigure: 'Esta configuração irá configurar:',
-  agentSkills: '  • Agent Skills para ferramentas de IA',
+  agentSkills: '  • Agent Skills para sua IA',
   slashCommands: '  • Comandos /opsx:*',
   quickStart: 'Início rápido após a configuração:',
-  cmdNewChange: 'Criar uma alteração',
-  cmdContinue: 'Próximo artefato',
-  cmdApply: 'Implementar tarefas',
-  pressEnter: 'Pressione Enter para selecionar ferramentas...',
+  pressEnter: 'Pressione Enter para continuar...',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Comandos de onboarding (src/core/onboarding-commands.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const ONBOARDING_MESSAGES = {
+  // Descrições curtas do menu de início rápido; precisam caber em
+  // DESCRIPTION_BUDGET (17) para não quebrar a animação da tela de boas-vindas.
+  describePropose: 'Iniciar alteração',
+  describeNew: 'Criar alteração',
+  describeContinue: 'Próximo artefato',
+  describeApply: 'Executar tarefas',
+  // Forma neutra que nomeia a skill quando não há uma invocação de comando
+  // utilizável (ou quando as ferramentas divergem na sintaxe).
+  skillReference: (skillName: string) => `a skill ${skillName}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -895,9 +912,6 @@ export const UPDATE_MESSAGES = {
   removedDeselectedCommands: (count: number) => `Removidos: ${count} arquivos de comando (fluxos de trabalho desselecionados)`,
   removedDeselectedSkills: (count: number) => `Removidos: ${count} diretórios de skill (fluxos de trabalho desselecionados)`,
   gettingStarted: 'Início rápido:',
-  cmdNew: '  /opsx:new       Iniciar uma nova alteração',
-  cmdContinue: '  /opsx:continue  Criar o próximo artefato',
-  cmdApply: '  /opsx:apply     Implementar tarefas',
   learnMore: (url: string) => `Saiba mais: ${url}`,
   restartIDE: 'Reinicie sua IDE para que as alterações tenham efeito.',
   allUpToDate: (count: number, version: string) => `✓ Todas as ${count} ferramenta(s) estão atualizadas (v${version})`,
@@ -1088,7 +1102,7 @@ export const WORKFLOW_MESSAGES = {
 
 export const MIGRATION_MESSAGES = {
   migrated: (count: number) => `Migrado: perfil customizado com ${count} fluxos de trabalho`,
-  newInThisVersion: "Novo nesta versão: /opsx:propose. Experimente 'openspec config profile core' para a experiência simplificada.",
+  newInThisVersion: (reference: string) => `Novo nesta versão: ${reference}. Experimente 'openspec config profile core' para a experiência simplificada.`,
 };
 
 // ═══════════════════════════════════════════════════════════

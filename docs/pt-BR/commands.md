@@ -695,6 +695,7 @@ Diferentes ferramentas de IA usam sintaxes de comando ligeiramente diferentes. U
 | Copilot (IDE) | `/opsx-propose`, `/opsx-apply` |
 | Kimi Code | Invocações baseadas em skills como `/skill:openspec-propose`, `/skill:openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
 | Trae | Invocações baseadas em skills como `/openspec-propose`, `/openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
+| Skills `.agents` compartilhadas | Invocações baseadas em skills como `/openspec-propose`, `/openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
 
 A intenção é a mesma em todas as ferramentas, mas como os comandos são exibidos pode variar por integração.
 

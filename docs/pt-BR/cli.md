@@ -86,10 +86,13 @@ openspec init [path] [options]
 | `--tools <list>` | Configurar ferramentas de IA de forma não interativa. Use `all`, `none` ou lista separada por vírgulas |
 | `--force` | Limpar arquivos legados automaticamente sem solicitar confirmação |
 | `--profile <profile>` | Substituir o perfil global para esta execução do init (`core` ou `custom`) |
+| `--no-animation` | Exibir uma tela de boas-vindas estática em vez da animada |
 
 `--profile custom` usa os fluxos de trabalho atualmente selecionados na configuração global (`openspec config profile`).
 
-**IDs de ferramentas suportados (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
+A animação de boas-vindas também é ignorada quando a variável de ambiente `OPENSPEC_NO_ANIMATION` está definida (qualquer valor, inclusive vazio), quando `NO_COLOR` está definida com um valor não vazio, ou quando a preferência de movimento reduzido do sistema operacional está ativada (Reduce Motion do macOS, animações desabilitadas do GNOME).
+
+**IDs de ferramentas suportados (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`, `agents`
 
 > Esta lista espelha `AI_TOOLS` em `src/core/config.ts`. Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos de skill e comando de cada ferramenta.
 
@@ -126,6 +129,7 @@ openspec/
 .claude/skills/         # Skills do Claude Code (se claude selecionado)
 .cursor/skills/         # Skills do Cursor (se cursor selecionado)
 .cursor/commands/       # Comandos OPSX do Cursor (se entrega incluir commands)
+.agents/skills/         # Skills compartilhadas para ferramentas compatíveis com AGENTS.md (se agents selecionado)
 ... (outras configurações de ferramentas)
 ```
 
@@ -969,6 +973,7 @@ openspec completion uninstall
 | `OPENSPEC_CONCURRENCY` | Concorrência padrão para validação em massa (padrão: 6) |
 | `EDITOR` ou `VISUAL` | Editor para `openspec config edit` |
 | `NO_COLOR` | Desabilitar saída colorida quando definido |
+| `OPENSPEC_NO_ANIMATION` | Desabilitar a animação de boas-vindas do `openspec init` quando definido |
 
 ---
 
