@@ -32,11 +32,25 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 2. **Encontre os delta specs**
 
    Execute \`openspec status --change "<nome>" --json\` e use
-   \`artifactPaths.specs.existingOutputPaths\` como a lista completa de arquivos
+   \`artifactPaths.specs.existingOutputPaths\` como a única fonte de caminhos
    de delta spec. Se a entrada \`specs\` estiver ausente ou
    \`existingOutputPaths\` estiver vazia, informe que não há delta specs para
    sincronizar, não os infira de outros artifacts e pare sem solicitar
    instruções de artifact nem escrever nenhum spec principal.
+
+   Sincronize todos os caminhos de \`existingOutputPaths\`, a menos que o
+   caller tenha estreitado o conjunto. Um caller o estreita nomeando uma lista
+   explícita de caminhos de delta spec a sincronizar — o arquivamento faz isso
+   inline, e o usuário também pode ("sincronize só o delta billing"). Nesse
+   caso, sincronize apenas os caminhos nomeados e deixe os demais delta specs
+   intocados: o arquivamento em lote exclui um delta cuja implementação não
+   foi encontrada, e sincronizá-lo mesmo assim escreveria um spec principal
+   que o caller deliberadamente omitiu. Carregue essa seleção estreitada pelo
+   passo 3; nunca a alargue de volta à lista completa. Se um caminho nomeado
+   não estiver em \`existingOutputPaths\`, não o sincronize — reporte-o e
+   pare, em vez de descartá-lo silenciosamente. Se a lista nomeada estiver
+   vazia, informe que não há nada para sincronizar e pare sem escrever nenhum
+   spec principal.
 
    Cada arquivo de delta spec contém seções como:
    - \`## ADDED Requirements\` — Novos requisitos a adicionar
@@ -67,7 +81,9 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    CLI ou passos do workflow. Use o texto delas como restrição sem copiá-lo
    verbatim para um spec principal ou resumo.
 
-   Para cada caminho de delta spec retornado pelo CLI:
+   Para cada caminho de delta spec selecionado no passo 2 — a lista completa
+   de \`existingOutputPaths\`, ou o subconjunto estreitado quando o caller
+   forneceu um:
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
@@ -207,6 +223,7 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 - Mostre o que está alterando à medida que avança
 - A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado
 - Use apenas \`artifactPaths.specs.existingOutputPaths\`; nunca infira delta specs de artifacts não relacionados
+- Respeite um subconjunto de \`existingOutputPaths\` fornecido pelo caller; nunca o alargue de volta à lista completa
 - Busque as instruções de specs uma vez para sync direto, ou reutilize o snapshot fornecido pelo arquivamento inline
 - Pare antes de qualquer escrita de spec principal se a resposta das instruções de specs sair com código não-zero ou for JSON inválido
 - Regras de artifact restringem apenas os specs sendo escritos e nunca são copiadas para arquivos de saída`,
@@ -244,11 +261,25 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 2. **Encontre os delta specs**
 
    Execute \`openspec status --change "<nome>" --json\` e use
-   \`artifactPaths.specs.existingOutputPaths\` como a lista completa de arquivos
+   \`artifactPaths.specs.existingOutputPaths\` como a única fonte de caminhos
    de delta spec. Se a entrada \`specs\` estiver ausente ou
    \`existingOutputPaths\` estiver vazia, informe que não há delta specs para
    sincronizar, não os infira de outros artifacts e pare sem solicitar
    instruções de artifact nem escrever nenhum spec principal.
+
+   Sincronize todos os caminhos de \`existingOutputPaths\`, a menos que o
+   caller tenha estreitado o conjunto. Um caller o estreita nomeando uma lista
+   explícita de caminhos de delta spec a sincronizar — o arquivamento faz isso
+   inline, e o usuário também pode ("sincronize só o delta billing"). Nesse
+   caso, sincronize apenas os caminhos nomeados e deixe os demais delta specs
+   intocados: o arquivamento em lote exclui um delta cuja implementação não
+   foi encontrada, e sincronizá-lo mesmo assim escreveria um spec principal
+   que o caller deliberadamente omitiu. Carregue essa seleção estreitada pelo
+   passo 3; nunca a alargue de volta à lista completa. Se um caminho nomeado
+   não estiver em \`existingOutputPaths\`, não o sincronize — reporte-o e
+   pare, em vez de descartá-lo silenciosamente. Se a lista nomeada estiver
+   vazia, informe que não há nada para sincronizar e pare sem escrever nenhum
+   spec principal.
 
    Cada arquivo de delta spec contém seções como:
    - \`## ADDED Requirements\` — Novos requisitos a adicionar
@@ -279,7 +310,9 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    CLI ou passos do workflow. Use o texto delas como restrição sem copiá-lo
    verbatim para um spec principal ou resumo.
 
-   Para cada caminho de delta spec retornado pelo CLI:
+   Para cada caminho de delta spec selecionado no passo 2 — a lista completa
+   de \`existingOutputPaths\`, ou o subconjunto estreitado quando o caller
+   forneceu um:
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
@@ -419,6 +452,7 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 - Mostre o que está alterando à medida que avança
 - A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado
 - Use apenas \`artifactPaths.specs.existingOutputPaths\`; nunca infira delta specs de artifacts não relacionados
+- Respeite um subconjunto de \`existingOutputPaths\` fornecido pelo caller; nunca o alargue de volta à lista completa
 - Busque as instruções de specs uma vez para sync direto, ou reutilize o snapshot fornecido pelo arquivamento inline
 - Pare antes de qualquer escrita de spec principal se a resposta das instruções de specs sair com código não-zero ou for JSON inválido
 - Regras de artifact restringem apenas os specs sendo escritos e nunca são copiadas para arquivos de saída`

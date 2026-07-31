@@ -115,7 +115,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
    orientação de arquivamento, não mude o comportamento do CLI nem copie o
    texto das regras para qualquer arquivo de saída.
 
-   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima e o snapshot de regras de specs obtido, e aguarde a conclusão. O sync inline deve reutilizar esse snapshot sem buscar as instruções de \`specs\` novamente. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
+   Para sincronizar, execute o workflow \`/opsx:sync\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima e o snapshot de regras de specs obtido, e aguarde a conclusão. O sync inline deve reutilizar esse snapshot sem buscar as instruções de \`specs\` novamente. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
 
    Em seguida, refaça a comparação do topo deste passo contra cada capability que tem um delta spec em \`artifactPaths.specs.existingOutputPaths\` — não apenas as que o sync reporta ter tocado. Um sync bem-sucedido não deixa nada para aplicar, então cada capability deve agora constar como já sincronizada:
    - Requisitos ADDED presentes
@@ -163,7 +163,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 - Não bloqueie o arquivamento por avisos - apenas informe e confirme
 - Preservar .openspec.yaml ao mover para o arquivo (ele move com o diretório)
 - Mostre um resumo claro do que aconteceu
-- Se sync for solicitado, execute o workflow \`openspec-sync-specs\` inline (agent-driven)
+- Se sync for solicitado, execute o workflow \`/opsx:sync\` inline (agent-driven)
 - Nunca arquive enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais antes de mover o diretório da change
 - Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar
 - Aplique o contexto de runtime relevante e reporte conflitos; a orientação da operação permanece consultiva
@@ -288,7 +288,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
    orientação de arquivamento, não mude o comportamento do CLI nem copie o
    texto das regras para qualquer arquivo de saída.
 
-   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima e o snapshot de regras de specs obtido, e aguarde a conclusão. O sync inline deve reutilizar esse snapshot sem buscar as instruções de \`specs\` novamente. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
+   Para sincronizar, execute o workflow \`/opsx:sync\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima e o snapshot de regras de specs obtido, e aguarde a conclusão. O sync inline deve reutilizar esse snapshot sem buscar as instruções de \`specs\` novamente. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
 
    Em seguida, refaça a comparação do topo deste passo contra cada capability que tem um delta spec em \`artifactPaths.specs.existingOutputPaths\` — não apenas as que o sync reporta ter tocado. Um sync bem-sucedido não deixa nada para aplicar, então cada capability deve agora constar como já sincronizada:
    - Requisitos ADDED presentes
@@ -383,7 +383,7 @@ O diretório de arquivo de destino já existe.
 - Não bloqueie o arquivamento por avisos - apenas informe e confirme
 - Preservar .openspec.yaml ao mover para o arquivo (ele move com o diretório)
 - Mostre um resumo claro do que aconteceu
-- Se sync for solicitado, execute o workflow \`openspec-sync-specs\` inline (agent-driven)
+- Se sync for solicitado, execute o workflow \`/opsx:sync\` inline (agent-driven)
 - Nunca arquive enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais antes de mover o diretório da change
 - Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar
 - Aplique o contexto de runtime relevante e reporte conflitos; a orientação da operação permanece consultiva
