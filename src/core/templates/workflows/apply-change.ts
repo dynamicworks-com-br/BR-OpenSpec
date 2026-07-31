@@ -21,7 +21,7 @@ export function getApplyChangeSkillTemplate(): SkillTemplate {
    Se um nome for fornecido, use-o. Caso contrário:
    - Infira do contexto da conversa se o usuário mencionou uma change
    - Selecione automaticamente se existir apenas uma change ativa
-   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e use a ferramenta **AskUserQuestion** para permitir que o usuário selecione
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
    Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:apply <outra>\`).
 
@@ -178,7 +178,7 @@ export function getOpsxApplyCommandTemplate(): CommandTemplate {
    Se um nome for fornecido, use-o. Caso contrário:
    - Infira do contexto da conversa se o usuário mencionou uma change
    - Selecione automaticamente se existir apenas uma change ativa
-   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e use a ferramenta **AskUserQuestion** para permitir que o usuário selecione
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
    Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:apply <outra>\`).
 

@@ -140,8 +140,8 @@ artifacts:
       - Ambiguidade que se beneficia de decisões técnicas antes de codificar
 
       Seções:
-      - **Context**: Histórico, estado atual, restrições, partes interessadas
-      - **Goals / Non-Goals**: O que este design alcança e o que explicitamente exclui
+      - **Context**: Apenas o estado atual e as restrições necessários para explicar a abordagem. Referencie a proposta para a motivação em vez de repeti-la (por exemplo, "Veja proposal.md - Why").
+      - **Goals / Non-Goals**: O que este design alcança e o que explicitamente exclui. Não repita o escopo da proposta - adicione apenas limites no nível do design.
       - **Decisions**: Principais escolhas técnicas com justificativa (por que X em vez de Y?). Inclua as alternativas consideradas para cada decisão.
       - **Risks / Trade-offs**: Limitações conhecidas, coisas que podem dar errado. Formato: [Risco] → Mitigação
       - **Migration Plan**: Passos para implantar, estratégia de rollback (se aplicável)
@@ -153,7 +153,9 @@ artifacts:
       em vez de presumir.
 
       Foque na arquitetura e na abordagem, não na implementação linha a linha.
-      Referencie a proposta para a motivação e as specs para os requirements.
+      A proposta cobre o porquê e o quê; o design cobre o como. Referencie a
+      proposta para a motivação e, uma vez escritas, as specs para os
+      requirements - se uma seção apenas as repetir, aponte para elas.
 
       Bons documentos de design explicam o "porquê" por trás das decisões técnicas.
     requires:

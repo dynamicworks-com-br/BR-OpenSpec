@@ -16,14 +16,17 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Mostre apenas as changes ativas (não arquivadas).
+   Ao solicitar, mostre apenas as changes ativas (não arquivadas).
    Inclua o schema usado para cada change, se disponível.
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:archive <outra>\`).
 
 2. **Verifique o status de conclusão dos artifacts**
 
@@ -35,7 +38,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
    **Se algum artifact não estiver \`done\` nem \`skipped\`** (artifacts ignorados satisfazem o requisito - a change declara skip_specs):
    - Exiba um aviso listando os artifacts incompletos
-   - Use a ferramenta **AskUserQuestion** para confirmar se o usuário deseja prosseguir
+   - Peça ao usuário que confirme se deseja prosseguir
    - Prossiga se o usuário confirmar
 
 3. **Verifique o status de conclusão das tarefas**
@@ -48,7 +51,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
    **Se tarefas incompletas forem encontradas:**
    - Exiba um aviso mostrando a quantidade de tarefas incompletas
-   - Use a ferramenta **AskUserQuestion** para confirmar se o usuário deseja prosseguir
+   - Peça ao usuário que confirme se deseja prosseguir
    - Prossiga se o usuário confirmar
 
    **Se não existir artifact de tarefas:** Prossiga sem aviso relacionado a tarefas.
@@ -117,7 +120,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 \`\`\`
 
 **Guardrails**
-- Sempre solicite a seleção da change se não fornecida
+- Anuncie a change selecionada; solicite a seleção quando for ambígua
 - Use o grafo de artifacts (openspec status --json) para verificação de conclusão
 - Não bloqueie o arquivamento por avisos - apenas informe e confirme
 - Preservar .openspec.yaml ao mover para o arquivo (ele move com o diretório)
@@ -143,14 +146,17 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Mostre apenas as changes ativas (não arquivadas).
+   Ao solicitar, mostre apenas as changes ativas (não arquivadas).
    Inclua o schema usado para cada change, se disponível.
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:archive <outra>\`).
 
 2. **Verifique o status de conclusão dos artifacts**
 
@@ -291,7 +297,7 @@ O diretório de arquivo de destino já existe.
 \`\`\`
 
 **Guardrails**
-- Sempre solicite a seleção da change se não fornecida
+- Anuncie a change selecionada; solicite a seleção quando for ambígua
 - Use o grafo de artifacts (openspec status --json) para verificação de conclusão
 - Não bloqueie o arquivamento por avisos - apenas informe e confirme
 - Preservar .openspec.yaml ao mover para o arquivo (ele move com o diretório)

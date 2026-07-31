@@ -16,11 +16,14 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada. Depois use a ferramenta **AskUserQuestion** para permitir que o usuário selecione qual change atualizar.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada e peça ao usuário que selecione uma
 
-   Apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
+   Ao solicitar, apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
    - Nome da change
    - Schema (do campo \`schema\` se presente, caso contrário "spec-driven")
    - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
@@ -28,7 +31,7 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
 
    Marque a change mais recentemente modificada como "(Recomendada)" já que é provavelmente a que o usuário quer atualizar.
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:update <outra>\`).
 
 2. **Obtenha os artifacts da change**
    \`\`\`bash
@@ -101,11 +104,14 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada. Depois use a ferramenta **AskUserQuestion** para permitir que o usuário selecione qual change atualizar.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada e peça ao usuário que selecione uma
 
-   Apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
+   Ao solicitar, apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
    - Nome da change
    - Schema (do campo \`schema\` se presente, caso contrário "spec-driven")
    - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
@@ -113,7 +119,7 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
 
    Marque a change mais recentemente modificada como "(Recomendada)" já que é provavelmente a que o usuário quer atualizar.
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:update <outra>\`).
 
 2. **Obtenha os artifacts da change**
    \`\`\`bash

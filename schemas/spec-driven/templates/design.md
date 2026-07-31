@@ -1,6 +1,6 @@
 ## Context
 
-<!-- Contexto e estado atual -->
+<!-- Estado atual e restrições que moldam a abordagem. Veja proposal.md para a motivação - não a repita -->
 
 ## Goals / Non-Goals
 
@@ -12,7 +12,7 @@
 
 ## Decisions
 
-<!-- Principais decisões de design e suas justificativas -->
+<!-- Principais decisões de design com justificativa e alternativas consideradas -->
 
 ## Risks / Trade-offs
 

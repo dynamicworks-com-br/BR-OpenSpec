@@ -1157,7 +1157,7 @@ export const NEW_CHANGE_TEMPLATE_MESSAGES = {
 
 1. **Se nenhuma entrada clara for fornecida, pergunte o que ele quer construir**
 
-   Use a ferramenta **AskUserQuestion** (aberta, sem opções pré-definidas) para perguntar:
+   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
    > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
 
    A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → \`add-user-auth\`).
@@ -1222,7 +1222,7 @@ Após completar os passos, resuma:
 
 1. **Se nenhuma entrada for fornecida, pergunte o que ele quer construir**
 
-   Use a ferramenta **AskUserQuestion** (aberta, sem opções pré-definidas) para perguntar:
+   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
    > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
 
    A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → \`add-user-auth\`).
@@ -1850,16 +1850,19 @@ export const VERIFY_CHANGE_TEMPLATE_MESSAGES = {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+   Ao solicitar, mostre as changes que possuem artifact de implementação. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:verify <outra>\`).
 
 2. **Verifique o status para entender o schema**
    \`\`\`bash
@@ -2008,16 +2011,19 @@ Use markdown claro com:
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+   Ao solicitar, mostre as changes que possuem artifact de implementação. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:verify <outra>\`).
 
 2. **Verifique o status para entender o schema**
    \`\`\`bash

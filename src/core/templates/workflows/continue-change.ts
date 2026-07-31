@@ -16,11 +16,14 @@ export function getContinueChangeSkillTemplate(): SkillTemplate {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada. Depois use a ferramenta **AskUserQuestion** para permitir que o usuário selecione em qual change trabalhar.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada e peça ao usuário que selecione uma
 
-   Apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
+   Ao solicitar, apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
    - Nome da change
    - Schema (do campo \`schema\` se presente, caso contrário "spec-driven")
    - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
@@ -28,7 +31,7 @@ export function getContinueChangeSkillTemplate(): SkillTemplate {
 
    Marque a change mais recentemente modificada como "(Recomendada)" já que é provavelmente o que o usuário quer continuar.
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:continue <outra>\`).
 
 2. **Verifique o status atual**
    \`\`\`bash
@@ -67,7 +70,8 @@ export function getContinueChangeSkillTemplate(): SkillTemplate {
      - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - escolha outro artifact
    - **Crie o arquivo do artifact**:
      - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
-     - Use \`template\` como a estrutura - preencha suas seções
+     - Se o campo \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o para produzir o artifact em vez de escrever o arquivo você mesmo, depois verifique se o arquivo do artifact existe em \`outputPath\`
+     - Caso contrário, use \`template\` como a estrutura - preencha suas seções
      - Aplique \`context\` e \`rules\` como restrições ao escrever - mas NÃO copie-os para o arquivo
      - Escreva no caminho de saída especificado nas instruções
    - Mostre o que foi criado e o que agora está desbloqueado
@@ -95,18 +99,9 @@ Após cada invocação, mostre:
 
 **Diretrizes de Criação de Artifacts**
 
-Os tipos de artifact e sua finalidade dependem do schema. Use o campo \`instruction\` da saída das instruções para entender o que criar.
+Os tipos de artifact e sua finalidade dependem do schema. O campo \`instruction\` da saída das instruções é a orientação autoritativa para cada artifact - siga-o mesmo quando o artifact tiver um nome familiar (proposal.md, tasks.md, etc.), pois schemas personalizados podem definir um conteúdo ou processo diferente para os mesmos nomes de arquivo.
 
-Padrões comuns de artifacts:
-
-**Schema spec-driven** (proposal → specs → design → tasks):
-- **proposal.md**: Pergunte ao usuário sobre a change se não estiver claro. Preencha Por Que, O Que Muda, Capabilities, Impacto.
-  - A seção Capabilities é crítica - cada capability listada precisará de um arquivo spec.
-- **specs/<capability>/spec.md**: Crie um spec por capability listada na seção Capabilities do proposal (use o nome da capability, não o nome da change).
-- **design.md**: Documente decisões técnicas, arquitetura e abordagem de implementação.
-- **tasks.md**: Divida a implementação em tarefas com checkbox.
-
-Para outros schemas, siga o campo \`instruction\` da saída do CLI.
+Se o campo \`instruction\` direcionar você a usar uma skill ou comando específico para criar o artifact, invoque-o em vez de escrever o artifact diretamente.
 
 **Guardrails**
 - Crie UM artifact por invocação
@@ -136,11 +131,14 @@ export function getOpsxContinueCommandTemplate(): CommandTemplate {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada. Depois use a ferramenta **AskUserQuestion** para permitir que o usuário selecione em qual change trabalhar.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis ordenadas pela mais recentemente modificada e peça ao usuário que selecione uma
 
-   Apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
+   Ao solicitar, apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
    - Nome da change
    - Schema (do campo \`schema\` se presente, caso contrário "spec-driven")
    - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
@@ -148,7 +146,7 @@ export function getOpsxContinueCommandTemplate(): CommandTemplate {
 
    Marque a change mais recentemente modificada como "(Recomendada)" já que é provavelmente o que o usuário quer continuar.
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:continue <outra>\`).
 
 2. **Verifique o status atual**
    \`\`\`bash
@@ -187,7 +185,8 @@ export function getOpsxContinueCommandTemplate(): CommandTemplate {
      - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - escolha outro artifact
    - **Crie o arquivo do artifact**:
      - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
-     - Use \`template\` como a estrutura - preencha suas seções
+     - Se o campo \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o para produzir o artifact em vez de escrever o arquivo você mesmo, depois verifique se o arquivo do artifact existe em \`outputPath\`
+     - Caso contrário, use \`template\` como a estrutura - preencha suas seções
      - Aplique \`context\` e \`rules\` como restrições ao escrever - mas NÃO copie-os para o arquivo
      - Escreva no caminho de saída especificado nas instruções
    - Mostre o que foi criado e o que agora está desbloqueado
@@ -215,18 +214,9 @@ Após cada invocação, mostre:
 
 **Diretrizes de Criação de Artifacts**
 
-Os tipos de artifact e sua finalidade dependem do schema. Use o campo \`instruction\` da saída das instruções para entender o que criar.
+Os tipos de artifact e sua finalidade dependem do schema. O campo \`instruction\` da saída das instruções é a orientação autoritativa para cada artifact - siga-o mesmo quando o artifact tiver um nome familiar (proposal.md, tasks.md, etc.), pois schemas personalizados podem definir um conteúdo ou processo diferente para os mesmos nomes de arquivo.
 
-Padrões comuns de artifacts:
-
-**Schema spec-driven** (proposal → specs → design → tasks):
-- **proposal.md**: Pergunte ao usuário sobre a change se não estiver claro. Preencha Por Que, O Que Muda, Capabilities, Impacto.
-  - A seção Capabilities é crítica - cada capability listada precisará de um arquivo spec.
-- **specs/<capability>/spec.md**: Crie um spec por capability listada na seção Capabilities do proposal (use o nome da capability, não o nome da change).
-- **design.md**: Documente decisões técnicas, arquitetura e abordagem de implementação.
-- **tasks.md**: Divida a implementação em tarefas com checkbox.
-
-Para outros schemas, siga o campo \`instruction\` da saída do CLI.
+Se o campo \`instruction\` direcionar você a usar uma skill ou comando específico para criar o artifact, invoque-o em vez de escrever o artifact diretamente.
 
 **Guardrails**
 - Crie UM artifact por invocação

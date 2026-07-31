@@ -26,7 +26,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
 2. **Solicite a seleção de changes**
 
-   Use a ferramenta **AskUserQuestion** com multi-seleção para permitir que o usuário escolha as changes:
+   Peça ao usuário que escolha as changes (multi-seleção):
    - Mostre cada change com seu schema
    - Inclua uma opção para "Todas as changes"
    - Permita qualquer número de seleções (1+ funciona, 2+ é o caso típico)
@@ -107,7 +107,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
 7. **Confirme a operação em lote**
 
-   Use a ferramenta **AskUserQuestion** com uma única confirmação:
+   Faça uma única pergunta de confirmação ao usuário:
 
    - "Arquivar N changes?" com opções baseadas no status
    - As opções podem incluir:
@@ -286,7 +286,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
 2. **Solicite a seleção de changes**
 
-   Use a ferramenta **AskUserQuestion** com multi-seleção para permitir que o usuário escolha as changes:
+   Peça ao usuário que escolha as changes (multi-seleção):
    - Mostre cada change com seu schema
    - Inclua uma opção para "Todas as changes"
    - Permita qualquer número de seleções (1+ funciona, 2+ é o caso típico)
@@ -367,7 +367,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
 7. **Confirme a operação em lote**
 
-   Use a ferramenta **AskUserQuestion** com uma única confirmação:
+   Faça uma única pergunta de confirmação ao usuário:
 
    - "Arquivar N changes?" com opções baseadas no status
    - As opções podem incluir:
