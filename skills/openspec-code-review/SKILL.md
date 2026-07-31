@@ -11,7 +11,7 @@ metadata:
 
 Realize um code review rigoroso, genérico e consciente do projeto. Seu objetivo é encontrar problemas reais antes do merge — não validar superficialmente, não comentar estilo, não elogiar.
 
-**Entrada**: Opcionalmente especifique o alvo após `/opsx:code-review`: branch, PR, diff, working tree, staged changes, caminho de arquivo ou descrição de escopo. Se omitido, descubra o alvo com segurança.
+**Entrada**: Opcionalmente especifique o alvo após `/openspec-code-review`: branch, PR, diff, working tree, staged changes, caminho de arquivo ou descrição de escopo. Se omitido, descubra o alvo com segurança.
 
 **Postura**
 
@@ -68,7 +68,7 @@ Realize um code review rigoroso, genérico e consciente do projeto. Seu objetivo
    - Execute `openspec status --change "<nome>" --json` e leia apenas os caminhos em `artifactPaths` (ou `contextFiles` via `openspec instructions apply`)
    - Não assuma `proposal.md`, `design.md`, `tasks.md` ou delta specs fixos
    - Verifique se o diff preserva a intenção dos artifacts
-   - Não transforme esta review em `/opsx:verify`; use os artifacts apenas como contexto adicional para revisar o código.
+   - Não transforme esta review em `/openspec-verify-change`; use os artifacts apenas como contexto adicional para revisar o código.
 
 6. **Revise o código em profundidade**
 

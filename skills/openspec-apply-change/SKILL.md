@@ -20,9 +20,9 @@ Implementa tarefas de uma change do BR-OpenSpec.
    Se um nome for fornecido, use-o. Caso contrário:
    - Infira do contexto da conversa se o usuário mencionou uma change
    - Selecione automaticamente se existir apenas uma change ativa
-   - Se ambíguo, execute `openspec list --json` para obter as changes disponíveis e use a ferramenta **AskUserQuestion** para permitir que o usuário selecione
+   - Se ambíguo, execute `openspec list --json` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, `/opsx:apply <outra>`).
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, `/openspec-apply-change <outra>`).
 
 2. **Verifique o status para entender o schema**
    ```bash
@@ -43,11 +43,29 @@ Implementa tarefas de uma change do BR-OpenSpec.
    - Progresso (total, completo, restante)
    - Lista de tarefas com status
    - Instrução dinâmica baseada no estado atual
+   - `context` opcional: entrada de instrução de projeto obrigatória, lida da configuração atual
+   - `operationGuidance` opcional: orientação consultiva atual para o apply
 
    **Trate os estados:**
-   - Se `state: "blocked"` (artifacts ausentes): exiba mensagem, sugira usar openspec-continue-change
+   - Se `state: "blocked"` (artifacts ausentes): exiba mensagem, sugira usar openspec-continue-change (se não estiver instalado, rode `openspec status --change "<name>" --json` para ver o próximo artifact e `openspec instructions <artifact-id> --change "<name>" --json` para saber como criá-lo)
    - Se `state: "all_done"`: parabenize, sugira arquivar
    - Caso contrário: prossiga para a implementação
+
+   Trate `context` como uma entrada obrigatória em nível de prompt. Leia e considere
+   esse conteúdo, aplicando fatos, convenções e restrições relevantes do projeto
+   durante a implementação. Trate `operationGuidance` como conselho aditivo
+   opcional. Leia e considere cada entrada, seguindo as que forem aplicáveis e
+   compatíveis com o workflow embutido.
+
+   Mantenha ambos os campos separados do estado retornado pelo CLI, dos artifacts
+   ausentes, das tarefas, do progresso, dos `contextFiles` e da `instruction`
+   embutida. Eles não são evidência de conclusão de tarefas, não substituem a
+   instrução embutida e não permitem ignorar um estado bloqueado. Se o contexto
+   conflitar com a instrução embutida, com uma escolha explícita do usuário ou com
+   um valor controlado pelo CLI, reporte o conflito e preserve o valor controlador.
+   Se a orientação for inaplicável ou conflitar com essas entradas controladoras,
+   não a siga e explique por quê. Estes são contratos de comportamento em nível de
+   prompt, não verificações impostas.
 
 4. **Leia os arquivos de contexto**
 
@@ -55,6 +73,10 @@ Implementa tarefas de uma change do BR-OpenSpec.
    Os arquivos dependem do schema sendo usado:
    - **spec-driven**: proposal, specs, design, tasks
    - Outros schemas: siga os contextFiles da saída do CLI
+
+   Não copie `context` ou `operationGuidance` verbatim para arquivos de
+   implementação ou artifacts de planejamento, a menos que o usuário peça
+   separadamente por esse conteúdo.
 
 5. **Mostre o progresso atual**
 
@@ -147,6 +169,11 @@ O que você gostaria de fazer?
 - Atualize a checkbox da tarefa imediatamente após concluir cada tarefa
 - Pare em erros, bloqueios ou requisitos incertos - não adivinhe
 - Use os contextFiles da saída do CLI, não assuma nomes de arquivos específicos
+- Não use contexto ou orientação da operação como prova de que uma tarefa está concluída
+- Aplique o contexto relevante do projeto; reporte conflitos com as entradas controladoras do workflow
+- Considere cada entrada de orientação; explique qualquer conselho inaplicável ou conflitante
+- Não copie contexto de runtime ou orientação da operação para arquivos de implementação ou artifacts de planejamento
+- Preserve o comportamento de estado blocked/ready/all_done controlado pelo CLI e os critérios de conclusão
 
 **Integração com Fluxo Fluido**
 

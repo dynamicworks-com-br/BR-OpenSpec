@@ -17,7 +17,7 @@ Inicie uma nova change usando a abordagem experimental orientada a artifacts.
 
 1. **Se nenhuma entrada clara for fornecida, pergunte o que ele quer construir**
 
-   Use a ferramenta **AskUserQuestion** (aberta, sem opções pré-definidas) para perguntar:
+   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
    > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
 
    A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → `add-user-auth`).

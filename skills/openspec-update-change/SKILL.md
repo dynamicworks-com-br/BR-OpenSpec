@@ -15,11 +15,14 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute `openspec list --json` para obter as changes disponíveis ordenadas pela mais recentemente modificada. Depois use a ferramenta **AskUserQuestion** para permitir que o usuário selecione qual change atualizar.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute `openspec list --json` para obter as changes disponíveis ordenadas pela mais recentemente modificada e peça ao usuário que selecione uma
 
-   Apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
+   Ao solicitar, apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
    - Nome da change
    - Schema (do campo `schema` se presente, caso contrário "spec-driven")
    - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
@@ -27,7 +30,7 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
 
    Marque a change mais recentemente modificada como "(Recomendada)" já que é provavelmente a que o usuário quer atualizar.
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, `/openspec-update-change <outra>`).
 
 2. **Obtenha os artifacts da change**
    ```bash
@@ -35,7 +38,7 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
    ```
    Analise o JSON para entender o estado atual. A resposta inclui:
    - `schemaName`: O schema de workflow sendo usado (por exemplo, "spec-driven")
-   - `artifacts`: Array de artifacts com seu status ("done", "ready", "blocked")
+   - `artifacts`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
    - `isComplete`: Booleano indicando se todos os artifacts estão completos
    - `artifactPaths`: Caminhos por artifact (`outputPath`, `resolvedOutputPath`, `existingOutputPaths`). Use-os em vez de assumir caminhos locais do repositório.
 
@@ -51,7 +54,7 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
    - Leia o(s) artifact(s) que a solicitação afeta e os demais artifacts existentes da change.
    - Aplique a edição solicitada. Depois verifique cada outro artifact existente contra ela - em QUALQUER direção: uma edição em um artifact posterior pode exigir revisar um anterior, não apenas o contrário. A ordem de construção é uma ordem de leitura útil, não uma restrição sobre quais artifacts podem ser revisados.
    - Anote tudo o que ficou inconsistente, faltando ou contraditório.
-   - Revise apenas arquivos que já existem (`existingOutputPaths`). NÃO crie artifacts que ainda não existem e NÃO invente arquivos novos sob um artifact com glob - anote-os e aponte o usuário para `/opsx:continue` para criá-los.
+   - Revise apenas arquivos que já existem (`existingOutputPaths`). NÃO crie artifacts que ainda não existem e NÃO invente arquivos novos sob um artifact com glob - anote-os e aponte o usuário para `/openspec-continue-change` para criá-los.
    - Se a change já estiver coerente, diga isso e não faça edições.
 
 5. **Confirme e aplique, um artifact por vez**
@@ -63,21 +66,22 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
      ```
 
 6. **Aponte o próximo passo (apenas orientação - NUNCA aja sobre ele)**
-   - Artifacts ainda faltando -> sugira `/opsx:continue` para criá-los.
-   - Change já implementada (tarefas marcadas / já aplicada) -> o código pode não corresponder mais ao plano revisado; sugira `/opsx:apply` para levar o delta ao código.
-   - Tudo pronto e implementado -> sugira `/opsx:archive`.
+   - Artifacts ainda faltando -> sugira `/openspec-continue-change` para criá-los.
+   - Change já implementada (tarefas marcadas / já aplicada) -> o código pode não corresponder mais ao plano revisado; sugira `/openspec-apply-change` para levar o delta ao código.
+   - Tudo pronto e implementado -> sugira `/openspec-archive-change`.
 
 **Saída**
 
 Após cada invocação, mostre:
 - Quais artifacts foram revisados (e quais revisões propostas foram rejeitadas)
-- Qualquer coisa adiada para `/opsx:continue` (artifacts ou arquivos ainda não criados)
+- Qualquer coisa adiada para `/openspec-continue-change` (artifacts ou arquivos ainda não criados)
 - Onde a change está e o próximo comando recomendado
 
 **Guardrails**
-- Apenas artifacts de planejamento - NUNCA edite código de implementação. Se o plano revisado implicar mudanças de código, pare e aponte para `/opsx:apply`.
+- Apenas artifacts de planejamento - NUNCA edite código de implementação. Se o plano revisado implicar mudanças de código, pare e aponte para `/openspec-apply-change`.
 - Use os ids e caminhos de artifacts reportados por `openspec status`; nunca ramifique com base em nomes de artifact fixos.
 - Edite apenas os arquivos concretos em `existingOutputPaths`; nunca escreva em um `resolvedOutputPath` com glob.
-- Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do `/opsx:continue`.
+- Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do `/openspec-continue-change`.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com `/opsx:new` (a heurística "Atualizar vs. Começar do Zero").
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com `/openspec-new-change` (a heurística "Atualizar vs. Começar do Zero").
+- `/openspec-continue-change` e `/openspec-new-change` podem não estar instalados (perfil core). Ao sugerir um que esteja indisponível, aponte para o CLI: `openspec status --change "<name>" --json` mostra o próximo artifact e `openspec instructions <artifact-id> --change "<name>" --json` explica como criá-lo.
