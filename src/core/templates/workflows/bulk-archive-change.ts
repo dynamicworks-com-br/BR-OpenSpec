@@ -117,6 +117,13 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    Se houver changes incompletas, deixe claro que elas serão arquivadas com avisos.
 
+   Encaminhe conforme a intenção da resposta, não pelo rótulo exato — você escreveu esses rótulos,
+   então corresponda ao que o usuário escolheu em vez do texto acima:
+   - "Cancelar" — pare, não arquive. Reporte que nada foi arquivado e pule os passos restantes.
+   - A opção de arquivar tudo — prossiga com todas as changes selecionadas
+   - A opção de arquivar apenas as prontas — prossiga apenas com as changes que a tabela do passo 6 marca como \`Pronto\` ou \`Pronto*\`, e registre o restante como Ignorado no passo 8c. Se o parceiro de conflito de uma change \`Pronto*\` for ignorado, derive novamente a resolução daquele conflito usando apenas as changes que estão sendo arquivadas.
+   - Qualquer outra resposta — pergunte novamente em vez de arquivar
+
 8. **Execute o arquivamento para cada change confirmada**
 
    Processe as changes na ordem determinada (respeitando a resolução de conflitos):
@@ -127,6 +134,9 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Rastreie se o sync foi feito
 
    b. **Realize o arquivamento**:
+
+      Nome de destino (\`<target-name>\`): o \`openspec archive\` usa o nome da change como está quando ele já começa com um prefixo \`YYYY-MM-DD-\`; caso contrário, prefixa a data atual como \`YYYY-MM-DD-<nome>\` (nunca empilha uma segunda data).
+
       \`\`\`bash
       openspec archive <nome>
       \`\`\`
@@ -204,8 +214,8 @@ depois specs de add-graphql (ordem cronológica, mais recente tem precedência).
 ## Arquivamento em Lote Concluído
 
 N changes arquivadas:
-- <change-1> -> archive/YYYY-MM-DD-<change-1>/
-- <change-2> -> archive/YYYY-MM-DD-<change-2>/
+- <change-1> -> archive/<target-name-1>/
+- <change-2> -> archive/<target-name-2>/
 
 Resumo de sync de specs:
 - N delta specs sincronizados com os specs principais
@@ -218,7 +228,7 @@ Resumo de sync de specs:
 ## Arquivamento em Lote Concluído (parcial)
 
 N changes arquivadas:
-- <change-1> -> archive/YYYY-MM-DD-<change-1>/
+- <change-1> -> archive/<target-name-1>/
 
 M changes ignoradas:
 - <change-2> (usuário escolheu não arquivar incompleta)
@@ -243,9 +253,10 @@ Nenhuma change ativa encontrada. Crie uma nova change para começar.
 - Ignore o sync de specs apenas quando a implementação estiver ausente (avise o usuário)
 - Mostre o status claro por change antes de confirmar
 - Use uma única confirmação para todo o lote
+- Nunca arquive depois que o usuário cancela a confirmação — um lote cancelado não arquiva nada
 - Rastreie e reporte todos os resultados (sucesso/ignorado/falha)
 - Preservar .openspec.yaml ao mover para o arquivo
-- O diretório de destino do arquivo usa a data atual: YYYY-MM-DD-<nome>
+- O diretório de destino do arquivo usa a data atual: YYYY-MM-DD-<nome>; um nome que já começa com um prefixo \`YYYY-MM-DD-\` é usado como está (nunca empilhe uma segunda data)
 - Se o destino do arquivo existir, falhe aquela change mas continue com as outras`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
@@ -366,6 +377,13 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    Se houver changes incompletas, deixe claro que elas serão arquivadas com avisos.
 
+   Encaminhe conforme a intenção da resposta, não pelo rótulo exato — você escreveu esses rótulos,
+   então corresponda ao que o usuário escolheu em vez do texto acima:
+   - "Cancelar" — pare, não arquive. Reporte que nada foi arquivado e pule os passos restantes.
+   - A opção de arquivar tudo — prossiga com todas as changes selecionadas
+   - A opção de arquivar apenas as prontas — prossiga apenas com as changes que a tabela do passo 6 marca como \`Pronto\` ou \`Pronto*\`, e registre o restante como Ignorado no passo 8c. Se o parceiro de conflito de uma change \`Pronto*\` for ignorado, derive novamente a resolução daquele conflito usando apenas as changes que estão sendo arquivadas.
+   - Qualquer outra resposta — pergunte novamente em vez de arquivar
+
 8. **Execute o arquivamento para cada change confirmada**
 
    Processe as changes na ordem determinada (respeitando a resolução de conflitos):
@@ -376,6 +394,9 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Rastreie se o sync foi feito
 
    b. **Realize o arquivamento**:
+
+      Nome de destino (\`<target-name>\`): o \`openspec archive\` usa o nome da change como está quando ele já começa com um prefixo \`YYYY-MM-DD-\`; caso contrário, prefixa a data atual como \`YYYY-MM-DD-<nome>\` (nunca empilha uma segunda data).
+
       \`\`\`bash
       openspec archive <nome>
       \`\`\`
@@ -453,8 +474,8 @@ depois specs de add-graphql (ordem cronológica, mais recente tem precedência).
 ## Arquivamento em Lote Concluído
 
 N changes arquivadas:
-- <change-1> -> archive/YYYY-MM-DD-<change-1>/
-- <change-2> -> archive/YYYY-MM-DD-<change-2>/
+- <change-1> -> archive/<target-name-1>/
+- <change-2> -> archive/<target-name-2>/
 
 Resumo de sync de specs:
 - N delta specs sincronizados com os specs principais
@@ -467,7 +488,7 @@ Resumo de sync de specs:
 ## Arquivamento em Lote Concluído (parcial)
 
 N changes arquivadas:
-- <change-1> -> archive/YYYY-MM-DD-<change-1>/
+- <change-1> -> archive/<target-name-1>/
 
 M changes ignoradas:
 - <change-2> (usuário escolheu não arquivar incompleta)
@@ -492,9 +513,10 @@ Nenhuma change ativa encontrada. Crie uma nova change para começar.
 - Ignore o sync de specs apenas quando a implementação estiver ausente (avise o usuário)
 - Mostre o status claro por change antes de confirmar
 - Use uma única confirmação para todo o lote
+- Nunca arquive depois que o usuário cancela a confirmação — um lote cancelado não arquiva nada
 - Rastreie e reporte todos os resultados (sucesso/ignorado/falha)
 - Preservar .openspec.yaml ao mover para o arquivo
-- O diretório de destino do arquivo usa a data atual: YYYY-MM-DD-<nome>
+- O diretório de destino do arquivo usa a data atual: YYYY-MM-DD-<nome>; um nome que já começa com um prefixo \`YYYY-MM-DD-\` é usado como está (nunca empilhe uma segunda data)
 - Se o destino do arquivo existir, falhe aquela change mas continue com as outras`
   };
 }

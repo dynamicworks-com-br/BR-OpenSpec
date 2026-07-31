@@ -68,7 +68,21 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
    - Se alterações forem necessárias: "Sincronizar agora (recomendado)", "Arquivar sem sincronizar"
    - Se já estiver sincronizado: "Arquivar agora", "Sincronizar mesmo assim", "Cancelar"
 
-   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). **Somente prossiga para o arquivamento depois que a sincronização reportar conclusão bem-sucedida.** Se a sincronização falhar, ficar incompleta ou não confirmar sucesso, pare o fluxo ou peça confirmação explícita antes de arquivar. Se o usuário escolher "Cancelar", pare — não arquive. Para "Arquivar sem sincronizar" ou "Arquivar agora" quando já sincronizado, prossiga para o arquivamento.
+   Encaminhe conforme a resposta:
+   - "Cancelar" — pare, não arquive
+   - "Arquivar sem sincronizar" ou "Arquivar agora" — prossiga para o arquivamento
+   - "Sincronizar agora" ou "Sincronizar mesmo assim" — sincronize, depois verifique (abaixo)
+   - Qualquer outra resposta — pergunte novamente em vez de arquivar
+
+   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima, e aguarde a conclusão. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
+
+   Em seguida, refaça a comparação do topo deste passo contra cada capability que tem um delta spec em \`artifactPaths.specs.existingOutputPaths\` — não apenas as que o sync reporta ter tocado. Um sync bem-sucedido não deixa nada para aplicar, então cada capability deve agora constar como já sincronizada:
+   - Requisitos ADDED presentes
+   - Requisitos MODIFIED carregando as alterações de cenário e descrição nomeadas no delta, com seus demais cenários intactos
+   - Requisitos REMOVED ausentes
+   - Requisitos RENAMED presentes sob o novo nome e ausentes sob o antigo
+
+   Se o sync falhar, ou qualquer capability não corresponder, reporte a divergência e pare — não arquive. Nada foi movido e o diretório da change está intacto, então o usuário pode corrigir a inconsistência ou reexecutar o sync e iniciar o arquivamento novamente.
 
 5. **Realize o arquivamento**
 
@@ -78,7 +92,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
    openspec archive "<nome>"
    \`\`\`
 
-   O comando trata colisões no destino, prefixo de data e validação. Se o destino já existir, falhe com erro e sugira renomear o arquivo existente ou usar outra data — **não** use \`mv\` manual nem aninhe o diretório da change.
+   O comando trata colisões no destino, prefixo de data e validação. O nome de destino (\`<target-name>\`) usa o nome da change como está quando ele já começa com um prefixo \`YYYY-MM-DD-\`; caso contrário, a data atual é prefixada como \`YYYY-MM-DD-<nome>\` — nunca empilhe uma segunda data (mesma regra do \`openspec archive\`). Se o destino já existir, falhe com erro e sugira renomear o arquivo existente ou usar outra data — **não** use \`mv\` manual nem aninhe o diretório da change.
 
 6. **Exiba o resumo**
 
@@ -96,8 +110,8 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
 **Change:** <nome-change>
 **Schema:** <nome-schema>
-**Arquivado em:** openspec/changes/archive/YYYY-MM-DD-<nome>/
-**Specs:** ✓ Sincronizados com os specs principais (ou "Sem delta specs" ou "Sincronização ignorada")
+**Arquivado em:** openspec/changes/archive/<target-name>/
+**Specs:** <"✓ Sincronizados com os specs principais" somente se a verificação do passo 4 passou; caso contrário "Sem delta specs" ou "Sincronização ignorada">
 
 <"Todos os artifacts completos. Todas as tarefas completas." — ou, se arquivado com avisos, liste-os em vez disso (ex.: "Arquivado com 2 tarefas incompletas")>
 \`\`\`
@@ -108,7 +122,8 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 - Não bloqueie o arquivamento por avisos - apenas informe e confirme
 - Preservar .openspec.yaml ao mover para o arquivo (ele move com o diretório)
 - Mostre um resumo claro do que aconteceu
-- Se sync for solicitado, use a abordagem openspec-sync-specs (agent-driven)
+- Se sync for solicitado, execute o workflow \`openspec-sync-specs\` inline (agent-driven)
+- Nunca arquive enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais antes de mover o diretório da change
 - Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
@@ -180,7 +195,21 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
    - Se alterações forem necessárias: "Sincronizar agora (recomendado)", "Arquivar sem sincronizar"
    - Se já estiver sincronizado: "Arquivar agora", "Sincronizar mesmo assim", "Cancelar"
 
-   Se o usuário escolher sincronizar, use a ferramenta Task (subagent_type: "general-purpose", prompt: "Use a ferramenta Skill para invocar openspec-sync-specs para a change '<nome>'. Análise de delta spec: <inclua o resumo analisado do delta spec>"). **Somente prossiga para o arquivamento depois que a sincronização reportar conclusão bem-sucedida.** Se a sincronização falhar, ficar incompleta ou não confirmar sucesso, pare o fluxo ou peça confirmação explícita antes de arquivar. Se o usuário escolher "Cancelar", pare — não arquive. Para "Arquivar sem sincronizar" ou "Arquivar agora" quando já sincronizado, prossiga para o arquivamento.
+   Encaminhe conforme a resposta:
+   - "Cancelar" — pare, não arquive
+   - "Arquivar sem sincronizar" ou "Arquivar agora" — prossiga para o arquivamento
+   - "Sincronizar agora" ou "Sincronizar mesmo assim" — sincronize, depois verifique (abaixo)
+   - Qualquer outra resposta — pergunte novamente em vez de arquivar
+
+   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima, e aguarde a conclusão. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
+
+   Em seguida, refaça a comparação do topo deste passo contra cada capability que tem um delta spec em \`artifactPaths.specs.existingOutputPaths\` — não apenas as que o sync reporta ter tocado. Um sync bem-sucedido não deixa nada para aplicar, então cada capability deve agora constar como já sincronizada:
+   - Requisitos ADDED presentes
+   - Requisitos MODIFIED carregando as alterações de cenário e descrição nomeadas no delta, com seus demais cenários intactos
+   - Requisitos REMOVED ausentes
+   - Requisitos RENAMED presentes sob o novo nome e ausentes sob o antigo
+
+   Se o sync falhar, ou qualquer capability não corresponder, reporte a divergência e pare — não arquive. Nada foi movido e o diretório da change está intacto, então o usuário pode corrigir a inconsistência ou reexecutar o sync e iniciar o arquivamento novamente.
 
 5. **Realize o arquivamento**
 
@@ -190,7 +219,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
    openspec archive "<nome>"
    \`\`\`
 
-   O comando trata colisões no destino, prefixo de data e validação. Se o destino já existir, falhe com erro e sugira renomear o arquivo existente ou usar outra data — **não** use \`mv\` manual nem aninhe o diretório da change.
+   O comando trata colisões no destino, prefixo de data e validação. O nome de destino (\`<target-name>\`) usa o nome da change como está quando ele já começa com um prefixo \`YYYY-MM-DD-\`; caso contrário, a data atual é prefixada como \`YYYY-MM-DD-<nome>\` — nunca empilhe uma segunda data (mesma regra do \`openspec archive\`). Se o destino já existir, falhe com erro e sugira renomear o arquivo existente ou usar outra data — **não** use \`mv\` manual nem aninhe o diretório da change.
 
 6. **Exiba o resumo**
 
@@ -208,7 +237,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
 
 **Change:** <nome-change>
 **Schema:** <nome-schema>
-**Arquivado em:** openspec/changes/archive/YYYY-MM-DD-<nome>/
+**Arquivado em:** openspec/changes/archive/<target-name>/
 **Specs:** ✓ Sincronizados com os specs principais
 
 <"Todos os artifacts completos. Todas as tarefas completas." — ou, se arquivado com avisos, liste-os em vez disso (ex.: "Arquivado com 2 tarefas incompletas")>
@@ -221,7 +250,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
 
 **Change:** <nome-change>
 **Schema:** <nome-schema>
-**Arquivado em:** openspec/changes/archive/YYYY-MM-DD-<nome>/
+**Arquivado em:** openspec/changes/archive/<target-name>/
 **Specs:** Sem delta specs
 
 Todos os artifacts completos. Todas as tarefas completas.
@@ -234,7 +263,7 @@ Todos os artifacts completos. Todas as tarefas completas.
 
 **Change:** <nome-change>
 **Schema:** <nome-schema>
-**Arquivado em:** openspec/changes/archive/YYYY-MM-DD-<nome>/
+**Arquivado em:** openspec/changes/archive/<target-name>/
 **Specs:** Sincronização ignorada (usuário escolheu ignorar)
 
 **Avisos:**
@@ -251,7 +280,7 @@ Revise o arquivo se isso não foi intencional.
 ## Arquivamento Falhou
 
 **Change:** <nome-change>
-**Destino:** openspec/changes/archive/YYYY-MM-DD-<nome>/
+**Destino:** openspec/changes/archive/<target-name>/
 
 O diretório de arquivo de destino já existe.
 
@@ -267,7 +296,8 @@ O diretório de arquivo de destino já existe.
 - Não bloqueie o arquivamento por avisos - apenas informe e confirme
 - Preservar .openspec.yaml ao mover para o arquivo (ele move com o diretório)
 - Mostre um resumo claro do que aconteceu
-- Se sync for solicitado, use a ferramenta Skill para invocar \`openspec-sync-specs\` (agent-driven)
+- Se sync for solicitado, execute o workflow \`openspec-sync-specs\` inline (agent-driven)
+- Nunca arquive enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais antes de mover o diretório da change
 - Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar`
   };
 }

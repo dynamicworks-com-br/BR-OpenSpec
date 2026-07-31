@@ -78,6 +78,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
         (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
+      - Siga a **Referência de Formato de Spec Principal** abaixo
 
 4. **Exiba o resumo**
 
@@ -126,6 +127,26 @@ The system SHALL keep doing the existing thing, now also handling A.
 - TO: \`### Requirement: New Name\`
 \`\`\`
 
+**Referência de Formato de Spec Principal**
+
+Specs principais são o destino do merge do delta. Eles nunca devem conter cabeçalhos de operação de delta (\`## ADDED/MODIFIED/REMOVED/RENAMED Requirements\`) — após o sync, todo requisito vive sob uma única seção \`## Requirements\`:
+
+\`\`\`markdown
+# <capability> Specification
+
+## Purpose
+Short description of what this capability does and why it exists.
+
+## Requirements
+
+### Requirement: New Feature
+The system SHALL do something new.
+
+#### Scenario: Basic case
+- **WHEN** user does X
+- **THEN** system does Y
+\`\`\`
+
 **Princípio-Chave: Mesclagem Inteligente**
 
 Ao contrário da mesclagem programática, você mescla em vez de sobrescrever:
@@ -154,6 +175,7 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 **Guardrails**
 - Leia tanto os delta specs quanto os specs principais antes de fazer alterações
 - Preserve o conteúdo existente não mencionado no delta
+- Nunca copie um arquivo de delta para um spec principal como está — mescle seu conteúdo para que o spec principal mantenha a estrutura da Referência de Formato de Spec Principal, sem cabeçalhos de operação de delta
 - Se algo não estiver claro, peça esclarecimento
 - Mostre o que está alterando à medida que avança
 - A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado`,
@@ -237,6 +259,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
         (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
+      - Siga a **Referência de Formato de Spec Principal** abaixo
 
 4. **Exiba o resumo**
 
@@ -285,6 +308,26 @@ The system SHALL keep doing the existing thing, now also handling A.
 - TO: \`### Requirement: New Name\`
 \`\`\`
 
+**Referência de Formato de Spec Principal**
+
+Specs principais são o destino do merge do delta. Eles nunca devem conter cabeçalhos de operação de delta (\`## ADDED/MODIFIED/REMOVED/RENAMED Requirements\`) — após o sync, todo requisito vive sob uma única seção \`## Requirements\`:
+
+\`\`\`markdown
+# <capability> Specification
+
+## Purpose
+Short description of what this capability does and why it exists.
+
+## Requirements
+
+### Requirement: New Feature
+The system SHALL do something new.
+
+#### Scenario: Basic case
+- **WHEN** user does X
+- **THEN** system does Y
+\`\`\`
+
 **Princípio-Chave: Mesclagem Inteligente**
 
 Ao contrário da mesclagem programática, você mescla em vez de sobrescrever:
@@ -313,6 +356,7 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 **Guardrails**
 - Leia tanto os delta specs quanto os specs principais antes de fazer alterações
 - Preserve o conteúdo existente não mencionado no delta
+- Nunca copie um arquivo de delta para um spec principal como está — mescle seu conteúdo para que o spec principal mantenha a estrutura da Referência de Formato de Spec Principal, sem cabeçalhos de operação de delta
 - Se algo não estiver claro, peça esclarecimento
 - Mostre o que está alterando à medida que avança
 - A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado`

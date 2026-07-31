@@ -58,6 +58,11 @@ The agent SHALL reconcile main specs with delta specs using the delta operation 
 - **AND** copy the delta's `## Purpose` body into it when the delta has one, matching what `openspec archive` does
 - **AND** write a brief TBD placeholder Purpose only when the delta has none
 
+#### Scenario: Merged main spec keeps canonical structure
+- **WHEN** the agent writes a main spec during sync
+- **THEN** every requirement lives under a single `## Requirements` section
+- **AND** the main spec contains no delta operation headers (`## ADDED/MODIFIED/REMOVED/RENAMED Requirements`)
+
 ### Requirement: Skill Output
 The skill SHALL provide clear feedback on what was applied.
 

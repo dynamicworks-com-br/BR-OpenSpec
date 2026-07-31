@@ -1718,7 +1718,7 @@ openspec archive "<nome>" --yes
 
 **MOSTRE:**
 \`\`\`
-Arquivado em: \`openspec/changes/archive/YYYY-MM-DD-<nome>/\`
+Arquivado em: \`openspec/changes/archive/<target-name>/\` (o nome de destino prefixa a data de hoje, a menos que o nome já comece com um prefixo \`YYYY-MM-DD-\` — nesse caso ele é mantido como está, sem segunda data)
 
 A change agora faz parte do histórico do seu projeto. O código está na sua codebase, o registro de decisão está preservado.
 \`\`\`
