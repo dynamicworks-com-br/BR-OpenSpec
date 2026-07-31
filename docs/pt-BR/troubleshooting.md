@@ -92,6 +92,14 @@ openspec validate --all --strict   # verificações mais estritas, boas para CI
 
 Causas comuns são uma seção obrigatória faltando (como uma spec sem cenários) ou um cabeçalho de delta malformado. Corrija o arquivo e rode de novo. A [referência da CLI](cli.md#openspec-validate) documenta o formato da saída.
 
+Uma mensagem merece uma nota própria:
+
+```text
+MODIFIED "<requisito>" omite cenário(s) que o spec atual ainda tem: "<cenário>"
+```
+
+Um requisito `MODIFIED` substitui o bloco inteiro do requisito, então ele precisa carregar todos os cenários que sobrevivem à mudança, não apenas os que você editou. Copie os cenários nomeados de `openspec/specs/<capability>/spec.md` de volta para o delta. Isso costuma aparecer em uma mudança antiga depois que a mudança de outra pessoa adicionou um cenário ao mesmo requisito — o archive recusa essa mudança de qualquer forma, e a validação agora avisa antes de você implementá-la.
+
 ### A IA criou artefatos incompletos ou errados
 
 A IA não tinha contexto suficiente. Algumas alavancas ajudam:

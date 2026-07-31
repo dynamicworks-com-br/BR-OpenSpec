@@ -35,15 +35,28 @@ export class ZshInstaller {
       return true;
     }
 
-    // Fall back to checking for ~/.oh-my-zsh directory
-    const ohMyZshPath = path.join(this.homeDir, '.oh-my-zsh');
-
+    // Fall back to checking for the Oh My Zsh directory
     try {
-      const stat = await fs.stat(ohMyZshPath);
+      const stat = await fs.stat(this.ohMyZshRoot());
       return stat.isDirectory();
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Oh My Zsh exports its root as $ZSH; honor a custom location, or the
+   * completion lands in a ~/.oh-my-zsh tree that nothing ever loads.
+   */
+  private ohMyZshRoot(): string {
+    return process.env.ZSH || path.join(this.homeDir, '.oh-my-zsh');
+  }
+
+  /**
+   * The custom dir is separately relocatable via $ZSH_CUSTOM.
+   */
+  private ohMyZshCustomDir(): string {
+    return process.env.ZSH_CUSTOM || path.join(this.ohMyZshRoot(), 'custom');
   }
 
   /**
@@ -57,7 +70,7 @@ export class ZshInstaller {
     if (isOhMyZsh) {
       // Oh My Zsh custom completions directory
       return {
-        path: path.join(this.homeDir, '.oh-my-zsh', 'custom', 'completions', '_openspec'),
+        path: path.join(this.ohMyZshCustomDir(), 'completions', '_openspec'),
         isOhMyZsh: true,
       };
     } else {
@@ -328,10 +341,14 @@ export class ZshInstaller {
    * @returns Array of guidance strings, or undefined if not needed
    */
   private generateOhMyZshFpathGuidance(completionsDir: string): string[] | undefined {
+    // One fpath entry per line, matched as a literal: a relocated $ZSH_CUSTOM
+    // need not contain "custom/completions", and the path may hold characters
+    // grep would otherwise read as a pattern. Single-quoted for the shell.
+    const quotedDir = `'${completionsDir.replace(/'/g, `'\\''`)}'`;
     return [
       COMPLETION_MESSAGES.zshOhMyZshFpathNote,
       COMPLETION_MESSAGES.zshOhMyZshFpathVerify(completionsDir),
-      '  echo $fpath | grep "custom/completions"',
+      COMPLETION_MESSAGES.zshOhMyZshFpathGrepCommand(quotedDir),
       '',
       COMPLETION_MESSAGES.zshOhMyZshFpathRestart,
     ];

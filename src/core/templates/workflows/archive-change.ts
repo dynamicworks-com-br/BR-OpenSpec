@@ -31,9 +31,9 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
    Analise o JSON para entender:
    - \`schemaName\`: O workflow sendo usado
-   - \`artifacts\`: Lista de artifacts com seu status (\`done\` ou outro)
+   - \`artifacts\`: Lista de artifacts com seu status (\`done\`, \`skipped\` ou outro)
 
-   **Se algum artifact não estiver \`done\`:**
+   **Se algum artifact não estiver \`done\` nem \`skipped\`** (artifacts ignorados satisfazem o requisito - a change declara skip_specs):
    - Exiba um aviso listando os artifacts incompletos
    - Use a ferramenta **AskUserQuestion** para confirmar se o usuário deseja prosseguir
    - Prossiga se o usuário confirmar
@@ -143,9 +143,9 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
 
    Analise o JSON para entender:
    - \`schemaName\`: O workflow sendo usado
-   - \`artifacts\`: Lista de artifacts com seu status (\`done\` ou outro)
+   - \`artifacts\`: Lista de artifacts com seu status (\`done\`, \`skipped\` ou outro)
 
-   **Se algum artifact não estiver \`done\`:**
+   **Se algum artifact não estiver \`done\` nem \`skipped\`** (artifacts ignorados satisfazem o requisito - a change declara skip_specs):
    - Exiba um aviso listando os artifacts incompletos
    - Solicite confirmação do usuário para continuar
    - Prossiga se o usuário confirmar

@@ -36,7 +36,7 @@ export function getContinueChangeSkillTemplate(): SkillTemplate {
    \`\`\`
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
-   - \`artifacts\`: Array de artifacts com seu status ("done", "ready", "blocked")
+   - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
    - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
 
 3. **Aja com base no status**:
@@ -63,7 +63,8 @@ export function getContinueChangeSkillTemplate(): SkillTemplate {
      - \`template\`: A estrutura a ser usada para seu arquivo de saída
      - \`instruction\`: Orientação específica do schema
      - \`outputPath\`: Onde escrever o artifact
-     - \`dependencies\`: Artifacts concluídos para ler como contexto
+     - \`dependencies\`: Artifacts concluídos para ler como contexto (entradas com \`skipped: true\` não têm arquivos - não os procure)
+     - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - escolha outro artifact
    - **Crie o arquivo do artifact**:
      - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
      - Use \`template\` como a estrutura - preencha suas seções
@@ -155,7 +156,7 @@ export function getOpsxContinueCommandTemplate(): CommandTemplate {
    \`\`\`
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
-   - \`artifacts\`: Array de artifacts com seu status ("done", "ready", "blocked")
+   - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
    - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
 
 3. **Aja com base no status**:
@@ -182,7 +183,8 @@ export function getOpsxContinueCommandTemplate(): CommandTemplate {
      - \`template\`: A estrutura a ser usada para seu arquivo de saída
      - \`instruction\`: Orientação específica do schema
      - \`outputPath\`: Onde escrever o artifact
-     - \`dependencies\`: Artifacts concluídos para ler como contexto
+     - \`dependencies\`: Artifacts concluídos para ler como contexto (entradas com \`skipped: true\` não têm arquivos - não os procure)
+     - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - escolha outro artifact
    - **Crie o arquivo do artifact**:
      - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
      - Use \`template\` como a estrutura - preencha suas seções

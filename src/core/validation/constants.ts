@@ -25,6 +25,12 @@ export const VALIDATION_MESSAGES = {
   CHANGE_WHY_TOO_LONG: `A seção Why não deve exceder ${MAX_WHY_SECTION_LENGTH} caracteres`,
   CHANGE_WHAT_EMPTY: 'A seção What Changes não pode estar vazia',
   CHANGE_NO_DELTAS: 'A alteração deve ter pelo menos um delta',
+  CHANGE_SKIP_SPECS_CONFLICT:
+    'skip_specs está definido em .openspec.yaml, mas existem arquivos de spec em specs/. Remova skip_specs ou exclua os arquivos de spec de delta',
+  CHANGE_SKIP_SPECS_ACCEPTED:
+    'skip_specs está definido em .openspec.yaml: a alteração declara que não há mudanças de comportamento no nível de spec; zero deltas aceito',
+  CHANGE_SKIP_SPECS_INVALID_METADATA:
+    'skip_specs está definido, mas .openspec.yaml não é um metadado de alteração válido, então o marcador não é honrado. Corrija os metadados',
   CHANGE_TOO_MANY_DELTAS: `Considere dividir alterações com mais de ${MAX_DELTAS_PER_CHANGE} deltas`,
   DELTA_SPEC_EMPTY: 'O nome da especificação não pode estar vazio',
   DELTA_DESCRIPTION_EMPTY: 'A descrição do delta não pode estar vazia',
@@ -37,7 +43,7 @@ export const VALIDATION_MESSAGES = {
 
   // Guidance snippets (appended to primary messages for remediation)
   GUIDE_NO_DELTAS:
-    'Nenhum delta encontrado. Certifique-se de que a alteração possui um diretório specs/ com pastas de capacidade (ex: specs/http-server/spec.md) contendo arquivos .md que usam cabeçalhos de delta (## ADDED/MODIFIED/REMOVED/RENAMED Requirements) e que cada requisito inclui pelo menos um bloco "#### Scenario:". Dica: execute "openspec change show <change-id> --json --deltas-only" para inspecionar os deltas analisados.',
+    'Nenhum delta encontrado. Certifique-se de que a alteração possui um diretório specs/ com pastas de capacidade (ex: specs/http-server/spec.md) contendo arquivos .md que usam cabeçalhos de delta (## ADDED/MODIFIED/REMOVED/RENAMED Requirements) e que cada requisito inclui pelo menos um bloco "#### Scenario:". Se esta alteração intencionalmente não modifica specs (refatoração pura, ferramental, docs), defina "skip_specs: true" no .openspec.yaml da alteração em vez disso. Dica: execute "openspec change show <change-id> --json --deltas-only" para inspecionar os deltas analisados.',
   GUIDE_MISSING_SPEC_SECTIONS:
     'Seções obrigatórias ausentes. Cabeçalhos esperados: "## Purpose" e "## Requirements". Exemplo:\n## Purpose\n[breve propósito]\n\n## Requirements\n### Requirement: Declaração clara de requisito\nUsers SHALL ...\n\n#### Scenario: Nome descritivo\n- **WHEN** ...\n- **THEN** ...',
   GUIDE_MISSING_CHANGE_SECTIONS:

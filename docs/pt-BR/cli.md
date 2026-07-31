@@ -273,11 +273,13 @@ openspec show add-dark-mode --json
 
 ### `openspec validate`
 
-Validar mudanças e specs em busca de problemas estruturais.
+Validar mudanças e specs em busca de problemas estruturais, e verificar os requisitos MODIFIED de uma mudança contra as specs principais que eles substituiriam.
 
 ```
 openspec validate [item-name] [options]
 ```
+
+Uma mudança com zero deltas de spec falha na validação, a menos que seu `.openspec.yaml` declare `skip_specs: true` (para refatorações puras, tooling ou trabalho de docs — veja a [Receita 5](examples.md#receita-5-uma-refatoração-sem-mudança-de-comportamento)).
 
 **Argumentos:**
 
@@ -373,7 +375,7 @@ openspec archive [change-name] [options]
 | Opção | Descrição |
 |-------|-----------|
 | `-y, --yes` | Ignorar prompts de confirmação. Obrigatório quando nada pode respondê-los — um agente de IA, um job de CI, ou qualquer execução com stdin fechado |
-| `--skip-specs` | Ignorar atualizações de specs (para mudanças de infraestrutura/ferramental/apenas documentação) |
+| `--skip-specs` | Ignorar atualizações de specs em uma execução de archive. Uma mudança que permanentemente não tem deltas de spec deve declarar `skip_specs: true` em seu `.openspec.yaml` — ela é arquivada sem nenhuma flag |
 | `--no-validate` | Ignorar validação (requer confirmação) |
 
 **Exemplos:**
@@ -483,6 +485,8 @@ Progresso: 2/4 artefatos concluídos
 [-] tasks (bloqueado por: design)
 ```
 
+Uma mudança que declara `skip_specs: true` mostra seu estágio de specs como `[~] specs (ignorado: a alteração declara skip_specs)` e o exclui da contagem de progresso.
+
 **Saída (JSON):**
 
 ```json
@@ -548,6 +552,8 @@ openspec instructions design --change add-dark-mode --json
 - Contexto do projeto a partir da configuração
 - Conteúdo dos artefatos de dependência
 - Regras por artefato definidas na configuração
+
+Para um artefato ignorado via `skip_specs: true`, a saída é apenas um aviso (o JSON adiciona os campos `skipped`/`warning`) — o artefato não deve ser criado.
 
 ---
 

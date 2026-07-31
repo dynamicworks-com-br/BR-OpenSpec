@@ -55,6 +55,7 @@ export function getFfChangeSkillTemplate(): SkillTemplate {
         - \`rules\`: Regras específicas do artifact (restrições para você - NÃO inclua na saída)
         - \`template\`: A estrutura a ser usada para seu arquivo de saída
         - \`instruction\`: Orientação específica do schema para este tipo de artifact
+        - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - pare e escolha outro artifact
         - \`outputPath\`: Onde escrever o artifact
         - \`dependencies\`: Artifacts concluídos para ler como contexto
       - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
@@ -65,7 +66,8 @@ export function getFfChangeSkillTemplate(): SkillTemplate {
    b. **Continue até todos os artifacts \`applyRequires\` estarem completos**
       - Após criar cada artifact, reexecute \`openspec status --change "<nome>" --json\`
       - Verifique se cada ID de artifact em \`applyRequires\` tem \`status: "done"\` no array de artifacts
-      - Pare quando todos os artifacts \`applyRequires\` estiverem done
+      - Um artifact com \`status: "skipped"\` já está satisfeito: a change declara \`skip_specs\` em \`.openspec.yaml\`, então seus arquivos NÃO devem existir. Nunca tente criá-lo
+      - Pare quando todos os artifacts \`applyRequires\` estiverem \`done\` ou \`skipped\`
 
    c. **Se um artifact requerer entrada do usuário** (contexto incerto):
       - Use a ferramenta **AskUserQuestion** para esclarecer
@@ -157,6 +159,7 @@ export function getOpsxFfCommandTemplate(): CommandTemplate {
         - \`rules\`: Regras específicas do artifact (restrições para você - NÃO inclua na saída)
         - \`template\`: A estrutura a ser usada para seu arquivo de saída
         - \`instruction\`: Orientação específica do schema para este tipo de artifact
+        - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - pare e escolha outro artifact
         - \`outputPath\`: Onde escrever o artifact
         - \`dependencies\`: Artifacts concluídos para ler como contexto
       - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
@@ -167,7 +170,8 @@ export function getOpsxFfCommandTemplate(): CommandTemplate {
    b. **Continue até todos os artifacts \`applyRequires\` estarem completos**
       - Após criar cada artifact, reexecute \`openspec status --change "<nome>" --json\`
       - Verifique se cada ID de artifact em \`applyRequires\` tem \`status: "done"\` no array de artifacts
-      - Pare quando todos os artifacts \`applyRequires\` estiverem done
+      - Um artifact com \`status: "skipped"\` já está satisfeito: a change declara \`skip_specs\` em \`.openspec.yaml\`, então seus arquivos NÃO devem existir. Nunca tente criá-lo
+      - Pare quando todos os artifacts \`applyRequires\` estiverem \`done\` ou \`skipped\`
 
    c. **Se um artifact requerer entrada do usuário** (contexto incerto):
       - Use a ferramenta **AskUserQuestion** para esclarecer

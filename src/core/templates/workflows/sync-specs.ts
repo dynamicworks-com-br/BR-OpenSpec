@@ -58,7 +58,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       - Encontre o requisito no spec principal
       - Antes de adicionar cenários ou alterar conteúdo, compare com o que já existe; se já for equivalente, trate como no-op
       - Aplique apenas diferenças reais — isso pode ser:
-        - Adicionar novos cenários (não é necessário copiar os existentes)
+        - Adicionar novos cenários que o spec principal ainda não tem
         - Modificar cenários existentes
         - Alterar a descrição do requisito
       - Preserve cenários/conteúdo não mencionados no delta
@@ -106,6 +106,12 @@ The system SHALL do something new.
 ## MODIFIED Requirements
 
 ### Requirement: Existing Feature
+The system SHALL keep doing the existing thing, now also handling A.
+
+#### Scenario: Scenario the main spec already has
+- **WHEN** user does X
+- **THEN** system does Y
+
 #### Scenario: New scenario to add
 - **WHEN** user does A
 - **THEN** system does B
@@ -122,9 +128,9 @@ The system SHALL do something new.
 
 **Princípio-Chave: Mesclagem Inteligente**
 
-Ao contrário da mesclagem programática, você pode aplicar **atualizações parciais**:
-- Para adicionar um cenário, basta incluí-lo sob MODIFIED — não copie os cenários existentes
-- O delta representa *intenção*, não uma substituição total
+Ao contrário da mesclagem programática, você mescla em vez de sobrescrever:
+- Um bloco MODIFIED carrega o requisito inteiro - corpo mais todos os cenários que sobrevivem à mudança. \`openspec validate\` e \`openspec archive\` rejeitam um bloco que descarte um cenário que o spec principal ainda tem.
+- Mantenha tudo o que o delta não menciona, na ordem existente do spec principal
 - Use seu julgamento para mesclar as alterações de forma sensata
 
 **Saída em Sucesso**
@@ -211,7 +217,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       - Encontre o requisito no spec principal
       - Antes de adicionar cenários ou alterar conteúdo, compare com o que já existe; se já for equivalente, trate como no-op
       - Aplique apenas diferenças reais — isso pode ser:
-        - Adicionar novos cenários (não é necessário copiar os existentes)
+        - Adicionar novos cenários que o spec principal ainda não tem
         - Modificar cenários existentes
         - Alterar a descrição do requisito
       - Preserve cenários/conteúdo não mencionados no delta
@@ -259,6 +265,12 @@ The system SHALL do something new.
 ## MODIFIED Requirements
 
 ### Requirement: Existing Feature
+The system SHALL keep doing the existing thing, now also handling A.
+
+#### Scenario: Scenario the main spec already has
+- **WHEN** user does X
+- **THEN** system does Y
+
 #### Scenario: New scenario to add
 - **WHEN** user does A
 - **THEN** system does B
@@ -275,9 +287,9 @@ The system SHALL do something new.
 
 **Princípio-Chave: Mesclagem Inteligente**
 
-Ao contrário da mesclagem programática, você pode aplicar **atualizações parciais**:
-- Para adicionar um cenário, basta incluí-lo sob MODIFIED — não copie os cenários existentes
-- O delta representa *intenção*, não uma substituição total
+Ao contrário da mesclagem programática, você mescla em vez de sobrescrever:
+- Um bloco MODIFIED carrega o requisito inteiro - corpo mais todos os cenários que sobrevivem à mudança. \`openspec validate\` e \`openspec archive\` rejeitam um bloco que descarte um cenário que o spec principal ainda tem.
+- Mantenha tudo o que o delta não menciona, na ordem existente do spec principal
 - Use seu julgamento para mesclar as alterações de forma sensata
 
 **Saída em Sucesso**

@@ -21,6 +21,14 @@ artifacts:
       as fases de proposta e specs. Pesquise as specs existentes antes de preenchê-la.
       Cada capability listada aqui precisará de um arquivo de spec correspondente.
 
+      Toda change deve declarar pelo menos uma capability (nova ou
+      modificada) ou optar explicitamente por não ter specs: `openspec validate` rejeita uma
+      change com zero deltas, a menos que o `.openspec.yaml` da change defina
+      `skip_specs: true`. Use `skip_specs: true` somente quando não houver mudança de
+      comportamento no nível de spec (refatoração pura, ferramental, docs) - specs descrevem
+      comportamento, então se o comportamento não muda, nenhuma spec deve mudar também.
+      Não invente um requirement só para satisfazer a validação.
+
       Mantenha conciso (1-2 páginas). Foque no "porquê", não no "como" -
       detalhes de implementação pertencem ao design.md.
 
@@ -54,6 +62,11 @@ artifacts:
       Crie um arquivo de spec por capability listada na seção Capabilities da proposta.
       - Novas capabilities: use o nome exato em kebab-case da proposta (specs/<capability>/spec.md).
       - Capabilities modificadas: use o nome da pasta de spec existente em openspec/specs/<capability>/ ao criar a spec delta em specs/<capability>/spec.md.
+
+      Deve haver pelo menos um arquivo de spec, a menos que o `.openspec.yaml` da change
+      defina `skip_specs: true` (sem mudança de comportamento no nível de spec) - `openspec validate`
+      rejeita uma change com zero deltas sem esse marcador. Se a proposta não lista
+      capabilities e `skip_specs` não está definido, revise a proposta primeiro.
 
       Operações de delta (use cabeçalhos ##):
       - **ADDED Requirements**: Novas capabilities

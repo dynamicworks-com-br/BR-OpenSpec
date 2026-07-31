@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { JsonConverter } from '../core/converters/json-converter.js';
 import { Validator } from '../core/validation/validator.js';
+import { VALIDATION_MESSAGES } from '../core/validation/constants.js';
 import { ChangeParser } from '../core/parsers/change-parser.js';
 import { Change } from '../core/schemas/index.js';
 import { isInteractive } from '../utils/interactive.js';
@@ -197,7 +198,11 @@ export class ChangeCommand {
     }
     
     const validator = new Validator(options?.strict || false);
-    const report = await validator.validateChangeDeltaSpecs(changeDir);
+    const report = await validator.validateChangeDeltaSpecs(changeDir, {
+      // Derived from changesPath so the main specs come from the same root the
+      // change itself was resolved against.
+      mainSpecsDir: path.join(path.dirname(changesPath), 'specs'),
+    });
     
     if (options?.json) {
       console.log(JSON.stringify(report, null, 2));
@@ -212,7 +217,7 @@ export class ChangeCommand {
           console.error(`${prefix} [${label}] ${issue.path}: ${issue.message}`);
         });
         // Next steps footer to guide fixing issues
-        this.printNextSteps();
+        this.printNextSteps(report.issues);
         if (!options?.json) {
           process.exitCode = 1;
         }
@@ -245,11 +250,27 @@ export class ChangeCommand {
     return match ? match[1].trim() : changeName;
   }
 
-  private printNextSteps(): void {
+  private printNextSteps(issues: Array<{ message: string }> = []): void {
     const bullets: string[] = [];
-    bullets.push(CHANGE_MESSAGES.ensureDeltasInSpecs);
-    bullets.push(CHANGE_MESSAGES.eachRequirementNeedsScenario);
-    bullets.push(CHANGE_MESSAGES.debugParsedDeltas);
+    // Branch on the exact marker messages: the generic no-deltas guidance
+    // also mentions skip_specs and must not trigger the marker bullets.
+    const conflictIssue = issues.some(i =>
+      i.message.includes(VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_CONFLICT)
+    );
+    const invalidMarkerIssue = issues.some(i =>
+      i.message.includes(VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_INVALID_METADATA)
+    );
+    if (conflictIssue) {
+      bullets.push(CHANGE_MESSAGES.skipSpecsConflictRemoveFiles);
+      bullets.push(CHANGE_MESSAGES.skipSpecsConflictValidMetadata);
+    } else if (invalidMarkerIssue) {
+      bullets.push(CHANGE_MESSAGES.skipSpecsInvalidFixMetadata);
+      bullets.push(CHANGE_MESSAGES.skipSpecsInvalidOrRemove);
+    } else {
+      bullets.push(CHANGE_MESSAGES.ensureDeltasInSpecs);
+      bullets.push(CHANGE_MESSAGES.eachRequirementNeedsScenario);
+      bullets.push(CHANGE_MESSAGES.debugParsedDeltas);
+    }
     console.error(CHANGE_MESSAGES.nextSteps);
     bullets.forEach(b => console.error(`  ${b}`));
   }

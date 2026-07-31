@@ -156,11 +156,7 @@ describe('buildUpdatedSpec (content absorbed into a requirement)', () => {
     ]);
 
     expect(rebuilt).toContain(tail.join('\n'));
-    // NOTA: upstream espera counts.modified === 0 aqui, mas a contagem no-op
-    // de MODIFIED veio do commit 17af60c6 (fence-aware drift check), portado
-    // separadamente. Enquanto ele não é portado, o fork conta
-    // plan.modified.length (1). Ao portar 17af60c6, volte esta asserção para 0.
-    expect(counts.modified).toBe(1);
+    expect(counts.modified).toBe(0);
     expect(warnings.join('\n')).not.toContain('vai com ele');
   });
 

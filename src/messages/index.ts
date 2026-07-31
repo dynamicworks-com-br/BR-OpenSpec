@@ -203,6 +203,10 @@ export const CHANGE_MESSAGES = {
   ensureDeltasInSpecs: 'Certifique-se de que a alteração tenha deltas em specs/: use os cabeçalhos ## ADDED/MODIFIED/REMOVED/RENAMED Requirements',
   eachRequirementNeedsScenario: 'Cada requisito DEVE incluir pelo menos um bloco #### Scenario:',
   debugParsedDeltas: 'Depure os deltas analisados: openspec change show <id> --json --deltas-only',
+  skipSpecsConflictRemoveFiles: 'Esta alteração declara skip_specs (sem deltas de spec): exclua os arquivos em specs/, ou remova skip_specs do .openspec.yaml se os requisitos de fato mudam',
+  skipSpecsConflictValidMetadata: 'skip_specs só é honrado quando .openspec.yaml é um metadado de alteração válido (schema: <nome> é obrigatório)',
+  skipSpecsInvalidFixMetadata: 'Corrija o .openspec.yaml para que o marcador skip_specs possa ser honrado (schema: <nome> é obrigatório)',
+  skipSpecsInvalidOrRemove: 'Ou remova skip_specs do .openspec.yaml e adicione specs de delta em vez disso',
   unableToRead: '(não foi possível ler)',
   tasks: (completed: number, total: number) => `[tarefas ${completed}/${total}]`,
   deltas: (count: number) => `[deltas ${count}]`,
@@ -281,6 +285,10 @@ export const VALIDATE_MESSAGES = {
   ensureDeltasInSpecs: 'Certifique-se de que a alteração tenha deltas em specs/: use os cabeçalhos ## ADDED/MODIFIED/REMOVED/RENAMED Requirements',
   eachRequirementNeedsScenario: 'Cada requisito DEVE incluir pelo menos um bloco #### Scenario:',
   debugParsedDeltas: 'Depure os deltas analisados: openspec change show <id> --json --deltas-only',
+  skipSpecsConflictRemoveFiles: 'Esta alteração declara skip_specs (sem deltas de spec): exclua os arquivos em specs/, ou remova skip_specs do .openspec.yaml se os requisitos de fato mudam',
+  skipSpecsConflictValidMetadata: 'skip_specs só é honrado quando .openspec.yaml é um metadado de alteração válido (schema: <nome> nomeando um esquema conhecido é obrigatório)',
+  skipSpecsInvalidFixMetadata: 'Corrija o .openspec.yaml para que o marcador skip_specs possa ser honrado (schema: <nome> nomeando um esquema conhecido é obrigatório)',
+  skipSpecsInvalidOrRemove: 'Ou remova skip_specs do .openspec.yaml e adicione specs de delta em vez disso',
   nextStepsSpec: 'Próximos passos:',
   ensurePurposeAndRequirements: 'Certifique-se de que a especificação inclua as seções ## Purpose e ## Requirements',
   requirementScenarioBullet: '- Cada requisito DEVE incluir pelo menos um bloco #### Scenario:',
@@ -728,6 +736,10 @@ export const COMPLETION_MESSAGES = {
   zshFailedToInstall: (error: string) => `Falha ao instalar script de autocomplete: ${error}`,
   zshOhMyZshFpathNote: 'Nota: Oh My Zsh normalmente carrega automaticamente os scripts de autocomplete do diretório custom/completions.',
   zshOhMyZshFpathVerify: (dir: string) => `Verifique se ${dir} está no seu fpath executando:`,
+  // Uma entrada de fpath por linha, casada como literal: um $ZSH_CUSTOM
+  // relocado não precisa conter "custom/completions", e o caminho pode ter
+  // caracteres que o grep leria como padrão. quotedDir já vem entre aspas.
+  zshOhMyZshFpathGrepCommand: (quotedDir: string) => `  printf '%s\\n' $fpath | grep -F ${quotedDir}`,
   zshOhMyZshFpathRestart: 'Se não for encontrado, o autocomplete pode não funcionar. Reinicie o shell para garantir que as alterações tenham efeito.',
   zshOhMyZshInstalledDir: 'Script de autocomplete instalado no diretório de completions do Oh My Zsh.',
   zshOhMyZshAutoActivate: 'O autocomplete deve ativar automaticamente.',
@@ -877,6 +889,9 @@ export const UPDATE_MESSAGES = {
   failed: (errors: string) => `✗ Falhas: ${errors}`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
   removedSkills: (count: number) => `Removidos: ${count} diretórios de skill (entrega: commands)`,
+  noSkillsOrCommandsRemain: (names: string, singular: boolean) =>
+    `Não restam skills nem comandos para ${names}: a entrega está definida como 'commands', mas ${singular ? 'ela suporta' : 'elas suportam'} apenas skills. ` +
+    `Execute 'openspec config set delivery both' para gerar skills.`,
   removedDeselectedCommands: (count: number) => `Removidos: ${count} arquivos de comando (fluxos de trabalho desselecionados)`,
   removedDeselectedSkills: (count: number) => `Removidos: ${count} diretórios de skill (fluxos de trabalho desselecionados)`,
   gettingStarted: 'Início rápido:',
@@ -984,6 +999,10 @@ export const VALIDATOR_MESSAGES = {
   deltaSectionsEmpty: (sections: string) => `Seções de delta ${sections} foram encontradas, mas nenhuma entrada de requisito foi analisada. Certifique-se de que cada seção inclua pelo menos um bloco "### Requirement:" (REMOVED pode usar sintaxe de lista com marcadores).`,
   noDeltaSectionsFound: 'Nenhuma seção de delta encontrada. Adicione cabeçalhos como "## ADDED Requirements" ou mova notas que não sejam deltas para fora de specs/.',
   rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar em uma pasta de capability (ex.: specs/<capability>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
+  modifiedOmitsCurrentScenarios: (reqName: string, scenarioNames: string) =>
+    `MODIFIED "${reqName}" omite cenário(s) que o spec atual ainda tem: ${scenarioNames}. Copie-os para o bloco MODIFIED (um requisito MODIFIED substitui o bloco inteiro, então o archive se recusa a descartá-los).`,
+  couldNotReadMainSpec: (specPath: string, code: string) =>
+    `Não foi possível ler ${specPath} para verificar os requisitos MODIFIED contra ele (${code}). O archive lê o mesmo arquivo, então corrija o arquivo antes de arquivar.`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -996,6 +1015,8 @@ export const WORKFLOW_MESSAGES = {
   missingArtifactArgument: (artifacts: string) => `Argumento obrigatório <artifact> ausente. Artefatos válidos:\n  ${artifacts}`,
   artifactNotFound: (artifactId: string, schemaName: string, artifacts: string) => `Artefato '${artifactId}' não encontrado no esquema '${schemaName}'. Artefatos válidos:\n  ${artifacts}`,
   unmetDependenciesWarning: 'Este artefato possui dependências não satisfeitas. Complete-as primeiro ou prossiga com cautela.',
+  artifactSkippedFallback: 'Este artefato está ignorado (skip_specs está definido em .openspec.yaml).',
+  skippedDependencyNoFiles: 'Ignorado: a alteração declara skip_specs, então este artefato não tem arquivos para ler.',
   missingDependencies: (deps: string) => `Pendentes: ${deps}`,
   createArtifactTask: (artifactId: string, changeName: string) => `Crie o artefato ${artifactId} para a alteração "${changeName}".`,
   readFilesForContext: 'Leia o conteúdo atual destes arquivos antes de criar este artefato (releia-os do disco mesmo que já os tenha visto antes - podem ter sido editados):',
@@ -1050,8 +1071,10 @@ export const WORKFLOW_MESSAGES = {
   changeLabel: (name: string) => `Alteração: ${name}`,
   schemaLabel2: (name: string) => `Esquema: ${name}`,
   progressArtifacts: (done: number, total: number) => `Progresso: ${done}/${total} artefatos concluídos`,
+  progressArtifactsSkipped: (done: number, total: number, skipped: number) => `Progresso: ${done}/${total} artefatos concluídos (${skipped} ignorado(s))`,
   allArtifactsComplete: 'Todos os artefatos concluídos!',
   blockedBy: (deps: string) => ` (bloqueado por: ${deps})`,
+  skippedDeclaresSkipSpecs: ' (ignorado: a alteração declara skip_specs)',
   // templates.ts
   loadingTemplates: 'Carregando templates...',
   schemaLabel3: (name: string) => `Esquema: ${name}`,
@@ -2322,6 +2345,8 @@ export const SPECS_APPLY_MESSAGES = {
     `${specName}: spec alvo é estruturalmente inválido e não pode ser atualizado até ser corrigido:\n${details}`,
   renamedFailedSourceNotFound: (specName: string, reqName: string) =>
     `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - origem não encontrada`,
+  renamedFailedSourceNotFoundNearMiss: (specName: string, reqName: string, nearMissName: string) =>
+    `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - origem não encontrada, mas "### Requirement: ${nearMissName}" existe; corrija o cabeçalho para corresponder exatamente`,
   renamedFailedTargetExists: (specName: string, reqName: string) =>
     `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - destino já existe`,
   modifiedFailedNotFound: (specName: string, reqName: string) =>
@@ -2399,6 +2424,12 @@ export const ARTIFACT_GRAPH_MESSAGES = {
   failedToReadTemplate: (error: string) => `Falha ao ler template: ${error}`,
   artifactNotFound: (artifactId: string, schemaName: string) =>
     `Artefato '${artifactId}' não encontrado no schema '${schemaName}'`,
+  // Aviso anexado às instruções de um artefato ignorado via skip_specs.
+  // Também vai no payload JSON, para que agentes dirigindo a CLI com --json
+  // vejam o mesmo sinal de não-criar da saída de texto.
+  skipSpecsInstructionsWarning:
+    'Esta alteração declara skip_specs: true em .openspec.yaml (sem mudanças de comportamento no nível de spec), então este artefato está ignorado.\n' +
+    'Não crie arquivos de spec - eles conflitam com esse marcador. Se os requisitos agora mudam, remova skip_specs do .openspec.yaml e execute este comando novamente.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2412,6 +2443,11 @@ export const CHANGE_METADATA_MESSAGES = {
   invalidYaml: (error: string) => `YAML inválido no arquivo de metadados: ${error}`,
   unknownSchema: (schema: string, available: string) =>
     `Schema desconhecido '${schema}'. Disponíveis: ${available}`,
+  // Razões pelas quais o marcador skip_specs não pode ser honrado
+  // (readSkipSpecsMarker); embutidas na mensagem de validação correspondente.
+  markerMetadataUnreadable: (error: string) => `o arquivo de metadados não pode ser lido (${error})`,
+  markerNotValidYaml: 'o arquivo não é um YAML válido',
+  markerUnknownSchema: (schema: string) => `schema: esquema desconhecido '${schema}'`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2421,6 +2457,7 @@ export const CHANGE_METADATA_MESSAGES = {
 export const CHANGE_UTILS_MESSAGES = {
   changeAlreadyExists: (name: string, dir: string) => `A alteração '${name}' já existe em ${dir}`,
   nameEmpty: 'O nome da alteração não pode estar vazio',
+  nameTooLong: 'O nome da alteração é muito longo (máximo de 200 caracteres)',
   nameMustBeLowercase: 'O nome da alteração deve ser minúsculo (use kebab-case)',
   nameNoSpaces: 'O nome da alteração não pode conter espaços (use hífens)',
   nameNoUnderscores: 'O nome da alteração não pode conter underscores (use hífens)',

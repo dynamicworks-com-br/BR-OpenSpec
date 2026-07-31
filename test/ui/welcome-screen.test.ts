@@ -54,4 +54,40 @@ describe('welcome screen', () => {
 
     expect(useKeypressMock).toHaveBeenCalledOnce();
   });
+
+  it('waits for Enter on the static path too (NO_COLOR)', async () => {
+    // Static rendering still waits for the Enter the prompt line asks for;
+    // otherwise the keystroke falls through into the tool picker (#1462).
+    process.env.NO_COLOR = '1';
+    const written: string[] = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
+      written.push(String(chunk));
+      return true;
+    });
+    const { showWelcomeScreen } = await import('../../src/ui/welcome-screen.js');
+
+    await showWelcomeScreen();
+
+    expect(useKeypressMock).toHaveBeenCalledOnce();
+    expect(written.join('')).toContain('Pressione Enter');
+    // No cursor-up repaints: the frame is drawn exactly once.
+    expect(written.join('')).not.toMatch(/\x1b\[\d+A/);
+  });
+
+  it('drops the Pressione Enter line when there is no TTY to wait on', async () => {
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+    Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
+    const written: string[] = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
+      written.push(String(chunk));
+      return true;
+    });
+    const { showWelcomeScreen } = await import('../../src/ui/welcome-screen.js');
+
+    await showWelcomeScreen();
+
+    // Nothing to wait on: no keypress listener, and no line asking for one.
+    expect(useKeypressMock).not.toHaveBeenCalled();
+    expect(written.join('')).not.toContain('Pressione Enter');
+  });
 });

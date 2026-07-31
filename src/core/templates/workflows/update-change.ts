@@ -36,7 +36,7 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
    \`\`\`
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
-   - \`artifacts\`: Array de artifacts com seu status ("done", "ready", "blocked")
+   - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
    - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
    - \`artifactPaths\`: Caminhos por artifact (\`outputPath\`, \`resolvedOutputPath\`, \`existingOutputPaths\`). Use-os em vez de assumir caminhos locais do repositório.
 
@@ -121,7 +121,7 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
    \`\`\`
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
-   - \`artifacts\`: Array de artifacts com seu status ("done", "ready", "blocked")
+   - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
    - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
    - \`artifactPaths\`: Caminhos por artifact (\`outputPath\`, \`resolvedOutputPath\`, \`existingOutputPaths\`). Use-os em vez de assumir caminhos locais do repositório.
 

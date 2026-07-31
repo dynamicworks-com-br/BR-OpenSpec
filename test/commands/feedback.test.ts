@@ -338,6 +338,16 @@ describe('FeedbackCommand', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Network connectivity issue')
       );
+
+      // ...and must not discard the typed feedback: the manual-submission
+      // fallback (formatted text + pre-filled URL) is shown like the
+      // missing-gh and unauthenticated flows.
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Por favor, envie seu feedback manualmente:')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('github.com/dynamicworks-com-br/BR-OpenSpec/issues/new')
+      );
     });
 
     it('should handle quotes in title and body without escaping (no shell injection)', async () => {

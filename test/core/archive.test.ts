@@ -478,6 +478,68 @@ Then expected result happens`;
       expect(process.exitCode).toBeUndefined();
     });
 
+    it('should archive when MODIFIED requirements were already synced to the baseline', async () => {
+      const changeName = 'early-synced-modify';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      const changeSpecDir = path.join(changeDir, 'specs', 'mod-layer');
+      await fs.mkdir(changeSpecDir, { recursive: true });
+
+      const block = `### Requirement: Session handling\nThe system SHALL keep sessions.\n\n#### Scenario: Session persists\n- **WHEN** a user returns\n- **THEN** the session is restored`;
+      await fs.writeFile(
+        path.join(changeSpecDir, 'spec.md'),
+        `# Mod Layer - Changes\n\n## MODIFIED Requirements\n\n${block}\n`
+      );
+
+      // Early-sync pattern: the modification is already applied to main.
+      const mainSpecDir = path.join(tempDir, 'openspec', 'specs', 'mod-layer');
+      await fs.mkdir(mainSpecDir, { recursive: true });
+      const mainSpecContent = `# mod-layer Specification\n\n## Purpose\nSession layer behavior.\n\n## Requirements\n\n${block}\n`;
+      await fs.writeFile(path.join(mainSpecDir, 'spec.md'), mainSpecContent);
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true });
+
+      // An identical MODIFIED block is a no-op: no churned rewrite, no
+      // claimed update, no "~ 1 modified" in the totals.
+      const updatedContent = await fs.readFile(path.join(mainSpecDir, 'spec.md'), 'utf-8');
+      expect(updatedContent).toBe(mainSpecContent);
+      expect(console.log).toHaveBeenCalledWith('Especificações já estão sincronizadas; nenhum arquivo alterado.');
+      expect(console.log).not.toHaveBeenCalledWith('Especificações atualizadas com sucesso.');
+
+      const archives = await fs.readdir(path.join(tempDir, 'openspec', 'changes', 'archive'));
+      expect(archives.some(a => a.includes(changeName))).toBe(true);
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('should abort an already-synced RENAMED when a case variant of the source still exists', async () => {
+      // FROM missing + TO present normally means the rename was early-synced,
+      // but a fold-variant of FROM still in the spec means the header is a
+      // typo - the same near-miss guard REMOVED applies.
+      const changeName = 'typo-rename';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      const changeSpecDir = path.join(changeDir, 'specs', 'rename-layer');
+      await fs.mkdir(changeSpecDir, { recursive: true });
+
+      await fs.writeFile(
+        path.join(changeSpecDir, 'spec.md'),
+        `# Rename Layer - Changes\n\n## RENAMED Requirements\n- FROM: \`### Requirement: cache policy\`\n- TO: \`### Requirement: Eviction policy\`\n`
+      );
+
+      const mainSpecDir = path.join(tempDir, 'openspec', 'specs', 'rename-layer');
+      await fs.mkdir(mainSpecDir, { recursive: true });
+      const mainSpecContent = `# rename-layer Specification\n\n## Purpose\nCache behavior.\n\n## Requirements\n\n### Requirement: Cache Policy\nThe system SHALL cache.\n\n#### Scenario: Cached\n- **WHEN** data repeats\n- **THEN** it is served from cache\n\n### Requirement: Eviction policy\nThe system SHALL evict.\n\n#### Scenario: Evicted\n- **WHEN** the cache is full\n- **THEN** old entries are dropped\n`;
+      await fs.writeFile(path.join(mainSpecDir, 'spec.md'), mainSpecContent);
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true });
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('RENAMED falhou para cabeçalho "### Requirement: cache policy" - origem não encontrada, mas "### Requirement: Cache Policy" existe')
+      );
+      expect(process.exitCode).toBe(1);
+      await expect(fs.access(changeDir)).resolves.not.toThrow();
+      const untouched = await fs.readFile(path.join(mainSpecDir, 'spec.md'), 'utf-8');
+      expect(untouched).toBe(mainSpecContent);
+    });
+
     it('should abort when a REMOVED header near-misses an existing requirement (case/whitespace typo)', async () => {
       // Uma correspondência insensível a fold no spec atual significa que o
       // cabeçalho é um erro de digitação, não uma remoção early-synced - esse
@@ -1473,6 +1535,103 @@ New feature description.
       expect(archives.length).toBe(1);
     });
 
+    it('should archive a skip_specs change with no spec files cleanly', async () => {
+      const changeName = 'marked-refactor';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      await fs.writeFile(
+        path.join(changeDir, '.openspec.yaml'),
+        'schema: spec-driven\nskip_specs: true\n'
+      );
+
+      await archiveCommand.execute(changeName, { yes: true });
+
+      const archives = await fs.readdir(path.join(tempDir, 'openspec', 'changes', 'archive'));
+      expect(archives.some(a => a.includes(changeName))).toBe(true);
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it('should block archiving a skip_specs change that has files under specs/', async () => {
+      const changeName = 'marked-with-stray-specs';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      const strayDir = path.join(changeDir, 'specs', 'notes');
+      await fs.mkdir(strayDir, { recursive: true });
+      await fs.writeFile(path.join(strayDir, 'spec.md'), '# headerless notes\n');
+      await fs.writeFile(
+        path.join(changeDir, '.openspec.yaml'),
+        'schema: spec-driven\nskip_specs: true\n'
+      );
+
+      await archiveCommand.execute(changeName, { yes: true });
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('skip_specs está definido em .openspec.yaml, mas existem arquivos de spec em specs/')
+      );
+      expect(process.exitCode).toBe(1);
+      // Change must not have moved.
+      await expect(fs.access(changeDir)).resolves.toBeUndefined();
+      const archives = await fs.readdir(path.join(tempDir, 'openspec', 'changes', 'archive'));
+      expect(archives.some(a => a.includes(changeName))).toBe(false);
+    });
+
+    it('should block archiving when skip_specs is set but the metadata is unhonorable', async () => {
+      const changeName = 'marked-invalid-metadata';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      // skip_specs without the required schema field: validate rejects this
+      // metadata, so archive must not accept the change either.
+      await fs.writeFile(path.join(changeDir, '.openspec.yaml'), 'skip_specs: true\n');
+
+      await archiveCommand.execute(changeName, { yes: true });
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('skip_specs está definido, mas .openspec.yaml não é um metadado de alteração válido')
+      );
+      expect(process.exitCode).toBe(1);
+      const archives = await fs.readdir(path.join(tempDir, 'openspec', 'changes', 'archive'));
+      expect(archives.some(a => a.includes(changeName))).toBe(false);
+    });
+
+    it('should block archiving when skip_specs names an unknown schema', async () => {
+      const changeName = 'marked-unknown-schema';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      await fs.mkdir(changeDir, { recursive: true });
+      // Well-shaped metadata naming a schema that does not resolve: status
+      // rejects this metadata, so archive must not honor the marker and
+      // bypass delta validation even though specs/ is empty.
+      await fs.writeFile(
+        path.join(changeDir, '.openspec.yaml'),
+        'schema: does-not-exist\nskip_specs: true\n'
+      );
+
+      await archiveCommand.execute(changeName, { yes: true });
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('skip_specs está definido, mas .openspec.yaml não é um metadado de alteração válido')
+      );
+      expect(process.exitCode).toBe(1);
+      const archives = await fs.readdir(path.join(tempDir, 'openspec', 'changes', 'archive'));
+      expect(archives.some(a => a.includes(changeName))).toBe(false);
+    });
+
+    it('should block archiving when the metadata file exists but cannot be read', async () => {
+      const changeName = 'metadata-as-directory';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      // .openspec.yaml as a directory: every metadata-reading surface errors
+      // and the marker state cannot be determined, so archive must fail
+      // closed into validation instead of treating the change as unmarked.
+      await fs.mkdir(path.join(changeDir, '.openspec.yaml'), { recursive: true });
+
+      await archiveCommand.execute(changeName, { yes: true });
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('skip_specs está definido, mas .openspec.yaml não é um metadado de alteração válido')
+      );
+      expect(process.exitCode).toBe(1);
+      const archives = await fs.readdir(path.join(tempDir, 'openspec', 'changes', 'archive'));
+      expect(archives.some(a => a.includes(changeName))).toBe(false);
+    });
+
     it('should skip spec updates when --skip-specs flag is used', async () => {
       const changeName = 'skip-specs-feature';
       const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
@@ -1981,6 +2140,131 @@ The system SHALL authenticate.
       expect(console.log).toHaveBeenCalledWith('Abortado. Nenhum arquivo foi alterado.');
 
       await expect(fs.access(changeDir)).resolves.not.toThrow();
+      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+      const archives = await fs.readdir(archiveDir);
+      expect(archives.some(a => a.includes(changeName))).toBe(false);
+    });
+
+    it('should not treat a fenced scenario example in the current spec as real drift', async () => {
+      // The validator ignores fenced `#### Scenario:` lines (countScenarios is
+      // fence-aware); the drift check must agree, or a fenced sample in the
+      // current spec aborts an archive that validate said was fine.
+      const mainSpecDir = path.join(tempDir, 'openspec', 'specs', 'fenced-current');
+      await fs.mkdir(mainSpecDir, { recursive: true });
+      const mainSpecPath = path.join(mainSpecDir, 'spec.md');
+      await fs.writeFile(
+        mainSpecPath,
+        `# fenced-current Specification
+
+## Purpose
+Fenced scenario samples in the current spec.
+
+## Requirements
+
+### Requirement: Reporting
+The system SHALL report results using the scenario format:
+
+\`\`\`markdown
+#### Scenario: Fenced sample
+- **WHEN** shown as an example
+- **THEN** it is not a real scenario
+\`\`\`
+
+#### Scenario: Emit report
+- **WHEN** a run finishes
+- **THEN** a report is emitted`
+      );
+
+      const changeName = 'edit-fenced-current';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      const changeSpecDir = path.join(changeDir, 'specs', 'fenced-current');
+      await fs.mkdir(changeSpecDir, { recursive: true });
+      await fs.writeFile(
+        path.join(changeSpecDir, 'spec.md'),
+        `# Edit Fenced Current - Change
+
+## MODIFIED Requirements
+
+### Requirement: Reporting
+The system SHALL report results in JSON.
+
+#### Scenario: Emit report
+- **WHEN** a run finishes
+- **THEN** a JSON report is emitted`
+      );
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true });
+
+      const updated = await fs.readFile(mainSpecPath, 'utf-8');
+      expect(updated).toContain('The system SHALL report results in JSON.');
+      expect(updated).toContain('a JSON report is emitted');
+      expect(console.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('o spec atual contém cenário(s) ausentes no bloco modificado')
+      );
+      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+      const archives = await fs.readdir(archiveDir);
+      expect(archives.some(a => a.includes(changeName))).toBe(true);
+    });
+
+    it('should abort when a MODIFIED block only keeps a dropped scenario inside a fence', async () => {
+      // The inverse hole: a fenced `#### Scenario: Audit` in the incoming block
+      // must not count as keeping the real Audit scenario the block dropped.
+      const mainSpecDir = path.join(tempDir, 'openspec', 'specs', 'fenced-incoming');
+      await fs.mkdir(mainSpecDir, { recursive: true });
+      const mainSpecPath = path.join(mainSpecDir, 'spec.md');
+      await fs.writeFile(
+        mainSpecPath,
+        `# fenced-incoming Specification
+
+## Purpose
+Fenced scenario names in the incoming block.
+
+## Requirements
+
+### Requirement: Access log
+The system SHALL log access.
+
+#### Scenario: Audit
+- **WHEN** a user signs in
+- **THEN** an audit row is written`
+      );
+
+      const changeName = 'drop-audit-behind-fence';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      const changeSpecDir = path.join(changeDir, 'specs', 'fenced-incoming');
+      await fs.mkdir(changeSpecDir, { recursive: true });
+      await fs.writeFile(
+        path.join(changeSpecDir, 'spec.md'),
+        `# Drop Audit Behind Fence - Change
+
+## MODIFIED Requirements
+
+### Requirement: Access log
+The system SHALL log access, for example:
+
+\`\`\`markdown
+#### Scenario: Audit
+- **WHEN** shown as an example
+- **THEN** it is not a real scenario
+\`\`\`
+
+#### Scenario: Trace
+- **WHEN** a request is served
+- **THEN** a trace row is written`
+      );
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true });
+
+      const updated = await fs.readFile(mainSpecPath, 'utf-8');
+      // Spec must be untouched — the real Audit scenario preserved.
+      expect(updated).toContain('an audit row is written');
+      expect(updated).not.toContain('Trace');
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'fenced-incoming MODIFIED falhou para cabeçalho "### Requirement: Access log" - o spec atual contém cenário(s) ausentes no bloco modificado: "Audit"'
+        )
+      );
+      expect(console.log).toHaveBeenCalledWith('Abortado. Nenhum arquivo foi alterado.');
       const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
       const archives = await fs.readdir(archiveDir);
       expect(archives.some(a => a.includes(changeName))).toBe(false);

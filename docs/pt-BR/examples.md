@@ -144,7 +144,16 @@ IA:   Criada a mudança. A proposta declara o objetivo (dividir o
       comportamento é idêntico. Pronta para implementação.
 ```
 
-Quando você arquiva uma mudança que não toca specs, pode dizer ao comando de terminal para pular o passo de specs:
+Declare o delta vazio explicitamente definindo `skip_specs: true` no `.openspec.yaml` da mudança:
+
+```yaml
+schema: spec-driven
+skip_specs: true
+```
+
+Sem o marcador, o `openspec validate` rejeita uma mudança com zero deltas (assim uma fase de specs esquecida ainda é detectada); com ele, a validação passa e o `openspec status` mostra o estágio de specs como explicitamente ignorado, em vez de pendente. Se a refatoração acabar mudando o comportamento, remova `skip_specs` do `.openspec.yaml` e escreva as specs de delta — o validate trata o marcador combinado com arquivos de spec como conflito, então um marcador obsoleto não fica para trás silenciosamente.
+
+Arquivar uma mudança marcada não precisa de flags extras (não há deltas para mesclar). Independentemente disso, a flag `--skip-specs` diz ao comando de terminal para pular o passo de specs explicitamente:
 
 ```bash
 $ openspec archive refactor-payment-module --skip-specs

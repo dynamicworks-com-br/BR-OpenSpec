@@ -146,12 +146,21 @@ function submitViaGhCli(title: string, body: string): void {
     console.log(FEEDBACK_MESSAGES.feedbackSubmitted);
     console.log(FEEDBACK_MESSAGES.issueUrl(issueUrl));
   } catch (error: any) {
+    // gh failed after the user already typed their feedback (issues disabled,
+    // network, rate limit, ...), so show the same manual-submission path the
+    // missing-gh and unauthenticated flows get instead of discarding the text.
     // Display the error output from gh CLI
     if (error.stderr) {
       console.error(error.stderr.toString());
     } else if (error.message) {
       console.error(error.message);
     }
+
+    displayFormattedFeedback(title, body);
+
+    const manualUrl = generateManualSubmissionUrl(title, body);
+    console.log(FEEDBACK_MESSAGES.submitManually);
+    console.log(manualUrl);
 
     // Exit with the same code as gh CLI
     process.exit(error.status ?? 1);

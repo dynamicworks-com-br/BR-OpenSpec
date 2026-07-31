@@ -184,6 +184,7 @@ export class UpdateCommand {
     const toolsToUpdate = this.force ? configuredTools : [...toolsToUpdateSet];
     const updatedTools: string[] = [];
     const failedTools: Array<{ name: string; error: string }> = [];
+    const zeroArtifactTools: string[] = [];
     let removedCommandCount = 0;
     let removedSkillCount = 0;
     let removedDeselectedCommandCount = 0;
@@ -215,6 +216,13 @@ export class UpdateCommand {
         // Delete skill directories if delivery is commands-only
         if (!shouldGenerateSkills) {
           removedSkillCount += await this.removeSkillDirs(skillsDir);
+          // A tool with no command adapter now has zero OpenSpec artifacts;
+          // say so, rather than deleting its skills silently and letting
+          // tool detection re-suggest an init that would also generate
+          // nothing under this delivery setting.
+          if (!CommandAdapterRegistry.get(tool.value)) {
+            zeroArtifactTools.push(tool.name);
+          }
         }
 
         // Generate commands if delivery includes commands
@@ -265,6 +273,16 @@ export class UpdateCommand {
     }
     if (removedSkillCount > 0) {
       console.log(chalk.dim(UPDATE_MESSAGES.removedSkills(removedSkillCount)));
+    }
+    if (zeroArtifactTools.length > 0) {
+      console.log(
+        chalk.yellow(
+          UPDATE_MESSAGES.noSkillsOrCommandsRemain(
+            zeroArtifactTools.join(', '),
+            zeroArtifactTools.length === 1
+          )
+        )
+      );
     }
     if (removedDeselectedCommandCount > 0) {
       console.log(chalk.dim(UPDATE_MESSAGES.removedDeselectedCommands(removedDeselectedCommandCount)));

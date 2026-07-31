@@ -1,6 +1,7 @@
 import ora from 'ora';
 import path from 'path';
 import { Validator } from '../core/validation/validator.js';
+import { VALIDATION_MESSAGES } from '../core/validation/constants.js';
 import { isInteractive, resolveNoInteractive } from '../utils/interactive.js';
 import { getSpecIds } from '../utils/item-discovery.js';
 import { getAvailableChanges } from './workflow/shared.js';
@@ -146,7 +147,9 @@ export class ValidateCommand {
     if (type === 'change') {
       const changeDir = path.join(process.cwd(), 'openspec', 'changes', id);
       const start = Date.now();
-      const report = await validator.validateChangeDeltaSpecs(changeDir);
+      const report = await validator.validateChangeDeltaSpecs(changeDir, {
+        mainSpecsDir: path.join(process.cwd(), 'openspec', 'specs'),
+      });
       const durationMs = Date.now() - start;
       this.printReport('change', id, report, durationMs, opts.json);
       // Non-zero exit if invalid (keeps enriched output test semantics)
@@ -176,13 +179,29 @@ export class ValidateCommand {
         const prefix = issue.level === 'ERROR' ? '✗' : issue.level === 'WARNING' ? '⚠' : 'ℹ';
         console.error(`${prefix} [${label}] ${issue.path}: ${issue.message}`);
       }
-      this.printNextSteps(type);
+      this.printNextSteps(type, report.issues);
     }
   }
 
-  private printNextSteps(type: ItemType): void {
+  private printNextSteps(type: ItemType, issues: Array<{ message: string }> = []): void {
     const bullets: string[] = [];
-    if (type === 'change') {
+    // The delta-authoring bullets contradict a marker-related error ("add
+    // deltas" vs "remove skip_specs or the files"), so branch on the exact
+    // marker messages - the generic no-deltas guidance also mentions
+    // skip_specs, which must not trigger this.
+    const conflictIssue = issues.some(i =>
+      i.message.includes(VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_CONFLICT)
+    );
+    const invalidMarkerIssue = issues.some(i =>
+      i.message.includes(VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_INVALID_METADATA)
+    );
+    if (type === 'change' && conflictIssue) {
+      bullets.push(VALIDATE_MESSAGES.skipSpecsConflictRemoveFiles);
+      bullets.push(VALIDATE_MESSAGES.skipSpecsConflictValidMetadata);
+    } else if (type === 'change' && invalidMarkerIssue) {
+      bullets.push(VALIDATE_MESSAGES.skipSpecsInvalidFixMetadata);
+      bullets.push(VALIDATE_MESSAGES.skipSpecsInvalidOrRemove);
+    } else if (type === 'change') {
       bullets.push(VALIDATE_MESSAGES.ensureDeltasInSpecs);
       bullets.push(VALIDATE_MESSAGES.eachRequirementNeedsScenario);
       bullets.push(VALIDATE_MESSAGES.debugParsedDeltas);
@@ -212,7 +231,9 @@ export class ValidateCommand {
       queue.push(async () => {
         const start = Date.now();
         const changeDir = path.join(process.cwd(), 'openspec', 'changes', id);
-        const report = await validator.validateChangeDeltaSpecs(changeDir);
+        const report = await validator.validateChangeDeltaSpecs(changeDir, {
+          mainSpecsDir: path.join(process.cwd(), 'openspec', 'specs'),
+        });
         const durationMs = Date.now() - start;
         return { id, type: 'change' as const, valid: report.valid, issues: report.issues, durationMs };
       });

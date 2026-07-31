@@ -11,7 +11,8 @@ import {
   writeUpdatedSpec,
   type SpecUpdate,
 } from './specs-apply.js';
-import { discoverSpecFiles } from '../utils/spec-discovery.js';
+import { discoverSpecFiles, hasAnyFileUnder } from '../utils/spec-discovery.js';
+import { readSkipSpecsMarker } from '../utils/change-metadata.js';
 import { isNonInteractivePromptError } from '../utils/interactive.js';
 
 type ArchiveOptions = { yes?: boolean; skipSpecs?: boolean; noValidate?: boolean; validate?: boolean };
@@ -234,6 +235,31 @@ export class ArchiveCommand {
       // folder, so only a regular file counts.
       const rootSpecStat = await fs.stat(path.join(changeSpecsDir, 'spec.md')).catch(() => null);
       let hasDeltaSpecs = rootSpecStat?.isFile() === true;
+      // A change that declares skip_specs must not carry any file under
+      // specs/ — validate reports that as a conflict, so archive has to run
+      // the same check instead of skipping validation because the files
+      // happen to have no delta headers. A marker that cannot be honored
+      // (skip_specs mentioned but the metadata fails the shared shape, or
+      // names a schema that does not resolve) also
+      // forces validation, so archive and validate always agree about the
+      // marker. Unreadable specs/ fails closed into validation too. (An
+      // UNMARKED zero-delta change still archives with only non-blocking
+      // proposal warnings — a gap that predates the marker and is left
+      // unchanged here.)
+      if (!hasDeltaSpecs) {
+        const marker = readSkipSpecsMarker(changeDir);
+        if (marker.invalidReason) {
+          hasDeltaSpecs = true;
+        } else if (marker.declared) {
+          let specsDirHasFiles = true;
+          try {
+            specsDirHasFiles = await hasAnyFileUnder(changeSpecsDir);
+          } catch {
+            // fall through with true: let validation surface the conflict
+          }
+          hasDeltaSpecs = specsDirHasFiles;
+        }
+      }
       for (const { specFile } of hasDeltaSpecs ? [] : await discoverSpecFiles(changeSpecsDir)) {
         try {
           const content = await fs.readFile(specFile, 'utf-8');
@@ -247,6 +273,9 @@ export class ArchiveCommand {
         } catch {}
       }
       if (hasDeltaSpecs) {
+        // No mainSpecsDir here on purpose: the scenario-loss check standalone
+        // validate runs (#1477) is the same one buildUpdatedSpec enforces a few
+        // steps later, and reporting it here would relabel that failure.
         const deltaReport = await validator.validateChangeDeltaSpecs(changeDir);
         if (!deltaReport.valid) {
           hasValidationErrors = true;
