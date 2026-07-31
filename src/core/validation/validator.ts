@@ -10,7 +10,7 @@ import {
   MAX_REQUIREMENT_TEXT_LENGTH,
   VALIDATION_MESSAGES
 } from './constants.js';
-import { parseDeltaSpec, normalizeRequirementName, extractRequirementsSection } from '../parsers/requirement-blocks.js';
+import { parseDeltaSpec, foldRequirementName, normalizeRequirementName, extractRequirementsSection } from '../parsers/requirement-blocks.js';
 import {
   extractRequirementBody as extractRequirementBodyShared,
   containsShallOrMust as containsShallOrMustShared,
@@ -301,6 +301,21 @@ export class Validator {
           }
           if (addedNames.has(toKey)) {
             issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.renamedToCollidesAdded(to) });
+          }
+          // Comparação com fold: uma variante de caixa/espaços do cabeçalho
+          // FROM em REMOVED é a mesma contradição, não um nome diferente.
+          const removedFoldMatch = [...removedNames].find(
+            (r) => foldRequirementName(r) === foldRequirementName(fromKey)
+          );
+          if (removedFoldMatch !== undefined) {
+            issues.push({
+              level: 'ERROR',
+              path: entryPath,
+              message: VALIDATOR_MESSAGES.requirementInRenamedAndRemoved(
+                from,
+                removedFoldMatch === fromKey ? undefined : removedFoldMatch
+              ),
+            });
           }
         }
       }

@@ -6,6 +6,7 @@
 
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import { transformToHyphenCommands } from '../../../utils/command-references.js';
 
 /**
  * Qwen adapter for command generation.
@@ -20,10 +21,14 @@ export const qwenAdapter: ToolCommandAdapter = {
   },
 
   formatFile(content: CommandContent): string {
+    // Comandos Qwen são invocados pelo nome do arquivo (/opsx-<id>), então as
+    // referências cruzadas também devem usar a forma com hífen.
+    const transformedBody = transformToHyphenCommands(content.body);
+
     return `description = "${content.description}"
 
 prompt = """
-${content.body}
+${transformedBody}
 """
 `;
   },

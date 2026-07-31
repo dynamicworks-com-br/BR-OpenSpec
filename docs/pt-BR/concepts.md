@@ -393,6 +393,7 @@ The system MUST expire sessions after 15 minutes of inactivity.
 | `## ADDED Requirements` | Novo comportamento | Adicionado à spec principal |
 | `## MODIFIED Requirements` | Comportamento alterado | Substitui o requisito existente |
 | `## REMOVED Requirements` | Comportamento descontinuado | Removido da spec principal |
+| `## Purpose` | Para que serve uma capability novinha em folha | Semeia o Purpose da spec principal sendo criada; ignorado quando a spec já existe |
 
 ### Por Que Deltas em Vez de Specs Completas
 

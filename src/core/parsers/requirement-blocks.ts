@@ -18,6 +18,18 @@ export function normalizeRequirementName(name: string): string {
   return name.trim();
 }
 
+/**
+ * Fold de nome de requirement insensível a caixa e espaços. A correspondência
+ * de requirements em si é sensível a caixa (normalizeRequirementName); este
+ * fold existe apenas para detecção de erros de digitação - cabeçalhos REMOVED
+ * quase iguais e o conflito entre seções RENAMED+REMOVED - onde duas grafias
+ * que diferem só em caixa ou espaços internos significam um erro, nunca dois
+ * requirements.
+ */
+export function foldRequirementName(name: string): string {
+  return normalizeRequirementName(name).toLowerCase().replace(/\s+/g, ' ');
+}
+
 /** The canonical requirement header the delta reader recognizes. */
 const REQUIREMENT_HEADER_REGEX = /^###\s*Requirement:\s*(.+)\s*$/i;
 

@@ -825,6 +825,22 @@ describe('InitCommand - profile and detection features', () => {
     const skillFile = path.join(testDir, '.claude', 'skills', 'openspec-explore', 'SKILL.md');
     expect(await fileExists(skillFile)).toBe(true);
   });
+
+  it('should print the hyphen command hint for filename-invoked tools (claude+qwen)', async () => {
+    const initCommand = new InitCommand({ tools: 'claude,qwen', force: true });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    const startHints = logCalls.filter((entry) => entry.includes('Inicie sua primeira alteração'));
+    // Qwen invoca comandos pelo nome do arquivo (/opsx-propose), então não
+    // pode compartilhar a linha /opsx:propose do Claude
+    expect(startHints).toHaveLength(2);
+    const claudeHint = startHints.find((entry) => entry.includes('Claude Code'));
+    const qwenHint = startHints.find((entry) => entry.includes('Qwen Code'));
+    expect(claudeHint).toContain('/opsx:propose');
+    expect(qwenHint).toContain('/opsx-propose');
+    expect(qwenHint).not.toContain('/opsx:propose');
+  });
 });
 
 async function fileExists(filePath: string): Promise<boolean> {

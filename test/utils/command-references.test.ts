@@ -172,18 +172,19 @@ describe('getTransformerForTool', () => {
     expect(getTransformerForTool('claude', 'skills')).toBe(transformToSkillReferences);
     expect(getTransformerForTool('codex', 'skills')).toBe(transformToSkillReferences);
     // hyphen-command tools must not fall back to hyphen commands when no commands are generated
-    expect(getTransformerForTool('opencode', 'skills')).toBe(transformToSkillReferences);
-    expect(getTransformerForTool('pi', 'skills')).toBe(transformToSkillReferences);
-    expect(getTransformerForTool('oh-my-pi', 'skills')).toBe(transformToSkillReferences);
+    for (const toolId of ['bob', 'oh-my-pi', 'opencode', 'pi', 'qwen'] as const) {
+      expect(getTransformerForTool(toolId, 'skills')).toBe(transformToSkillReferences);
+    }
   });
 
-  it('selects hyphen commands for opencode, pi, and oh-my-pi when commands are generated', () => {
-    expect(getTransformerForTool('opencode', 'both')).toBe(transformToHyphenCommands);
-    expect(getTransformerForTool('opencode', 'commands')).toBe(transformToHyphenCommands);
-    expect(getTransformerForTool('pi', 'both')).toBe(transformToHyphenCommands);
-    expect(getTransformerForTool('pi', 'commands')).toBe(transformToHyphenCommands);
-    expect(getTransformerForTool('oh-my-pi', 'both')).toBe(transformToHyphenCommands);
-    expect(getTransformerForTool('oh-my-pi', 'commands')).toBe(transformToHyphenCommands);
+  it('selects hyphen commands for bob, oh-my-pi, opencode, pi, and qwen when commands are generated', () => {
+    // Essas ferramentas invocam comandos pelo nome do arquivo (/opsx-<id>),
+    // então as skills devem referenciar a forma com hífen a que seus arquivos
+    // de comando realmente respondem.
+    for (const toolId of ['bob', 'oh-my-pi', 'opencode', 'pi', 'qwen'] as const) {
+      expect(getTransformerForTool(toolId, 'both')).toBe(transformToHyphenCommands);
+      expect(getTransformerForTool(toolId, 'commands')).toBe(transformToHyphenCommands);
+    }
   });
 
   it('selects no transformer for other tools when commands are generated', () => {

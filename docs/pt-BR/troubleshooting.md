@@ -105,6 +105,18 @@ A IA não tinha contexto suficiente. Algumas alavancas ajudam:
 
 O arquivamento não *bloqueia* por tarefas incompletas, mas avisa você, porque arquivar normalmente significa que o trabalho está concluído. Se restam tarefas de propósito (você está arquivando uma mudança parcial), prossiga. Caso contrário, termine as tarefas primeiro. O arquivamento também se oferece para mesclar suas delta specs nas specs principais se você ainda não sincronizou; diga sim, a menos que tenha um motivo para não o fazer.
 
+### "User force closed the prompt with 0 null"
+
+Algo executou `openspec archive` onde nada consegue responder a uma pergunta — um agente de IA chamando-o a partir de uma ferramenta, um job de CI, ou qualquer shell com stdin fechado. O arquivamento faz até três confirmações, e uma que não pode ser respondida costumava falhar com essa mensagem crua.
+
+Passe `--yes` para respondê-las de antemão:
+
+```bash
+openspec archive <nome-da-alteração> --yes
+```
+
+Mantenha quaisquer flags que você já estava passando — `--skip-specs` e `--no-validate` mudam o que o arquivamento faz, então uma reexecução com `--yes` puro não é o mesmo comando. As versões atuais nomeiam a flag para você e imprimem uma linha `Correção:` que você pode colar. Se você pretendia escolher de uma lista, passe o nome da mudança explicitamente: o seletor também precisa de uma resposta.
+
 ## Configuração
 
 ### Meu `config.yaml` não está sendo aplicado

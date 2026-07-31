@@ -366,26 +366,26 @@ openspec archive [change-name] [options]
 
 | Argumento | Obrigatório | Descrição |
 |-----------|-------------|-----------|
-| `change-name` | Não | Mudança a arquivar (solicita se omitido) |
+| `change-name` | Não | Mudança a arquivar (solicita se omitido; obrigatório quando nada pode responder à solicitação) |
 
 **Opções:**
 
 | Opção | Descrição |
 |-------|-----------|
-| `-y, --yes` | Ignorar prompts de confirmação |
+| `-y, --yes` | Ignorar prompts de confirmação. Obrigatório quando nada pode respondê-los — um agente de IA, um job de CI, ou qualquer execução com stdin fechado |
 | `--skip-specs` | Ignorar atualizações de specs (para mudanças de infraestrutura/ferramental/apenas documentação) |
 | `--no-validate` | Ignorar validação (requer confirmação) |
 
 **Exemplos:**
 
 ```bash
-# Arquivamento interativo
+# Arquivamento interativo (pergunta qual mudança, depois confirma)
 openspec archive
 
 # Arquivar mudança específica
 openspec archive add-dark-mode
 
-# Arquivar sem prompts (CI/scripts)
+# Arquivar sem prompts (agentes, CI, scripts)
 openspec archive add-dark-mode --yes
 
 # Arquivar uma mudança de ferramental que não afeta specs
@@ -398,6 +398,12 @@ openspec archive update-ci-config --skip-specs
 2. Solicita confirmação (a menos que `--yes` seja informado)
 3. Mescla as specs delta em `openspec/specs/`
 4. Move a pasta da mudança para `openspec/changes/archive/YYYY-MM-DD-<name>/`
+
+**Sem um terminal:** um agente de IA, um job de CI, ou qualquer execução com stdin
+fechado não consegue responder ao passo 2, então o arquivamento para antes de tocar
+em qualquer coisa, sai com código 1 e nomeia o comando para executar novamente —
+`openspec archive <name> --yes`, carregando quaisquer outras flags que você passou.
+Passe `--yes` (e o nome da mudança) de antemão para pular a ida e volta.
 
 ---
 

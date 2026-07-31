@@ -81,7 +81,8 @@ Após cada invocação, mostre:
 - Edite apenas os arquivos concretos em \`existingOutputPaths\`; nunca escreva em um \`resolvedOutputPath\` com glob.
 - Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do \`/opsx:continue\`.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero").`,
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero").
+- \`/opsx:continue\` e \`/opsx:new\` podem não estar instalados (perfil core). Ao sugerir um que esteja indisponível, aponte para o CLI: \`openspec status --change "<name>" --json\` mostra o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` explica como criá-lo.`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
@@ -165,6 +166,7 @@ Após cada invocação, mostre:
 - Edite apenas os arquivos concretos em \`existingOutputPaths\`; nunca escreva em um \`resolvedOutputPath\` com glob.
 - Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do \`/opsx:continue\`.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero").`
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero").
+- \`/opsx:continue\` e \`/opsx:new\` podem não estar instalados (perfil core). Ao sugerir um que esteja indisponível, aponte para o CLI: \`openspec status --change "<name>" --json\` mostra o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` explica como criá-lo.`
   };
 }

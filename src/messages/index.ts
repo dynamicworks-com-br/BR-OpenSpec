@@ -375,7 +375,15 @@ export const ARCHIVE_MESSAGES = {
   specsUpdatedSuccessfully: 'Especificações atualizadas com sucesso.',
   archiveAlreadyExists: (name: string) => `O arquivamento '${name}' já existe.`,
   changeArchived: (changeName: string, archiveName: string) => `Alteração '${changeName}' arquivada como '${archiveName}'.`,
-  removedRequirementsIgnored: (specName: string, count: number) => `⚠️  Aviso: ${specName} - ${count} requisito(s) REMOVED ignorado(s) para nova spec (nada a remover).`,
+  specsAlreadyInSync: 'Especificações já estão sincronizadas; nenhum arquivo alterado.',
+  blockedSkipValidation: (rerun: string) =>
+    `Pular a validação requer confirmação, e não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
+  blockedIncompleteTasks: (count: number, changeName: string, rerun: string) =>
+    `${count} tarefa(s) incompleta(s) encontrada(s) na alteração '${changeName}', e não foi possível ler uma resposta do stdin.\nCorreção: conclua as tarefas ou execute novamente com ${rerun}`,
+  blockedSpecUpdatesConfirmation: (count: number, rerun: string) =>
+    `Atualizar ${count} especificação(ões) requer confirmação, e não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
+  blockedChangeNameRequired: (rerun: string) =>
+    `Um nome de alteração é obrigatório: não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -970,6 +978,9 @@ export const VALIDATOR_MESSAGES = {
   requirementInAddedAndRemoved: (name: string) => `Requisito presente em ADDED e REMOVED: "${name}"`,
   modifiedReferencesOldRenamed: (to: string) => `MODIFIED referencia nome antigo de RENAMED. Use o novo cabeçalho para "${to}"`,
   renamedToCollidesAdded: (to: string) => `RENAMED TO colide com ADDED para "${to}"`,
+  requirementInRenamedAndRemoved: (from: string, removedSpelling?: string) =>
+    `Requisito presente em RENAMED e REMOVED: "${from}"` +
+    (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
   deltaSectionsEmpty: (sections: string) => `Seções de delta ${sections} foram encontradas, mas nenhuma entrada de requisito foi analisada. Certifique-se de que cada seção inclua pelo menos um bloco "### Requirement:" (REMOVED pode usar sintaxe de lista com marcadores).`,
   noDeltaSectionsFound: 'Nenhuma seção de delta encontrada. Adicione cabeçalhos como "## ADDED Requirements" ou mova notas que não sejam deltas para fora de specs/.',
   rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar em uma pasta de capability (ex.: specs/<capability>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
@@ -1677,9 +1688,9 @@ Quando uma change está completa, nós a arquivamos. Isso a move de \`openspec/c
 As changes arquivadas se tornam o histórico de decisões do seu projeto - você sempre pode encontrá-las depois para entender por que algo foi construído de certa forma.
 \`\`\`
 
-**FAÇA:**
+**FAÇA:** Arquive a change (\`--yes\` responde às perguntas de confirmação, que você não consegue responder a partir de uma chamada de ferramenta):
 \`\`\`bash
-openspec archive "<nome>"
+openspec archive "<nome>" --yes
 \`\`\`
 
 **MOSTRE:**
@@ -1722,7 +1733,7 @@ Este mesmo ritmo funciona para qualquer tamanho de change - uma pequena correç�
  | \`/opsx:apply\`   | Implementa tarefas de uma change            |
  | \`/opsx:archive\` | Arquiva uma change concluída                |
 
-**Comandos adicionais:**
+**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
 
  | Comando            | O que faz                                              |
  |--------------------|--------------------------------------------------------|
@@ -1750,7 +1761,7 @@ Se o usuário disser que precisa parar, quer pausar, ou parecer desengajado:
 Sem problema! Sua change está salva em \`openspec/changes/<nome>/\`.
 
 Para retomar de onde paramos depois:
-- \`/opsx:continue <nome>\` - Retoma a criação de artifacts
+- \`/opsx:continue <nome>\` - Retoma a criação de artifacts (se instalado; caso contrário \`openspec status --change "<nome>" --json\` mostra o próximo artifact)
 - \`/opsx:apply <nome>\` - Pula para implementação (se tasks existirem)
 
 O trabalho não será perdido. Volte quando estiver pronto.
@@ -1774,7 +1785,7 @@ Se o usuário disser que apenas quer ver os comandos ou pular o tutorial:
  | \`/opsx:apply <nome>\`   | Implementa tarefas                          |
  | \`/opsx:archive <nome>\` | Arquiva quando concluído                    |
 
-**Comandos adicionais:**
+**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
 
  | Comando                   | O que faz                        |
  |---------------------------|----------------------------------|
@@ -2313,8 +2324,6 @@ export const SPECS_APPLY_MESSAGES = {
     `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - origem não encontrada`,
   renamedFailedTargetExists: (specName: string, reqName: string) =>
     `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - destino já existe`,
-  removedFailedNotFound: (specName: string, reqName: string) =>
-    `${specName} REMOVED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
   modifiedFailedNotFound: (specName: string, reqName: string) =>
     `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
   modifiedFailedHeaderMismatch: (specName: string, reqName: string) =>
@@ -2324,15 +2333,29 @@ export const SPECS_APPLY_MESSAGES = {
   addedFailedAlreadyExists: (specName: string, reqName: string) =>
     `${specName} ADDED falhou para cabeçalho "### Requirement: ${reqName}" - já existe`,
   applyingChangesTo: (specPath: string) => `Aplicando alterações em openspec/specs/${specPath}/spec.md:`,
-  wouldApplyChangesTo: (specPath: string) => `Aplicaria alterações em openspec/specs/${specPath}/spec.md:`,
   countAdded: (n: number) => `  + ${n} adicionado(s)`,
   countModified: (n: number) => `  ~ ${n} modificado(s)`,
   countRemoved: (n: number) => `  - ${n} removido(s)`,
   countRenamed: (n: number) => `  → ${n} renomeado(s)`,
   skeletonPurpose: (changeName: string) => `A definir - criado ao arquivar alteração ${changeName}. Atualize o Purpose após o arquivamento.`,
-  changeNotFound: (changeName: string) => `Alteração '${changeName}' não encontrada.`,
-  validationErrorsInRebuiltSpec: (specName: string, errors: string) =>
-    `Erros de validação na especificação reconstruída para ${specName}:\n${errors}`,
+  warning: (message: string) => `⚠️  Aviso: ${message}`,
+  deltaPurposeIgnoredExisting: (specName: string, targetPath: string) =>
+    `${specName} - Purpose do delta ignorado; ${specName} já possui um. Edite ${targetPath} diretamente para alterá-lo.`,
+  deltaPurposeIgnoredUnreadable: (specName: string) =>
+    `${specName} - Purpose do delta ignorado (deixaria o novo spec ilegível); o Purpose placeholder foi escrito em seu lugar.`,
+  carriedPurposeTooBrief: (specName: string, minLength: number) =>
+    `${specName} - Purpose carregado tem menos de ${minLength} caracteres; openspec validate --strict o reporta como muito breve.`,
+  removedRequirementsIgnoredNewSpec: (specName: string, count: number) =>
+    `${specName} - ${count} requisito(s) REMOVED ignorado(s) para nova spec (nada a remover).`,
+  removedAlreadySynced: (specName: string, reqName: string) =>
+    `${specName} - requisito REMOVED "${reqName}" não está no spec atual; tratando como já removido.`,
+  absorbedNoteGoesWithRequirement: (specName: string, heading: string, reqName: string) =>
+    `${specName} - "${heading}" está dentro do requisito "${reqName}" e vai com ele. Mova-o para sob seu próprio requisito, ou para acima de \`## Requirements\`, para mantê-lo.`,
+  removedFailedNotFoundNearMiss: (specName: string, reqName: string, nearMissName: string) =>
+    `${specName} REMOVED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado, mas "### Requirement: ${nearMissName}" existe; corrija o cabeçalho para corresponder exatamente`,
+  renamedRemovedConflict: (specName: string, fromName: string, removedSpelling?: string) =>
+    `${specName} validação falhou - requisito presente em múltiplas seções (RENAMED e REMOVED) para cabeçalho "### Requirement: ${fromName}"` +
+    (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
 };
 
 // ═══════════════════════════════════════════════════════════

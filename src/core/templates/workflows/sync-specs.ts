@@ -69,9 +69,14 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       **RENAMED Requirements:**
       - Encontre o requisito FROM, renomeie para TO
 
+      **\`## Purpose\` no delta:**
+      - O spec principal já tem um e ele é a fonte autoritativa — não mexa nele
+        (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
+
    d. **Crie um novo spec principal** se a capability ainda não existir:
       - Crie \`openspec/specs/<capability>/spec.md\`
-      - Adicione a seção Purpose (pode ser breve, marque como TBD)
+      - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
+        (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
 
 4. **Exiba o resumo**
@@ -79,10 +84,16 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
+   - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
+     para que ele seja escrito agora em vez de ficar pendente
 
 **Referência de Formato de Delta Spec**
 
 \`\`\`markdown
+## Purpose
+
+Somente em um delta que introduz uma capability totalmente nova. Semeia o novo spec principal.
+
 ## ADDED Requirements
 
 ### Requirement: New Feature
@@ -211,9 +222,14 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       **RENAMED Requirements:**
       - Encontre o requisito FROM, renomeie para TO
 
+      **\`## Purpose\` no delta:**
+      - O spec principal já tem um e ele é a fonte autoritativa — não mexa nele
+        (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
+
    d. **Crie um novo spec principal** se a capability ainda não existir:
       - Crie \`openspec/specs/<capability>/spec.md\`
-      - Adicione a seção Purpose (pode ser breve, marque como TBD)
+      - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
+        (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
 
 4. **Exiba o resumo**
@@ -221,10 +237,16 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
+   - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
+     para que ele seja escrito agora em vez de ficar pendente
 
 **Referência de Formato de Delta Spec**
 
 \`\`\`markdown
+## Purpose
+
+Somente em um delta que introduz uma capability totalmente nova. Semeia o novo spec principal.
+
 ## ADDED Requirements
 
 ### Requirement: New Feature

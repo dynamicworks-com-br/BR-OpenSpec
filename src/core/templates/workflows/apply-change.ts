@@ -46,7 +46,7 @@ export function getApplyChangeSkillTemplate(): SkillTemplate {
    - Instrução dinâmica baseada no estado atual
 
    **Trate os estados:**
-   - Se \`state: "blocked"\` (artifacts ausentes): exiba mensagem, sugira usar openspec-continue-change
+   - Se \`state: "blocked"\` (artifacts ausentes): exiba mensagem, sugira usar openspec-continue-change (se não estiver instalado, rode \`openspec status --change "<name>" --json\` para ver o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` para saber como criá-lo)
    - Se \`state: "all_done"\`: parabenize, sugira arquivar
    - Caso contrário: prossiga para a implementação
 
@@ -203,7 +203,7 @@ export function getOpsxApplyCommandTemplate(): CommandTemplate {
    - Instrução dinâmica baseada no estado atual
 
    **Trate os estados:**
-   - Se \`state: "blocked"\` (artifacts ausentes): exiba mensagem, sugira usar \`/opsx:continue\`
+   - Se \`state: "blocked"\` (artifacts ausentes): exiba mensagem, sugira usar \`/opsx:continue\` (se não estiver instalado, rode \`openspec status --change "<name>" --json\` para ver o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` para saber como criá-lo)
    - Se \`state: "all_done"\`: parabenize, sugira arquivar
    - Caso contrário: prossiga para a implementação
 

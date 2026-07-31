@@ -58,6 +58,8 @@ Uma mudança descreve suas edições às specs com três tipos de seção. Usar 
 
 No arquivamento, ADDED é anexado à spec principal, MODIFIED substitui a versão antiga, e REMOVED é deletado. Se você marcar uma mudança real como ADDED, acaba com dois requisitos concorrentes; se descrever comportamento novo como MODIFIED, não há nada a substituir. Na dúvida, abra a spec atual e veja se o requisito já está lá.
 
+Vale conhecer mais uma seção. Quando seu delta cria uma capability que ainda não existe, abra-o com `## Purpose` — uma frase ou duas sobre para que serve a capability. O arquivamento a usa como o Purpose da spec principal que ele cria; se você a omitir, ganha um placeholder `A definir` para preencher à mão. Uma spec existente já tem um Purpose, então o do delta é ignorado ali — edite `openspec/specs/<capability>/spec.md` diretamente para alterar um.
+
 ## Dimensione a mudança
 
 O erro de autoria mais comum de todos não é um requisito mal redigido — é uma mudança tentando ser três mudanças.

@@ -695,13 +695,36 @@ export class InitCommand {
     const globalCfg = getGlobalConfig();
     const activeProfile: Profile = (this.profileOverride as Profile) ?? globalCfg.profile ?? 'core';
     const activeWorkflows = [...getProfileWorkflows(activeProfile, globalCfg.workflows)];
+    const activeDelivery: Delivery = globalCfg.delivery ?? 'both';
+    const startCommand = activeWorkflows.includes('propose')
+      ? '/opsx:propose'
+      : activeWorkflows.includes('new')
+        ? '/opsx:new'
+        : null;
     console.log();
-    if (activeWorkflows.includes('propose')) {
+    if (startCommand) {
+      // Ferramentas que invocam comandos pelo nome do arquivo (bob, qwen, ...)
+      // precisam da forma com hífen aqui também, não só nos corpos gerados.
+      const hintToTools = new Map<string, string[]>();
+      for (const tool of successfulTools) {
+        const transformer = getTransformerForTool(tool.value, activeDelivery);
+        const hint = transformer ? transformer(startCommand) : startCommand;
+        hintToTools.set(hint, [...(hintToTools.get(hint) ?? []), tool.name]);
+      }
+      const hintLines =
+        hintToTools.size === 0
+          ? [startCommand]
+          : hintToTools.size === 1
+            ? [...hintToTools.keys()]
+            : [...hintToTools.entries()].map(([hint, toolNames]) => `${hint} (${toolNames.join(', ')})`);
       console.log(chalk.bold(INIT_MESSAGES.gettingStarted));
-      console.log(INIT_MESSAGES.startFirstChangePropose('/opsx:propose "sua ideia"'));
-    } else if (activeWorkflows.includes('new')) {
-      console.log(chalk.bold(INIT_MESSAGES.gettingStarted));
-      console.log(INIT_MESSAGES.startFirstChangeNew('/opsx:new "sua ideia"'));
+      for (const line of hintLines) {
+        const message =
+          startCommand === '/opsx:propose'
+            ? INIT_MESSAGES.startFirstChangePropose(`${line} "sua ideia"`)
+            : INIT_MESSAGES.startFirstChangeNew(`${line} "sua ideia"`);
+        console.log(message);
+      }
     } else {
       console.log(INIT_MESSAGES.configureWorkflowsHint);
     }

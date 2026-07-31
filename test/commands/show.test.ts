@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 
 describe('top-level show command', () => {
   const projectRoot = process.cwd();
@@ -62,6 +62,28 @@ describe('top-level show command', () => {
     } finally {
       process.chdir(originalCwd);
     }
+  });
+
+  it('does not warn about spec-only flags that were never passed', () => {
+    // O commander define `scenarios` como true por padrão para --no-scenarios,
+    // então um simples `show <change>` não deve avisar sobre uma flag que o
+    // usuário nunca digitou.
+    const res = spawnSync('node', [openspecBin, 'show', 'demo', '--json'], {
+      encoding: 'utf-8',
+      cwd: testDir,
+    });
+    expect(res.status).toBe(0);
+    expect(res.stderr).not.toContain('não se aplicam');
+  });
+
+  it('still warns when --no-scenarios is explicitly passed for a change', () => {
+    const res = spawnSync(
+      'node',
+      [openspecBin, 'show', 'demo', '--json', '--no-scenarios'],
+      { encoding: 'utf-8', cwd: testDir }
+    );
+    expect(res.status).toBe(0);
+    expect(res.stderr).toContain('Ignorando flags que não se aplicam a change: scenarios');
   });
 
   it('auto-detects spec id and supports spec-only flags', () => {

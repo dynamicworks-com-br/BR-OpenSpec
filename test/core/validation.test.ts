@@ -446,6 +446,63 @@ Then result`;
   });
 
   describe('validateChangeDeltaSpecs with metadata', () => {
+    it('rejects a delta that both renames and removes the same requirement', async () => {
+      // Paridade com o archive: a aplicação rejeita essa contradição, então o
+      // validate deve sinalizá-la também em vez de reportar a change como válida.
+      const changeDir = path.join(testDir, 'rename-remove-conflict');
+      const specsDir = path.join(changeDir, 'specs', 'test-spec');
+      await fs.mkdir(specsDir, { recursive: true });
+
+      const deltaSpec = `# Test Spec
+
+## RENAMED Requirements
+
+- FROM: \`### Requirement: Old name\`
+- TO: \`### Requirement: New name\`
+
+## REMOVED Requirements
+
+### Requirement: Old name`;
+
+      await fs.writeFile(path.join(specsDir, 'spec.md'), deltaSpec);
+
+      const validator = new Validator(true);
+      const report = await validator.validateChangeDeltaSpecs(changeDir);
+
+      expect(report.valid).toBe(false);
+      const msg = report.issues.map((i) => i.message).join('\n');
+      expect(msg).toContain('Requisito presente em RENAMED e REMOVED: "Old name"');
+    });
+
+    it('rejects a case/whitespace variant of the renamed FROM header in REMOVED', async () => {
+      // A contradição é a mesma quando o REMOVED escreve o cabeçalho FROM com
+      // caixa ou espaçamento diferente - a identidade com fold deve pegá-la.
+      const changeDir = path.join(testDir, 'rename-remove-case-conflict');
+      const specsDir = path.join(changeDir, 'specs', 'test-spec');
+      await fs.mkdir(specsDir, { recursive: true });
+
+      const deltaSpec = `# Test Spec
+
+## RENAMED Requirements
+
+- FROM: \`### Requirement: Old Name\`
+- TO: \`### Requirement: New Name\`
+
+## REMOVED Requirements
+
+### Requirement: old   name`;
+
+      await fs.writeFile(path.join(specsDir, 'spec.md'), deltaSpec);
+
+      const validator = new Validator(true);
+      const report = await validator.validateChangeDeltaSpecs(changeDir);
+
+      expect(report.valid).toBe(false);
+      const msg = report.issues.map((i) => i.message).join('\n');
+      expect(msg).toContain('Requisito presente em RENAMED e REMOVED: "Old Name"');
+      expect(msg).toContain('(REMOVED o escreve como "old   name")');
+    });
+
     it('should validate requirement with metadata before SHALL/MUST text', async () => {
       const changeDir = path.join(testDir, 'test-change');
       const specsDir = path.join(changeDir, 'specs', 'test-spec');

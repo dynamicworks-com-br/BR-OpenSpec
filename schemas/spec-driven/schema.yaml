@@ -68,6 +68,16 @@ artifacts:
       - **CRITICAL**: Os cenários MUST usar exatamente 4 cerquilhas (`####`). Usar 3 cerquilhas ou marcadores falha silenciosamente.
       - Todo requirement MUST ter pelo menos um cenário.
 
+      Somente capabilities novas: comece a spec delta com uma seção `## Purpose` -
+      uma ou duas frases (50+ caracteres, ou `openspec validate --strict`
+      a reporta como muito breve) descrevendo para que serve a capability. O archive
+      a copia para o spec principal que ele cria; sem ela, o novo spec principal
+      fica com um placeholder `A definir - criado ao arquivar alteração ...` para
+      preencher à mão. NÃO adicione `## Purpose` a um delta de uma capability existente -
+      esse spec já tem um e o do delta é ignorado. Para alterar o Purpose de uma
+      capability existente - incluindo um placeholder `A definir` que sobrou -
+      edite `openspec/specs/<capability>/spec.md` diretamente.
+
       Fluxo de trabalho de requirements MODIFIED:
       1. Localize o requirement existente em openspec/specs/<capability>/spec.md
       2. Copie o bloco INTEIRO do requirement (de `### Requirement:` até todos os cenários)
@@ -77,8 +87,12 @@ artifacts:
       Armadilha comum: Usar MODIFIED com conteúdo parcial perde detalhe no momento do arquivamento.
       Se estiver adicionando novas preocupações sem alterar o comportamento existente, use ADDED.
 
-      Example:
+      Example (capability nova, então abre com `## Purpose`):
       ```
+      ## Purpose
+
+      Lets users take their data out of the product in a portable format.
+
       ## ADDED Requirements
 
       ### Requirement: User can export data
