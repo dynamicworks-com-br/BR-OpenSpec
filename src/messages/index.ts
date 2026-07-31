@@ -972,6 +972,7 @@ export const VALIDATOR_MESSAGES = {
   renamedToCollidesAdded: (to: string) => `RENAMED TO colide com ADDED para "${to}"`,
   deltaSectionsEmpty: (sections: string) => `Seções de delta ${sections} foram encontradas, mas nenhuma entrada de requisito foi analisada. Certifique-se de que cada seção inclua pelo menos um bloco "### Requirement:" (REMOVED pode usar sintaxe de lista com marcadores).`,
   noDeltaSectionsFound: 'Nenhuma seção de delta encontrada. Adicione cabeçalhos como "## ADDED Requirements" ou mova notas que não sejam deltas para fora de specs/.',
+  rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar em uma pasta de capability (ex.: specs/<capability>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2404,7 +2405,6 @@ export const CHANGE_UTILS_MESSAGES = {
   nameNoEndHyphen: 'O nome da alteração não pode terminar com hífen',
   nameNoConsecutiveHyphens: 'O nome da alteração não pode conter hífens consecutivos',
   nameOnlyAllowedChars: 'O nome da alteração pode conter apenas letras minúsculas, números e hífens',
-  nameMustStartWithLetter: 'O nome da alteração deve começar com uma letra',
   nameKebabCase: 'O nome da alteração deve seguir a convenção kebab-case (ex: add-auth, refactor-db)',
 };
 

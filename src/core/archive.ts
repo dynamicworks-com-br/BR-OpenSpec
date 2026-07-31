@@ -111,10 +111,23 @@ export class ArchiveCommand {
       try {
         await fs.access(changeFile);
         const changeReport = await validator.validateChange(changeFile);
-        // Proposal validation is informative only (do not block archive)
-        if (!changeReport.valid) {
+        // Proposal validation is informative only (do not block archive).
+        // `validateChange` parses the change together with its delta specs,
+        // so it also raises requirement-level issues under
+        // `deltas.<n>.requirement(s)`. Those
+        // are not proposal problems, and reporting them here was noisy and
+        // sometimes wrong (#498): the change parser records every requirement
+        // under both `requirement` and `requirements`, so each defect was
+        // printed twice, and REMOVED requirements — names-only by design —
+        // produced a "missing scenario" warning for a correct removal.
+        // Genuine delta defects are still caught below, by the delta spec
+        // validation and by the rebuilt-spec check that runs before any write.
+        const proposalIssues = changeReport.issues.filter(
+          (issue) => !/^deltas\.\d+\.requirements?\./.test(issue.path)
+        );
+        if (!changeReport.valid && proposalIssues.length > 0) {
           console.log(chalk.yellow(`\n${ARCHIVE_MESSAGES.proposalWarnings}`));
-          for (const issue of changeReport.issues) {
+          for (const issue of proposalIssues) {
             const symbol = issue.level === 'ERROR' ? '⚠' : (issue.level === 'WARNING' ? '⚠' : 'ℹ');
             console.log(chalk.yellow(`  ${symbol} ${issue.message}`));
           }
@@ -125,8 +138,14 @@ export class ArchiveCommand {
 
       // Validate delta-formatted spec files under the change directory if present
       const changeSpecsDir = path.join(changeDir, 'specs');
-      let hasDeltaSpecs = false;
-      for (const { specFile } of await discoverSpecFiles(changeSpecsDir)) {
+      // A spec.md at the specs/ root is never merged, so archiving a change
+      // that has one drops its content whether or not it carries delta headers
+      // (#1385). Its existence alone must run validation, which reports it and
+      // blocks the archive. A directory named spec.md is a normal capability
+      // folder, so only a regular file counts.
+      const rootSpecStat = await fs.stat(path.join(changeSpecsDir, 'spec.md')).catch(() => null);
+      let hasDeltaSpecs = rootSpecStat?.isFile() === true;
+      for (const { specFile } of hasDeltaSpecs ? [] : await discoverSpecFiles(changeSpecsDir)) {
         try {
           const content = await fs.readFile(specFile, 'utf-8');
           if (/^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements/m.test(content)) {

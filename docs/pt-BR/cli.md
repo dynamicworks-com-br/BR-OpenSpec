@@ -413,12 +413,11 @@ Cria um diretório de mudança na pasta `openspec/changes/` do projeto.
 openspec new change <nome> [opções]
 ```
 
-Nomes de mudança devem usar kebab-case em minúsculas. Começam com uma letra
-minúscula, seguida de letras minúsculas, números e hífens simples. Não podem
-começar com número, nem conter espaços, underscores, letras maiúsculas,
-hífens consecutivos ou hífens no início/fim. Ao incluir um ID de ticket
-externo, prefixe-o com uma palavra, por exemplo
-`ticket-123-add-notifications` em vez de `123-add-notifications`.
+Nomes de mudança devem usar kebab-case em minúsculas: letras minúsculas,
+números e hífens simples. Não podem conter espaços, underscores, letras
+maiúsculas, hífens consecutivos ou hífens no início/fim. É permitido começar
+com número, então você pode prefixar nomes para ordenar ou organizar mudanças
+em camadas, por exemplo `100-add-feature` ou `00001-add-auth`.
 
 **Opções:**
 
