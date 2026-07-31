@@ -149,6 +149,16 @@ describe('skill templates split parity', () => {
     expect(actualHashes).toEqual(EXPECTED_GENERATED_SKILL_CONTENT_HASHES);
   });
 
+  // The assertion above only compares the skills this file already lists, so a
+  // workflow added to getSkillTemplates() but never pinned here would ship with
+  // no golden hash and nothing would fail. Pin the registry itself.
+  it('pins every skill the production registry deploys', () => {
+    const pinned = Object.keys(EXPECTED_GENERATED_SKILL_CONTENT_HASHES).sort();
+    const deployed = getSkillTemplates().map(({ dirName }) => dirName).sort();
+
+    expect(pinned, 'add the new skill to EXPECTED_GENERATED_SKILL_CONTENT_HASHES').toEqual(deployed);
+  });
+
   // Auto-approve workflow tools: every generated skill carries allowed-tools
   // so agents that honor it stop prompting on each openspec call and common
   // workflow operations. Iterating the registry covers new skills too.
