@@ -522,6 +522,7 @@ export const CONFIG_MESSAGES = {
   invalidConfigKey: (key: string, reason: string) => `Chave de configuração inválida "${key}".${reason}`,
   useConfigList: 'Use "openspec config list" para ver as chaves disponíveis.',
   passAllowUnknown: 'Passe --allow-unknown para ignorar esta verificação.',
+  configKeySegmentNotAllowed: (segment: string) => `O segmento de chave "${segment}" não é permitido`,
   invalidConfiguration: (error: string) => `Configuração inválida - ${error}`,
   setKeyValue: (key: string, value: string) => `Definido ${key} = ${value}`,
   unsetKey: (key: string) => `Removido ${key} (revertido para o padrão)`,
