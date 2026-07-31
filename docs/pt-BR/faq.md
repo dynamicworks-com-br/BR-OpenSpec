@@ -22,7 +22,7 @@ Bases de código existentes são o prato principal. O BR-OpenSpec é brownfield-
 
 ### É amarrado a uma ferramenta de IA?
 
-Não. O BR-OpenSpec funciona com mais de 25 assistentes, incluindo Claude Code, Cursor, Devin Desktop, GitHub Copilot, Gemini CLI, Codex e outros. A lista completa e os detalhes por ferramenta estão em [Ferramentas Suportadas](supported-tools.md).
+Não. O BR-OpenSpec funciona com mais de 30 assistentes, incluindo Claude Code, Cursor, Devin Desktop, GitHub Copilot, Gemini CLI, Codex e outros. A lista completa e os detalhes por ferramenta estão em [Ferramentas Suportadas](supported-tools.md).
 
 ## Rodando comandos
 
@@ -66,7 +66,7 @@ Explore para pensar, propose para elaborar o plano, apply para construir, archiv
 
 ### O que são os perfis `core` e expandido?
 
-Um perfil decide quais slash commands são instalados. **Core** (o padrão) dá a você `propose`, `explore`, `apply`, `sync`, `archive`. O conjunto **expandido** adiciona `new`, `continue`, `ff`, `verify`, `bulk-archive` e `onboard` para controle mais fino. Troque com `openspec config profile`, depois aplique com `openspec update`.
+Um perfil decide quais slash commands são instalados. **Core** (o padrão) dá a você `propose`, `explore`, `apply`, `update`, `sync`, `archive`. O conjunto **expandido** adiciona `new`, `continue`, `ff`, `verify`, `bulk-archive` e `onboard` para controle mais fino. Troque com `openspec config profile`, depois aplique com `openspec update`.
 
 ### Preciso rodar `/opsx:sync`?
 

@@ -1,6 +1,6 @@
 # Exemplos e Receitas
 
-Mudanças reais, do início ao fim. Cada receita mostra os comandos que você digitaria e o que veria de volta, para que você possa casar sua situação com um padrão e copiá-lo. Elas usam os comandos **core** padrão (`propose`, `explore`, `apply`, `sync`, `archive`); onde o conjunto expandido ajuda, está indicado.
+Mudanças reais, do início ao fim. Cada receita mostra os comandos que você digitaria e o que veria de volta, para que você possa casar sua situação com um padrão e copiá-lo. Elas usam os comandos **core** padrão (`propose`, `explore`, `apply`, `update`, `sync`, `archive`); onde o conjunto expandido ajuda, está indicado.
 
 Um lembrete antes de começar: slash commands como `/opsx:propose` vão no **chat do seu assistente de IA**, e comandos `openspec` vão no seu **terminal**. Se isso é novidade, leia [Como os Comandos Funcionam](how-commands-work.md) primeiro. Nas transcrições abaixo, `Você:` e `IA:` são o chat, e linhas começando com `$` são o terminal.
 

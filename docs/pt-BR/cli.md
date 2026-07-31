@@ -67,7 +67,7 @@ Estas opções funcionam com todos os comandos:
 
 Inicializar o BR-OpenSpec no seu projeto. Cria a estrutura de pastas e configura as integrações com ferramentas de IA.
 
-O comportamento padrão usa os valores globais de configuração: perfil `core`, entrega `both`, fluxos de trabalho `propose, explore, apply, sync, archive`.
+O comportamento padrão usa os valores globais de configuração: perfil `core`, entrega `both`, fluxos de trabalho `propose, explore, apply, update, sync, archive`.
 
 ```
 openspec init [path] [options]

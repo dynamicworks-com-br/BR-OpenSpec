@@ -61,7 +61,7 @@ Uma coisa que *é* genuinamente interativa vive no terminal: `openspec view`. El
 
 ## Por que essa divisão existe
 
-Vale entender, porque explica por que o BR-OpenSpec funciona com mais de 25 ferramentas de IA diferentes.
+Vale entender, porque explica por que o BR-OpenSpec funciona com mais de 30 ferramentas de IA diferentes.
 
 A CLI é o **motor**. Ela conhece as regras: como é uma pasta de mudança, quais artefatos dependem de quais, como mesclar uma delta spec na sua fonte de verdade. É a mesma em todo lugar.
 

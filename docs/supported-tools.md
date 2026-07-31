@@ -13,6 +13,7 @@ By default, BR-OpenSpec uses the `core` profile, which includes:
 - `propose`
 - `explore`
 - `apply`
+- `update`
 - `sync`
 - `archive`
 
@@ -160,9 +161,9 @@ openspec init --profile core
 
 BR-OpenSpec installs workflow artifacts based on selected workflows:
 
-- **Core profile (default):** `propose`, `explore`, `apply`, `sync`, `archive`
+- **Core profile (default):** `propose`, `explore`, `apply`, `update`, `sync`, `archive`
 - **Custom selection:** any subset of all workflow IDs:
-  `propose`, `explore`, `new`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`, `code-review`, `onboard`
+  `propose`, `explore`, `new`, `continue`, `apply`, `update`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`, `code-review`, `onboard`
 
 In other words, skill/command counts are profile-dependent and delivery-dependent, not fixed.
 

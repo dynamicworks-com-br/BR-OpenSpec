@@ -126,6 +126,8 @@ cd your-project
 openspec init
 ```
 
+> **Want your AI to do it?** Paste the [setup prompt](docs/installation.md#install-with-your-ai-assistant) into your coding assistant — it installs the CLI, runs `openspec init`, and verifies the result.
+
 Now talk to your AI:
 
 - **Not sure what to build yet?** Start with `/opsx:explore`, a no-stakes thinking partner that reads your code, weighs options, and shapes a plan before anything is written. ([Explore guide](docs/explore.md))
@@ -136,7 +138,7 @@ Both are in the default profile. If you want the expanded workflow (`/opsx:new`,
 `/opsx:propose` is the canonical name; your tool may spell it `/opsx-propose` (Cursor, GitHub Copilot, Codex prompts), `@opsx-propose` (Amazon Q) or `$openspec-propose` (Codex skills). `openspec init` prints the right form for the tools you picked — see [How To Invoke](docs/supported-tools.md#how-to-invoke).
 
 > [!NOTE]
-> Not sure if your tool is supported? [View the full list](docs/supported-tools.md) – we support 25+ tools and growing.
+> Not sure if your tool is supported? [View the full list](docs/supported-tools.md) – we support 30+ tools and growing.
 >
 > Also works with pnpm, yarn, bun, and nix. [See installation options](docs/installation.md).
 

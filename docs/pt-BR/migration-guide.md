@@ -8,7 +8,7 @@ O OPSX substitui o antigo fluxo de trabalho baseado em fases por uma abordagem f
 
 | Aspecto | Legado | OPSX |
 |--------|--------|------|
-| **Comandos** | `/openspec:proposal`, `/openspec:apply`, `/openspec:archive` | Padrão: `/opsx:propose`, `/opsx:apply`, `/opsx:sync`, `/opsx:archive` (comandos de fluxo de trabalho expandido opcionais) |
+| **Comandos** | `/openspec:proposal`, `/openspec:apply`, `/openspec:archive` | Padrão: `/opsx:propose`, `/opsx:explore`, `/opsx:apply`, `/opsx:update`, `/opsx:sync`, `/opsx:archive` (comandos de fluxo de trabalho expandido opcionais) |
 | **Fluxo de trabalho** | Criar todos os artefatos de uma vez | Criar incrementalmente ou tudo de uma vez—sua escolha |
 | **Retroceder** | Fases bloqueantes difíceis | Natural—atualize qualquer artefato a qualquer momento |
 | **Personalização** | Estrutura fixa | Orientado por schema, totalmente personalizável |
@@ -84,7 +84,7 @@ Não se preocupe em acertar de primeira. Ainda estamos aprendendo o que funciona
 
 Tanto `openspec init` quanto `openspec update` detectam arquivos legados e guiam você pelo mesmo processo de limpeza. Use o que melhor se adaptar à sua situação:
 
-- Novas instalações padrão ao perfil `core` (`propose`, `explore`, `apply`, `sync`, `archive`).
+- Novas instalações padrão ao perfil `core` (`propose`, `explore`, `apply`, `update`, `sync`, `archive`).
 - Instalações migradas preservam seus fluxos de trabalho instalados anteriormente gravando um perfil `custom` quando necessário.
 
 ### Usando `openspec init`
@@ -287,6 +287,8 @@ A disponibilidade de comandos depende do perfil:
 | `/opsx:propose` | Criar uma mudança e gerar artefatos de planejamento em um único passo |
 | `/opsx:explore` | Explorar ideias sem estrutura |
 | `/opsx:apply` | Implementar tarefas do tasks.md |
+| `/opsx:update` | Revisar os artefatos de planejamento de uma mudança e mantê-los coerentes |
+| `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:archive` | Finalizar e arquivar a mudança |
 
 **Fluxo de trabalho expandido (seleção personalizada):**
@@ -298,7 +300,6 @@ A disponibilidade de comandos depende do perfil:
 | `/opsx:ff` | Fast-forward—criar artefatos de planejamento de uma vez |
 | `/opsx:verify` | Validar se a implementação corresponde às specs |
 | `/opsx:code-review` | Revisar diffs, branches, PRs ou arquivos com contexto do projeto |
-| `/opsx:sync` | Mesclar delta specs nas specs principais |
 | `/opsx:bulk-archive` | Arquivar múltiplas mudanças de uma vez |
 | `/opsx:onboard` | Fluxo de trabalho de integração guiado de ponta a ponta |
 
@@ -562,7 +563,9 @@ project/
 │       ├── openspec-propose/     # perfil core padrão
 │       ├── openspec-explore/
 │       ├── openspec-apply-change/
+│       ├── openspec-update-change/
 │       ├── openspec-sync-specs/
+│       ├── openspec-archive-change/
 │       └── ...                   # perfil expandido adiciona new/continue/ff/etc.
 ├── CLAUDE.md                     # Marcadores do BR-OpenSpec removidos, seu conteúdo preservado
 └── AGENTS.md                     # Marcadores do BR-OpenSpec removidos, seu conteúdo preservado

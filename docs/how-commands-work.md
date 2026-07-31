@@ -61,7 +61,7 @@ One thing that *is* genuinely interactive lives in the terminal: `openspec view`
 
 ## Why this split exists
 
-It's worth understanding, because it explains why BR-OpenSpec works with 25+ different AI tools.
+It's worth understanding, because it explains why BR-OpenSpec works with 30+ different AI tools.
 
 The CLI is the **engine**. It knows the rules: what a change folder looks like, which artifacts depend on which, how to merge a delta spec into your source of truth. It's the same everywhere.
 

@@ -15,6 +15,8 @@ openspec --version
 
 If it installed but still isn't found, your global npm prefix probably isn't on your `PATH`. Run `npm config get prefix` to see the prefix directory. On Unix/macOS/Linux, global executables live under `<prefix>/bin`; on Windows they live directly under `<prefix>`. Add the applicable directory to your shell profile or `PATH`.
 
+If you used the [AI-assisted install](installation.md#install-with-your-ai-assistant), this is the expected hand-off point: that prompt tells your assistant to show you the `PATH` change rather than edit your shell startup files itself.
+
 ### "Requires Node.js 20.19.0 or higher"
 
 BR-OpenSpec runs on Node 20.19.0+. Check your version and upgrade if needed:
