@@ -22,7 +22,7 @@ Bases de código existentes são o prato principal. O BR-OpenSpec é brownfield-
 
 ### É amarrado a uma ferramenta de IA?
 
-Não. O BR-OpenSpec funciona com mais de 25 assistentes, incluindo Claude Code, Cursor, Windsurf, GitHub Copilot, Gemini CLI, Codex e outros. A lista completa e os detalhes por ferramenta estão em [Ferramentas Suportadas](supported-tools.md).
+Não. O BR-OpenSpec funciona com mais de 25 assistentes, incluindo Claude Code, Cursor, Devin Desktop, GitHub Copilot, Gemini CLI, Codex e outros. A lista completa e os detalhes por ferramenta estão em [Ferramentas Suportadas](supported-tools.md).
 
 ## Rodando comandos
 

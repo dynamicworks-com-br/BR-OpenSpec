@@ -267,14 +267,32 @@ describe('getTransformerForTool', () => {
   it('selects hyphen commands for every flat-invocation tool when commands are generated', () => {
     // Essas ferramentas invocam comandos pelo nome do arquivo (/opsx-<id>),
     // então as skills devem referenciar a forma com hífen a que seus arquivos
-    // de comando realmente respondem. codex e windsurf são os adapters flat
-    // próprios do fork (upstream os removeu/renomeou).
-    for (const toolId of ['bob', 'codex', 'cursor', 'github-copilot', 'opencode', 'pi', 'qwen', 'windsurf'] as const) {
+    // de comando realmente respondem. codex é o adapter flat próprio do fork
+    // (upstream o removeu). devin fica de fora: sob delivery 'both' ele usa
+    // referências de skill — ver o teste dedicado abaixo.
+    for (const toolId of ['bob', 'codex', 'cursor', 'github-copilot', 'opencode', 'pi', 'qwen'] as const) {
       for (const delivery of ['both', 'commands'] as const) {
         const transformer = getTransformerForTool(toolId, delivery, 'adapter-backed', FLAT_SLASH);
         expect(transformer?.('/opsx:apply'), `${toolId} ${delivery}`).toBe('/opsx-apply');
       }
     }
+  });
+
+  it('selects skill references for devin whenever skills are generated', () => {
+    // The Devin Local agent has no workflows, so Devin skill bodies and the
+    // getting-started hint must name `/openspec-*` skills, which both Devin
+    // agents accept. Workflow bodies get the hyphen form from the generator,
+    // like every other flat-invocation tool.
+    expect(getTransformerForTool('devin', 'both', 'adapter-backed', FLAT_SLASH)).toBe(
+      transformToSkillReferences
+    );
+    expect(getTransformerForTool('devin', 'skills', 'adapter-backed', FLAT_SLASH)).toBe(
+      transformToSkillReferences
+    );
+    // Under commands-only delivery no Devin skills exist to point at, so the
+    // hint falls back to the workflow name Devin registers.
+    const commandsOnly = getTransformerForTool('devin', 'commands', 'adapter-backed', FLAT_SLASH);
+    expect(commandsOnly?.('/opsx:propose')).toBe('/opsx-propose');
   });
 
   it("selects Amazon Q's @-prefixed prompt form when commands are generated", () => {

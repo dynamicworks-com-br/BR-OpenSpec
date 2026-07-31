@@ -22,7 +22,7 @@ Existing codebases are the main event. BR-OpenSpec is brownfield-first: you do n
 
 ### Is it tied to one AI tool?
 
-No. BR-OpenSpec works with 25+ assistants, including Claude Code, Cursor, Windsurf, GitHub Copilot, Gemini CLI, Codex, and more. The full list and per-tool details are in [Supported Tools](supported-tools.md).
+No. BR-OpenSpec works with 25+ assistants, including Claude Code, Cursor, Devin Desktop, GitHub Copilot, Gemini CLI, Codex, and more. The full list and per-tool details are in [Supported Tools](supported-tools.md).
 
 ## Running commands
 

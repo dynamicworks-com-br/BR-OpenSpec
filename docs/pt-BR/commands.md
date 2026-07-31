@@ -1,6 +1,6 @@
 # Comandos
 
-Esta é a referência dos comandos slash do BR-OpenSpec. Esses comandos são invocados na interface de chat do seu assistente de codificação com IA (ex.: Claude Code, Cursor, Windsurf).
+Esta é a referência dos comandos slash do BR-OpenSpec. Esses comandos são invocados na interface de chat do seu assistente de codificação com IA (ex.: Claude Code, Cursor, Devin Desktop).
 
 Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflows](workflows.md). Para comandos CLI, consulte [CLI](cli.md).
 
@@ -692,11 +692,16 @@ Diferentes ferramentas de IA usam sintaxes de comando ligeiramente diferentes. U
 | Arquivo de comando da sua ferramenta | Exemplo de sintaxe | Ferramentas de exemplo |
 |--------------------------------------|--------------------|------------------------|
 | `.../commands/opsx/<id>.*` | `/opsx:propose`, `/opsx:apply` | Claude Code, Gemini CLI, Crush |
-| `.../opsx-<id>.*` | `/opsx-propose`, `/opsx-apply` | Cursor, Windsurf, Copilot (IDE), Codex (prompts globais) |
+| `.../opsx-<id>.*` | `/opsx-propose`, `/opsx-apply` | Cursor, Devin Desktop, Copilot (IDE), Codex (prompts globais) |
 | `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose`, `@opsx-apply` | Amazon Q Developer |
 | nenhum — somente skills | `/openspec-propose`, `/openspec-apply-change` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
 | nenhum — Kimi Code | `/skill:openspec-propose` | Kimi Code |
 | skills do Codex | `$openspec-propose` | Codex |
+
+> **Devin Desktop vs Devin Local:** os arquivos `.devin/workflows/opsx-*.md` dão
+> ao Devin Desktop o `/opsx-propose`. O Devin Local não tem workflows — use as
+> skills que o BR-OpenSpec escreve em `.devin/skills/`, ex.: `/openspec-propose`,
+> que funcionam nos dois agentes.
 
 A intenção é a mesma em todas as ferramentas, mas como os comandos são exibidos pode variar por integração. [Como Invocar](supported-tools.md#como-invocar) lista todas as ferramentas suportadas; esta tabela mostra apenas exemplos de cada forma.
 

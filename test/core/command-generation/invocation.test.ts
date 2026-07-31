@@ -136,10 +136,10 @@ describe('command-generation/invocation', () => {
 
   describe('generateCommand', () => {
     it('rewrites command references to the names a flat tool registers', () => {
-      // codex and windsurf are the fork's own flat adapters (upstream renamed
-      // windsurf to devin and retired codex's adapter); qwen stays flat here
-      // even though the fork still writes it as TOML.
-      for (const toolId of ['cursor', 'github-copilot', 'opencode', 'qwen', 'windsurf', 'codex']) {
+      // codex is the fork's own flat adapter (upstream retired codex's
+      // adapter); qwen stays flat here even though the fork still writes it
+      // as TOML.
+      for (const toolId of ['cursor', 'github-copilot', 'devin', 'opencode', 'qwen', 'codex']) {
         const adapter = CommandAdapterRegistry.get(toolId)!;
         const { fileContent } = generateCommand(sampleContent, adapter);
         expect(fileContent, toolId).toContain('/opsx-archive');
@@ -179,7 +179,7 @@ describe('command-generation/invocation', () => {
       // generateCommand owns the rewrite; an adapter that re-added its own
       // body transform would break this contract even though the output of
       // generateCommand happens to be identical (the rewrite is idempotent).
-      for (const toolId of ['bob', 'opencode', 'pi', 'qwen', 'cursor', 'windsurf', 'codex']) {
+      for (const toolId of ['bob', 'opencode', 'pi', 'qwen', 'cursor', 'devin', 'codex']) {
         const adapter = CommandAdapterRegistry.get(toolId)!;
         expect(adapter.formatFile(sampleContent), toolId).toContain('/opsx:archive');
       }

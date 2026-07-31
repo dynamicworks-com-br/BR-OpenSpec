@@ -418,7 +418,7 @@ Os exemplos nesta seção usam o conjunto de comandos expandido (`new`, `continu
 │                    ▼                                                        │
 │   Arquivos de skill (.claude/skills/openspec-*/SKILL.md)                    │
 │                                                                             │
-│   • Compatível entre editores (Claude Code, Cursor, Windsurf)               │
+│   • Compatível entre editores (Claude Code, Cursor, Devin)                  │
 │   • Skills consultam a CLI por dados estruturados                           │
 │   • Totalmente personalizável via arquivos de schema                        │
 │                                                                             │

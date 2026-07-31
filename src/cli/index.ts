@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 import ora from 'ora';
 import path from 'path';
 import { promises as fs } from 'fs';
-import { AI_TOOLS } from '../core/config.js';
+import { AI_TOOLS, TOOL_ID_ALIASES } from '../core/config.js';
 import { CLI_DESCRIPTIONS, CLI_MESSAGES, CONFIG_MESSAGES } from '../messages/index.js';
 import { UpdateCommand } from '../core/update.js';
 import {
@@ -101,11 +101,14 @@ program.hook('postAction', async () => {
 });
 
 const availableToolIds = AI_TOOLS.filter((tool) => tool.skillsDir).map((tool) => tool.value);
+const toolAliasNote = Object.entries(TOOL_ID_ALIASES)
+  .map(([retired, current]) => CLI_DESCRIPTIONS.toolAlias(retired, current))
+  .join(', ');
 
 program
   .command('init [path]')
   .description(CLI_DESCRIPTIONS.init)
-  .option('--tools <tools>', CLI_DESCRIPTIONS.tools(availableToolIds.join(', ')))
+  .option('--tools <tools>', CLI_DESCRIPTIONS.tools(availableToolIds.join(', '), toolAliasNote))
   .option('--force', CLI_DESCRIPTIONS.force)
   .option('--profile <profile>', CLI_DESCRIPTIONS.profile)
   .option('--no-animation', CLI_DESCRIPTIONS.noAnimation)

@@ -43,7 +43,7 @@ Apenas os arquivos gerenciados pelo BR-OpenSpec que estão sendo substituídos:
 
 - Claude Code: `.claude/commands/openspec/`
 - Cursor: `.cursor/commands/openspec-*.md`
-- Windsurf: `.windsurf/workflows/openspec-*.md`
+- Devin Desktop, anteriormente Windsurf: `.windsurf/workflows/openspec-*.md`
 - Cline: `.clinerules/workflows/openspec-*.md`
 - Roo: `.roo/commands/openspec-*.md`
 - GitHub Copilot: `.github/prompts/openspec-*.prompt.md` (somente extensões de IDE; não suportado no Copilot CLI)

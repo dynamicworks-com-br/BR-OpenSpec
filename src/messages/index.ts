@@ -63,7 +63,8 @@ export const CLI_DESCRIPTIONS = {
   newChange: 'Cria um novo diretório de alteração',
   // Opções globais
   noColor: 'Desativa cores na saída',
-  tools: (availableToolIds: string) => `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${availableToolIds}`,
+  tools: (availableToolIds: string, toolAliasNote: string) => `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${availableToolIds}. Também aceito: ${toolAliasNote}`,
+  toolAlias: (retired: string, current: string) => `${retired} (agora ${current})`,
   force: 'Limpa arquivos legados automaticamente sem perguntar',
   profile: 'Sobrescreve o perfil da configuração global (core ou custom)',
   noAnimation: 'Exibe uma tela de boas-vindas estática em vez da animada',
@@ -905,7 +906,19 @@ export const UPDATE_MESSAGES = {
   noOpenspecDir: "Diretório do BR-OpenSpec não encontrado. Execute 'openspec init' primeiro.",
   noConfiguredTools: 'Nenhuma ferramenta configurada encontrada.',
   runInitHint: 'Execute "openspec init" para configurar ferramentas.',
-  migratedSkillDirs: (count: number, from: string, to: string) => `Migrada(s) ${count} pasta(s) de skill: ${from}/skills → ${to}/skills`,
+  // O usuário recusou a migração de um diretório renomeado: não é um projeto
+  // desconfigurado — é um configurado que ele optou por deixar no diretório
+  // antigo. Dizer "execute init" seria errado.
+  nothingToUpdateLegacyOnly: (from: string) =>
+    `Nada para atualizar: os arquivos do BR-OpenSpec deste projeto ainda estão em ${from}/, que o BR-OpenSpec não escreve mais.`,
+  rerunUpdateAcceptMove: (to: string) =>
+    `Execute "openspec update" novamente e aceite a mudança para ${to}/ para retomar as atualizações.`,
+  confirmLegacyMove: (description: string, from: string, to: string) =>
+    `Mover ${description} de ${from}/ para ${to}/?`,
+  // Diz o custo de recusar: o BR-OpenSpec escreve no diretório atual agora, e
+  // os arquivos deixados no diretório antigo deixam de ser gerenciados.
+  legacyMoveDeclined: (from: string, to: string) =>
+    `Mantido no lugar. O BR-OpenSpec agora escreve em ${to}/ e não gerenciará mais ${from}/, então esses arquivos permanecem como estão até que você os mova. Você será perguntado novamente na próxima execução.`,
   forceUpdating: (count: number, tools: string) => `Forçando atualização de ${count} ferramenta(s): ${tools}`,
   updatingTool: (name: string) => `Atualizando ${name}...`,
   updatedTool: (name: string) => `Atualizado ${name}`,
@@ -1134,6 +1147,21 @@ export const WORKFLOW_MESSAGES = {
 export const MIGRATION_MESSAGES = {
   migrated: (count: number) => `Migrado: perfil customizado com ${count} fluxos de trabalho`,
   newInThisVersion: (reference: string) => `Novo nesta versão: ${reference}. Experimente 'openspec config profile core' para a experiência simplificada.`,
+  // Resumo do que uma migração de diretório legado moveu, ex.: "6 skills e 6 comandos".
+  skillCount: (count: number) => `${count} skill${count === 1 ? '' : 's'}`,
+  commandCount: (count: number) => `${count} comando${count === 1 ? '' : 's'}`,
+  migratedToolContent: (description: string, from: string, to: string) => `Migrado(s) ${description}: ${from} → ${to}`,
+  // Nomeia arquivos gerenciados que a migração deliberadamente deixou para trás,
+  // sem afirmar que a diferença veio de uma edição: a saída de uma versão mais
+  // antiga do BR-OpenSpec também diverge. Nada foi sobrescrito; o usuário decide
+  // qual cópia manter.
+  keptInPlaceNotice: (count: number, from: string, to: string) =>
+    `${count === 1 ? 'Mantido' : 'Mantidos'} ${count} ${count === 1 ? 'arquivo' : 'arquivos'} em ${from}/ que ${count === 1 ? 'difere' : 'diferem'} da cópia em ${to}/. ` +
+    `Nada foi sobrescrito — compare as duas e exclua a cópia de ${from}/ depois de preservar o que você personalizou.`,
+  legacyMigrationNoticeDevin: (from: string, to: string) =>
+    `O Windsurf agora é Devin Desktop, e seu diretório de configuração mudou de ${from}/ para ${to}/. ` +
+    `O Devin Desktop lê ${from}/ apenas como fallback, e o Devin Local não o lê.`,
+  legacyMigrationNoticeGeneric: (from: string, to: string) => `${from}/ é o local anterior desta ferramenta; ${to}/ é o atual.`,
 };
 
 // ═══════════════════════════════════════════════════════════

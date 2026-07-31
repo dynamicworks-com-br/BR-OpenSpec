@@ -21,7 +21,7 @@ openspec list        # ver mudanças ativas
 openspec view        # abrir o dashboard interativo
 ```
 
-**Os slash commands (a metade do chat).** Comandos curtos como `/opsx:propose` e `/opsx:apply` que você digita no seu assistente de IA. Eles dizem à IA para seguir o fluxo de trabalho do BR-OpenSpec: elaborar uma proposta, escrever specs, construir a partir da lista de tarefas, arquivar ao terminar. Você os digita no Claude Code, Cursor, Windsurf, Copilot, ou qualquer assistente que use.
+**Os slash commands (a metade do chat).** Comandos curtos como `/opsx:propose` e `/opsx:apply` que você digita no seu assistente de IA. Eles dizem à IA para seguir o fluxo de trabalho do BR-OpenSpec: elaborar uma proposta, escrever specs, construir a partir da lista de tarefas, arquivar ao terminar. Você os digita no Claude Code, Cursor, Devin Desktop, Copilot, ou qualquer assistente que use.
 
 ```text
 /opsx:propose add-dark-mode    (digitado no chat da sua IA)
@@ -51,7 +51,7 @@ Você não entra em um modo especial do BR-OpenSpec. Você simplesmente abre seu
 
 Então as instruções reais são:
 
-1. Abra seu assistente de codificação com IA (Claude Code, Cursor, Windsurf, etc.) no seu projeto.
+1. Abra seu assistente de codificação com IA (Claude Code, Cursor, Devin Desktop, etc.) no seu projeto.
 2. Digite `/opsx:propose` no chat dele, o mesmo lugar onde você digita qualquer outro pedido.
 3. Observe o autocompletar: se o BR-OpenSpec estiver instalado, você verá `/opsx:propose`, `/opsx:apply` e os demais aparecerem conforme digita a barra.
 
@@ -65,7 +65,7 @@ Vale entender, porque explica por que o BR-OpenSpec funciona com mais de 25 ferr
 
 A CLI é o **motor**. Ela conhece as regras: como é uma pasta de mudança, quais artefatos dependem de quais, como mesclar uma delta spec na sua fonte de verdade. É a mesma em todo lugar.
 
-Os slash commands são o **volante**, e cada ferramenta de IA tem um levemente diferente. O Claude Code os chama de comandos. Cursor e Windsurf têm seus próprios formatos. Algumas ferramentas os chamam de skills. Quando você roda `openspec init`, o BR-OpenSpec gera o tipo certo de arquivo para cada ferramenta que você selecionou, de modo que a mesma intenção `/opsx:propose` funcione não importa qual assistente você prefira.
+Os slash commands são o **volante**, e cada ferramenta de IA tem um levemente diferente. O Claude Code os chama de comandos. Cursor e Devin Desktop têm seus próprios formatos. Algumas ferramentas os chamam de skills. Quando você roda `openspec init`, o BR-OpenSpec gera o tipo certo de arquivo para cada ferramenta que você selecionou, de modo que a mesma intenção `/opsx:propose` funcione não importa qual assistente você prefira.
 
 A força desse design: você aprende o fluxo de trabalho uma vez e o carrega entre ferramentas. O trade-off: a sintaxe exata de um comando pode diferir levemente entre ferramentas, que é a próxima seção.
 
@@ -76,11 +76,18 @@ A intenção é idêntica em todo lugar. A grafia segue o arquivo que sua ferram
 | Arquivo de comando da sua ferramenta | Como você digita | Ferramentas de exemplo |
 |--------------------------------------|------------------|------------------------|
 | `.../commands/opsx/<id>.*` | `/opsx:propose` | Claude Code, Gemini CLI, Crush |
-| `.../opsx-<id>.*` | `/opsx-propose` | Cursor, GitHub Copilot (IDE), Windsurf, Codex (prompts globais) |
+| `.../opsx-<id>.*` | `/opsx-propose` | Cursor, GitHub Copilot (IDE), Devin Desktop, Codex (prompts globais) |
 | `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose` | Amazon Q Developer |
 | nenhum — somente skills | `/openspec-propose` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
 | nenhum — Kimi Code | `/skill:openspec-propose` | Kimi Code |
 | skills do Codex | `$openspec-propose` | Codex |
+
+O Devin é a única ferramenta que ocupa duas linhas. O Devin Desktop lê
+`.devin/workflows/`, então `/opsx-propose` funciona lá; [o Devin Local não
+lê](https://docs.devin.ai/desktop/devin-local), então nesse agente use a skill
+`/openspec-propose`. As skills que o BR-OpenSpec escreve em `.devin/skills/`
+funcionam nos dois, e é por isso que elas referenciam umas às outras pelo nome
+da skill.
 
 Todas as ferramentas estão listadas em [Como Invocar](supported-tools.md#como-invocar) — aquela tabela é a autoritativa. Duas linhas não são slash commands de forma alguma: o Amazon Q carrega seus arquivos numa biblioteca de prompts invocada com `@`, e as linhas de skill usam o nome da *skill*, que não é o id do comando (`/opsx:apply` é a skill `openspec-apply-change`).
 

@@ -25,10 +25,11 @@ import {
   AI_TOOLS,
   OPENSPEC_DIR_NAME,
   AIToolOption,
+  resolveToolIdAlias,
 } from './config.js';
 import { PALETTE } from './styles/palette.js';
 import { isInteractive } from '../utils/interactive.js';
-import { INIT_MESSAGES, ONBOARDING_MESSAGES } from '../messages/index.js';
+import { INIT_MESSAGES, MIGRATION_MESSAGES, ONBOARDING_MESSAGES } from '../messages/index.js';
 import { serializeConfig } from './config-prompts.js';
 import {
   generateCommands,
@@ -58,7 +59,7 @@ import {
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { getProfileWorkflows, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
-import { migrateIfNeeded, migrateLegacySkillDirs } from './migration.js';
+import { migrateIfNeeded, migrateLegacyToolDirs, describeLegacyMigration, keptInPlaceNotice, hasMovableContent } from './migration.js';
 
 const require = createRequire(import.meta.url);
 const { version: OPENSPEC_VERSION } = require('../../package.json');
@@ -120,7 +121,7 @@ export class InitCommand {
 
     // Migrate OpenSpec-managed skills left in renamed tool directories
     // (e.g. .kimi -> .kimi-code) before detection so they stay recognized.
-    migrateLegacySkillDirs(projectPath);
+    migrateLegacyToolDirs(projectPath);
 
     // Detect available tools in the project (task 7.1)
     const detectedTools = getAvailableTools(projectPath);
@@ -151,6 +152,20 @@ export class InitCommand {
 
     // Validate selected tools
     const validatedTools = this.validateTools(selectedToolIds, toolStates);
+
+    // Selecting a renamed tool is consent to leave its former directory:
+    // init is about to write the current one, and leaving OpenSpec content
+    // behind would give the user two installs of the same tool.
+    for (const migration of migrateLegacyToolDirs(
+      projectPath,
+      validatedTools.map((tool) => tool.value)
+    )) {
+      if (hasMovableContent(migration)) {
+        console.log(chalk.dim(MIGRATION_MESSAGES.migratedToolContent(describeLegacyMigration(migration), migration.from, migration.to)));
+      }
+      const kept = keptInPlaceNotice(migration);
+      if (kept) console.log(chalk.dim(kept));
+    }
 
     // Create directory structure and config
     await this.createDirectoryStructure(openspecPath, extendMode);
@@ -408,7 +423,9 @@ export class InitCommand {
       );
     }
 
-    const normalizedTokens = tokens.map((token) => token.toLowerCase());
+    // Retired ids resolve to their current tool, so a rebrand does not break
+    // an existing `--tools windsurf` in someone's setup script.
+    const normalizedTokens = tokens.map((token) => resolveToolIdAlias(token.toLowerCase()));
 
     if (normalizedTokens.some((token) => token === 'all' || token === 'none')) {
       throw new Error(INIT_MESSAGES.cannotCombineReservedValues);

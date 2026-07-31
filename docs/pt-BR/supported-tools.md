@@ -25,7 +25,8 @@ Esta documentação usa `/opsx:propose` como nome canônico, mas cada ferramenta
 | Arquivo de comando que o BR-OpenSpec escreve | Você digita | Ferramentas |
 |----------------------------------------------|-------------|-------------|
 | `.../commands/opsx/<id>.*` — uma pasta `opsx/` o namespacia | `/opsx:<id>` | Claude Code, CodeBuddy, Crush, Gemini CLI, Lingma, Qoder |
-| `.../opsx-<id>.*` — o nome do arquivo é o comando | `/opsx-<id>` | Todas as outras ferramentas com arquivos de comando gerados (incluindo os prompts globais do Codex), exceto Amazon Q |
+| `.../opsx-<id>.*` — o nome do arquivo é o comando | `/opsx-<id>` | Todas as outras ferramentas com arquivos de comando gerados (incluindo os prompts globais do Codex), exceto Amazon Q e Devin |
+| `.devin/workflows/opsx-<id>.md` — lido por apenas um dos dois agentes do Devin | `/opsx-<id>` no Devin Desktop, `/openspec-<skill>` no Devin Local | Devin Desktop\*\*\* |
 | `.amazonq/prompts/opsx-<id>.md` — um prompt, não um comando | `@opsx-<id>` | Amazon Q Developer |
 | nenhum — somente skills | `/openspec-<skill>` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
 | nenhum — Kimi Code | `/skill:openspec-<skill>` | Kimi Code |
@@ -54,6 +55,7 @@ Os arquivos que o BR-OpenSpec gera e a dica de "Início rápido" impressa após 
 | Cline (`cline`) | `.cline/skills/openspec-*/SKILL.md` | `.clinerules/workflows/opsx-<id>.md` |
 | CodeBuddy (`codebuddy`) | `.codebuddy/skills/openspec-*/SKILL.md` | `.codebuddy/commands/opsx/<id>.md` |
 | Codex (`codex`) | `.codex/skills/openspec-*/SKILL.md` | `$CODEX_HOME/prompts/opsx-<id>.md`\* |
+| Devin Desktop, anteriormente Windsurf (`devin`) | `.devin/skills/openspec-*/SKILL.md` | `.devin/workflows/opsx-<id>.md`\*\*\* |
 | ForgeCode (`forgecode`) | `.forge/skills/openspec-*/SKILL.md` | Não gerado (sem adaptador de comando; use invocações `/openspec-*` baseadas em skill) |
 | Continue (`continue`) | `.continue/skills/openspec-*/SKILL.md` | `.continue/prompts/opsx-<id>.prompt` |
 | CoStrict (`costrict`) | `.cospec/skills/openspec-*/SKILL.md` | `.cospec/openspec/commands/opsx-<id>.md` |
@@ -73,14 +75,15 @@ Os arquivos que o BR-OpenSpec gera e a dica de "Início rápido" impressa após 
 | Pi (`pi`) | `.pi/skills/openspec-*/SKILL.md` | `.pi/prompts/opsx-<id>.md` |
 | Qoder (`qoder`) | `.qoder/skills/openspec-*/SKILL.md` | `.qoder/commands/opsx/<id>.md` |
 | Qwen Code (`qwen`) | `.qwen/skills/openspec-*/SKILL.md` | `.qwen/commands/opsx-<id>.toml` |
-| RooCode (`roocode`) | `.roo/skills/openspec-*/SKILL.md` | `.roo/commands/opsx-<id>.md` |
+| [Zoo Code](https://github.com/Zoo-Code-Org/Zoo-Code) (`roocode`) | `.roo/skills/openspec-*/SKILL.md` | `.roo/commands/opsx-<id>.md` |
 | Trae (`trae`) | `.trae/skills/openspec-*/SKILL.md` | Não gerado (sem adaptador de comando; use invocações `/openspec-*` baseadas em skill) |
-| Windsurf (`windsurf`) | `.windsurf/skills/openspec-*/SKILL.md` | `.windsurf/workflows/opsx-<id>.md` |
 | Skills `.agents` compartilhadas (`agents`) | `.agents/skills/openspec-*/SKILL.md` | Não gerado (sem adaptador de comando; use invocações `/openspec-*` baseadas em skill) |
 
 \* Os comandos do Codex são instalados no diretório global do Codex (`$CODEX_HOME/prompts/` se definido, caso contrário `~/.codex/prompts/`), não no diretório do seu projeto.
 
 \*\* Os arquivos de prompt do GitHub Copilot são reconhecidos como slash commands personalizados nas extensões de IDE (VS Code, JetBrains, Visual Studio). O Copilot CLI atualmente não consome arquivos `.github/prompts/*.prompt.md` diretamente.
+
+\*\*\* O Windsurf foi [renomeado para Devin Desktop](https://docs.devin.ai/desktop/devin-desktop-faq) em 2 de junho de 2026, e seu diretório de configuração mudou: `.devin/` é o local preferido de leitura e escrita, `.windsurf/` um fallback legado somente de leitura. O BR-OpenSpec segue a renomeação — o id da ferramenta é `devin`, e `--tools windsurf` ainda resolve para ele, então scripts de configuração existentes continuam funcionando. Um projeto que ainda guarda arquivos do BR-OpenSpec em `.windsurf/` recebe a oferta de migração no próximo `openspec update`; recusar os deixa onde estão, e arquivos escritos por você nunca são tocados. Workflows são invocados pelo nome do arquivo, então `.devin/workflows/opsx-apply.md` é `/opsx-apply`. O [agente Devin Local não suporta workflows](https://docs.devin.ai/desktop/devin-local) — apenas skills, e não lê `.windsurf/` de forma alguma — então sempre que o BR-OpenSpec escreve skills do Devin, ele mantém os corpos delas, e a dica de início rápido, em invocações de skill `/openspec-*`, que funcionam nos dois agentes. Sob entrega somente de comandos, nenhuma skill é escrita e ambos recaem para `/opsx-*`.
 
 ### Quando escolher o alvo `.agents` compartilhado
 
@@ -120,7 +123,7 @@ openspec init --tools none
 openspec init --profile core
 ```
 
-**IDs de ferramentas disponíveis (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`, `agents`
+**IDs de ferramentas disponíveis (`--tools`)** — `windsurf` também é aceito, como alias de `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `agents`
 
 ## Instalação Dependente de Fluxo de Trabalho
 
