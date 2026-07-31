@@ -556,7 +556,7 @@ openspec instructions [artifact] [options]
 
 | Argumento | Obrigatório | Descrição |
 |-----------|-------------|-----------|
-| `artifact` | Não | ID do artefato: `proposal`, `specs`, `design`, `tasks` ou `apply` |
+| `artifact` | Não | ID do artefato, ou superfície de entrada do workflow: `apply` ou `archive` |
 
 **Opções:**
 
@@ -566,7 +566,10 @@ openspec instructions [artifact] [options]
 | `--schema <name>` | Substituição de schema |
 | `--json` | Saída em formato JSON |
 
-**Caso especial:** Use `apply` como artefato para obter instruções de implementação de tarefas.
+**Casos especiais:** Use `apply` para obter instruções de implementação de
+tarefas. Use `archive` para obter as entradas atuais de arquivamento, somente
+leitura (`context` e `operationGuidance`) de uma mudança válida; ele não
+arquiva nem modifica nada.
 
 **Exemplos:**
 
@@ -580,6 +583,9 @@ openspec instructions design --change add-dark-mode
 # Obter instruções de aplicação/implementação
 openspec instructions apply --change add-dark-mode
 
+# Obter as entradas atuais da operação de arquivamento sem arquivar
+openspec instructions archive --change add-dark-mode --json
+
 # JSON para consumo pelo agente
 openspec instructions design --change add-dark-mode --json
 ```
@@ -590,6 +596,20 @@ openspec instructions design --change add-dark-mode --json
 - Contexto do projeto a partir da configuração
 - Conteúdo dos artefatos de dependência
 - Regras por artefato definidas na configuração
+- Contexto atual do projeto e orientação da operação correspondente para `apply`/`archive`
+
+As entradas da operação são lidas do projeto atual a cada invocação. O
+contexto do projeto é uma entrada obrigatória em nível de prompt: os agentes o
+leem e aplicam fatos, convenções e restrições relevantes do projeto. A
+orientação da operação é um conselho aditivo opcional: os agentes consideram
+cada entrada e seguem apenas as que forem aplicáveis e compatíveis com o
+workflow embutido. Ambos os campos permanecem separados de escolhas explícitas
+do usuário, do estado controlado pelo CLI, das instruções embutidas e das
+regras de artefato. Contexto conflitante é reportado; orientação conflitante
+ou inaplicável não é seguida e o motivo é explicado. Estes são contratos de
+comportamento para os agentes gerados, não verificações impostas pelo CLI. O
+`instructions archive` retorna apenas a mudança selecionada e as entradas
+opcionais; ele não inclui o workflow estático de arquivamento.
 
 Para um artefato ignorado via `skip_specs: true`, a saída é apenas um aviso (o JSON adiciona os campos `skipped`/`warning`) — o artefato não deve ser criado.
 

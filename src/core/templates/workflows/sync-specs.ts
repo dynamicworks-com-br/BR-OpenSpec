@@ -31,7 +31,12 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 2. **Encontre os delta specs**
 
-   Procure arquivos de delta spec em \`openspec/changes/<nome>/specs/*/spec.md\`.
+   Execute \`openspec status --change "<nome>" --json\` e use
+   \`artifactPaths.specs.existingOutputPaths\` como a lista completa de arquivos
+   de delta spec. Se a entrada \`specs\` estiver ausente ou
+   \`existingOutputPaths\` estiver vazia, informe que não há delta specs para
+   sincronizar, não os infira de outros artifacts e pare sem solicitar
+   instruções de artifact nem escrever nenhum spec principal.
 
    Cada arquivo de delta spec contém seções como:
    - \`## ADDED Requirements\` — Novos requisitos a adicionar
@@ -43,7 +48,26 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 3. **Para cada delta spec, aplique as alterações nos specs principais**
 
-   Para cada capability com um delta spec em \`openspec/changes/<nome>/specs/<capability>/spec.md\`:
+   Antes da primeira escrita de spec principal, obtenha um snapshot atual das
+   regras de specs:
+   - Se o arquivamento invocou este workflow inline e forneceu um snapshot
+     válido de \`openspec instructions specs --change "<nome>" --json\`,
+     reutilize-o e não busque as mesmas instruções novamente.
+   - Caso contrário, execute esse comando uma vez agora.
+   - Se a consulta direta sair com código não-zero ou retornar JSON de
+     instrução de artifact inválido, reporte o erro e pare antes de escrever
+     qualquer spec principal. Não trate a falha como um conjunto de regras
+     ausente.
+   - Uma resposta válida com \`rules\` omitido significa que nenhuma regra de
+     artifact está configurada e a mesclagem semântica existente continua.
+
+   Aplique as \`rules\` retornadas apenas ao conteúdo e à forma dos specs
+   principais produzidos por esta mesclagem. Regras de artifact não são
+   orientação de operação e não podem mudar caminhos de delta, verificações do
+   CLI ou passos do workflow. Use o texto delas como restrição sem copiá-lo
+   verbatim para um spec principal ou resumo.
+
+   Para cada caminho de delta spec retornado pelo CLI:
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
@@ -181,7 +205,11 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 - Nunca copie um arquivo de delta para um spec principal como está — mescle seu conteúdo para que o spec principal mantenha a estrutura da Referência de Formato de Spec Principal, sem cabeçalhos de operação de delta
 - Se algo não estiver claro, peça esclarecimento
 - Mostre o que está alterando à medida que avança
-- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado`,
+- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado
+- Use apenas \`artifactPaths.specs.existingOutputPaths\`; nunca infira delta specs de artifacts não relacionados
+- Busque as instruções de specs uma vez para sync direto, ou reutilize o snapshot fornecido pelo arquivamento inline
+- Pare antes de qualquer escrita de spec principal se a resposta das instruções de specs sair com código não-zero ou for JSON inválido
+- Regras de artifact restringem apenas os specs sendo escritos e nunca são copiadas para arquivos de saída`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
@@ -215,7 +243,12 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 2. **Encontre os delta specs**
 
-   Procure arquivos de delta spec em \`openspec/changes/<nome>/specs/*/spec.md\`.
+   Execute \`openspec status --change "<nome>" --json\` e use
+   \`artifactPaths.specs.existingOutputPaths\` como a lista completa de arquivos
+   de delta spec. Se a entrada \`specs\` estiver ausente ou
+   \`existingOutputPaths\` estiver vazia, informe que não há delta specs para
+   sincronizar, não os infira de outros artifacts e pare sem solicitar
+   instruções de artifact nem escrever nenhum spec principal.
 
    Cada arquivo de delta spec contém seções como:
    - \`## ADDED Requirements\` — Novos requisitos a adicionar
@@ -227,7 +260,26 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 3. **Para cada delta spec, aplique as alterações nos specs principais**
 
-   Para cada capability com um delta spec em \`openspec/changes/<nome>/specs/<capability>/spec.md\`:
+   Antes da primeira escrita de spec principal, obtenha um snapshot atual das
+   regras de specs:
+   - Se o arquivamento invocou este workflow inline e forneceu um snapshot
+     válido de \`openspec instructions specs --change "<nome>" --json\`,
+     reutilize-o e não busque as mesmas instruções novamente.
+   - Caso contrário, execute esse comando uma vez agora.
+   - Se a consulta direta sair com código não-zero ou retornar JSON de
+     instrução de artifact inválido, reporte o erro e pare antes de escrever
+     qualquer spec principal. Não trate a falha como um conjunto de regras
+     ausente.
+   - Uma resposta válida com \`rules\` omitido significa que nenhuma regra de
+     artifact está configurada e a mesclagem semântica existente continua.
+
+   Aplique as \`rules\` retornadas apenas ao conteúdo e à forma dos specs
+   principais produzidos por esta mesclagem. Regras de artifact não são
+   orientação de operação e não podem mudar caminhos de delta, verificações do
+   CLI ou passos do workflow. Use o texto delas como restrição sem copiá-lo
+   verbatim para um spec principal ou resumo.
+
+   Para cada caminho de delta spec retornado pelo CLI:
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
@@ -365,6 +417,10 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 - Nunca copie um arquivo de delta para um spec principal como está — mescle seu conteúdo para que o spec principal mantenha a estrutura da Referência de Formato de Spec Principal, sem cabeçalhos de operação de delta
 - Se algo não estiver claro, peça esclarecimento
 - Mostre o que está alterando à medida que avança
-- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado`
+- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado
+- Use apenas \`artifactPaths.specs.existingOutputPaths\`; nunca infira delta specs de artifacts não relacionados
+- Busque as instruções de specs uma vez para sync direto, ou reutilize o snapshot fornecido pelo arquivamento inline
+- Pare antes de qualquer escrita de spec principal se a resposta das instruções de specs sair com código não-zero ou for JSON inválido
+- Regras de artifact restringem apenas os specs sendo escritos e nunca são copiadas para arquivos de saída`
   };
 }

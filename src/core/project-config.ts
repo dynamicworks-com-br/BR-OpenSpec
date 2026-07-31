@@ -4,6 +4,19 @@ import path from 'path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
+export const OPERATION_IDS = ['apply', 'archive'] as const;
+export type OperationId = (typeof OPERATION_IDS)[number];
+
+export interface OperationConfig {
+  guidance?: string[];
+}
+
+export type OperationsConfig = Partial<Record<OperationId, OperationConfig>>;
+
+const OperationConfigSchema = z.object({
+  guidance: z.array(z.string()).optional(),
+});
+
 /**
  * Zod schema for project configuration.
  *
@@ -39,9 +52,106 @@ export const ProjectConfigSchema = z.object({
     )
     .optional()
     .describe('Per-artifact rules, keyed by artifact ID'),
+
+  // Optional: per-operation advisory guidance, kept separate from artifact rules.
+  operations: z
+    .object({
+      apply: OperationConfigSchema.optional(),
+      archive: OperationConfigSchema.optional(),
+    })
+    .optional()
+    .describe('Per-operation advisory guidance'),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
+
+export interface OperationInputs {
+  context?: string;
+  operationGuidance?: string[];
+}
+
+/**
+ * Extracts the runtime inputs for one operation from an already-read project
+ * config: the project context (required prompt-level input) and that
+ * operation's advisory guidance. Artifact rules are never exposed here.
+ */
+export function loadOperationInputs(
+  projectConfig: ProjectConfig | null,
+  operationId: OperationId
+): OperationInputs {
+  const context =
+    projectConfig?.context !== undefined && projectConfig.context.trim().length > 0
+      ? projectConfig.context
+      : undefined;
+  const guidance = projectConfig?.operations?.[operationId]?.guidance;
+  const operationGuidance = guidance && guidance.length > 0 ? guidance : undefined;
+
+  return {
+    ...(context !== undefined ? { context } : {}),
+    ...(operationGuidance !== undefined ? { operationGuidance } : {}),
+  };
+}
+
+/**
+ * Parser for the `operations:` map: per-operation advisory guidance, validated
+ * entry by entry so one malformed operation never discards the valid ones.
+ * Unknown operation IDs and unknown fields warn and are ignored.
+ */
+function parseOperations(raw: unknown): OperationsConfig | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    console.warn(PROJECT_CONFIG_MESSAGES.invalidOperationsField);
+    return undefined;
+  }
+
+  const supported = new Set<string>(OPERATION_IDS);
+  const operations: OperationsConfig = {};
+
+  for (const [operationId, value] of Object.entries(raw)) {
+    if (!supported.has(operationId)) {
+      console.warn(
+        PROJECT_CONFIG_MESSAGES.unknownOperationId(operationId, OPERATION_IDS.join(', '))
+      );
+      continue;
+    }
+
+    const typedOperationId = operationId as OperationId;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      console.warn(PROJECT_CONFIG_MESSAGES.invalidOperationEntry(operationId));
+      continue;
+    }
+
+    const operation = value as Record<string, unknown>;
+    const unknownFields = Object.keys(operation).filter((field) => field !== 'guidance');
+    if (unknownFields.length > 0) {
+      console.warn(
+        PROJECT_CONFIG_MESSAGES.unknownOperationFields(operationId, unknownFields.join(', '))
+      );
+    }
+
+    if (operation.guidance === undefined) {
+      continue;
+    }
+
+    const guidanceResult = z.array(z.string()).safeParse(operation.guidance);
+    if (!guidanceResult.success) {
+      console.warn(PROJECT_CONFIG_MESSAGES.operationGuidanceMustBeArray(operationId));
+      continue;
+    }
+
+    const guidance = guidanceResult.data.filter((entry) => entry.length > 0);
+    if (guidance.length < guidanceResult.data.length) {
+      console.warn(PROJECT_CONFIG_MESSAGES.emptyGuidanceForOperation(operationId));
+    }
+    if (guidance.length > 0) {
+      operations[typedOperationId] = { guidance };
+    }
+  }
+
+  return Object.keys(operations).length > 0 ? operations : undefined;
+}
 
 const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
 
@@ -151,6 +261,12 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
       } else {
         console.warn(PROJECT_CONFIG_MESSAGES.invalidRulesField);
       }
+    }
+
+    // Parse operations field (per-operation advisory guidance)
+    const operations = parseOperations(raw.operations);
+    if (operations) {
+      config.operations = operations;
     }
 
     // Return partial config even if some fields failed

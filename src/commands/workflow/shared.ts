@@ -35,6 +35,18 @@ export interface ApplyInstructions {
   state: 'blocked' | 'all_done' | 'ready';
   missingArtifacts?: string[];
   instruction: string;
+  /** Current project background from config.yaml. */
+  context?: string;
+  /** Current advisory guidance for apply. */
+  operationGuidance?: string[];
+}
+
+export interface ArchiveInstructions {
+  changeName: string;
+  /** Current project background from config.yaml. */
+  context?: string;
+  /** Current advisory guidance for archive. */
+  operationGuidance?: string[];
 }
 
 // -----------------------------------------------------------------------------

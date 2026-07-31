@@ -20,7 +20,13 @@ import {
   validateSchemaExists,
   type TaskItem,
   type ApplyInstructions,
+  type ArchiveInstructions,
 } from './shared.js';
+import {
+  loadOperationInputs,
+  readProjectConfig,
+  type ProjectConfig,
+} from '../../core/project-config.js';
 import { parseTaskLines, type ParsedTask } from '../../utils/task-progress.js';
 import { WORKFLOW_MESSAGES } from '../../messages/index.js';
 
@@ -39,6 +45,8 @@ export interface ApplyInstructionsOptions {
   schema?: string;
   json?: boolean;
 }
+
+export type ArchiveInstructionsOptions = ApplyInstructionsOptions;
 
 // -----------------------------------------------------------------------------
 // Artifact Instructions Command
@@ -261,6 +269,10 @@ function toTaskItems(parsed: ParsedTask[]): TaskItem[] {
   return tasks;
 }
 
+export interface GenerateApplyInstructionsOptions {
+  projectConfig?: ProjectConfig | null;
+}
+
 /**
  * Generates apply instructions for implementing tasks from a change.
  * Schema-aware: reads apply phase configuration from schema to determine
@@ -269,10 +281,13 @@ function toTaskItems(parsed: ParsedTask[]): TaskItem[] {
 export async function generateApplyInstructions(
   projectRoot: string,
   changeName: string,
-  schemaName?: string
+  schemaName?: string,
+  options: GenerateApplyInstructionsOptions = {}
 ): Promise<ApplyInstructions> {
   // loadChangeContext will auto-detect schema from metadata if not provided
-  const context = loadChangeContext(projectRoot, changeName, schemaName);
+  const context = loadChangeContext(projectRoot, changeName, schemaName, {
+    projectConfig: options.projectConfig,
+  });
   const changeDir = context.changeDir;
 
   // Get the full schema to access the apply phase configuration
@@ -284,6 +299,7 @@ export async function generateApplyInstructions(
   const requiredArtifactIds = applyConfig?.requires ?? schema.artifacts.map((a) => a.id);
   const tracksFile = applyConfig?.tracks ?? null;
   const schemaInstruction = applyConfig?.instruction ?? null;
+  const operationInputs = loadOperationInputs(options.projectConfig ?? null, 'apply');
 
   // Check which required artifacts are missing. Artifacts the change skips
   // via skip_specs count as present - their files must not exist, and
@@ -367,6 +383,7 @@ export async function generateApplyInstructions(
     state,
     missingArtifacts: missingArtifacts.length > 0 ? missingArtifacts : undefined,
     instruction,
+    ...operationInputs,
   };
 }
 
@@ -382,8 +399,14 @@ export async function applyInstructionsCommand(options: ApplyInstructionsOptions
       validateSchemaExists(options.schema, projectRoot);
     }
 
+    // One parsed config snapshot supplies schema fallback, context, and
+    // operation guidance for this command.
+    const projectConfig = readProjectConfig(projectRoot);
+
     // generateApplyInstructions uses loadChangeContext which auto-detects schema
-    const instructions = await generateApplyInstructions(projectRoot, changeName, options.schema);
+    const instructions = await generateApplyInstructions(projectRoot, changeName, options.schema, {
+      projectConfig,
+    });
 
     spinner?.stop();
 
@@ -451,4 +474,78 @@ export function printApplyInstructionsText(instructions: ApplyInstructions): voi
   // Instruction
   console.log(WORKFLOW_MESSAGES.instructionTitle);
   console.log(instruction);
+  console.log();
+
+  printOperationInputsText(instructions);
+}
+
+// -----------------------------------------------------------------------------
+// Archive Instructions Command
+// -----------------------------------------------------------------------------
+
+/**
+ * Builds the read-only runtime inputs for archiving a change: the project
+ * context and the archive operation guidance from an already-read config.
+ */
+export function generateArchiveInstructions(
+  changeName: string,
+  projectConfig: ProjectConfig | null
+): ArchiveInstructions {
+  return {
+    changeName,
+    ...loadOperationInputs(projectConfig, 'archive'),
+  };
+}
+
+export async function archiveInstructionsCommand(options: ArchiveInstructionsOptions): Promise<void> {
+  const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.generatingArchiveInputs).start();
+
+  try {
+    const projectRoot = process.cwd();
+    const changeName = await validateChangeExists(options.change, projectRoot);
+
+    const projectConfig = readProjectConfig(projectRoot);
+    const instructions = generateArchiveInstructions(changeName, projectConfig);
+
+    spinner?.stop();
+
+    if (options.json) {
+      console.log(JSON.stringify(instructions, null, 2));
+      return;
+    }
+
+    printArchiveInstructionsText(instructions);
+  } catch (error) {
+    spinner?.stop();
+    throw error;
+  }
+}
+
+export function printArchiveInstructionsText(instructions: ArchiveInstructions): void {
+  console.log(WORKFLOW_MESSAGES.archiveInputsTitle(instructions.changeName));
+  console.log();
+  printOperationInputsText(instructions);
+}
+
+function printOperationInputsText(inputs: {
+  context?: string;
+  operationGuidance?: string[];
+}): void {
+  if (inputs.context) {
+    console.log(WORKFLOW_MESSAGES.projectContextTitle);
+    console.log(inputs.context);
+    console.log();
+  }
+
+  if (inputs.operationGuidance && inputs.operationGuidance.length > 0) {
+    console.log(WORKFLOW_MESSAGES.operationGuidanceTitle);
+    for (const guidance of inputs.operationGuidance) {
+      console.log(`- ${guidance}`);
+    }
+    console.log();
+  }
+
+  if (!inputs.context && !inputs.operationGuidance) {
+    console.log(WORKFLOW_MESSAGES.noOperationInputs);
+  }
 }

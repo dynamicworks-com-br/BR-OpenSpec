@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import * as yaml from 'yaml';
 import { ChangeMetadataSchema, type ChangeMetadata } from '../core/artifact-graph/types.js';
 import { listSchemas, resolveSchema } from '../core/artifact-graph/resolver.js';
-import { readProjectConfig } from '../core/project-config.js';
+import { readProjectConfig, type ProjectConfig } from '../core/project-config.js';
 import { CHANGE_METADATA_MESSAGES } from '../messages/index.js';
 
 export const METADATA_FILENAME = '.openspec.yaml';
@@ -147,6 +147,11 @@ export function readChangeMetadata(
   return parseResult.data;
 }
 
+export interface ResolveSchemaForChangeOptions {
+  /** Pre-read project config; suppresses the fallback config read when provided. */
+  projectConfig?: ProjectConfig | null;
+}
+
 /**
  * Resolves the schema for a change, with explicit override taking precedence.
  *
@@ -158,11 +163,14 @@ export function readChangeMetadata(
  *
  * @param changeDir - The path to the change directory
  * @param explicitSchema - Optional explicit schema override
+ * @param options - Optional pre-read project config, so a command can reuse a
+ * single config snapshot instead of letting this fallback read it again
  * @returns The resolved schema name
  */
 export function resolveSchemaForChange(
   changeDir: string,
-  explicitSchema?: string
+  explicitSchema?: string,
+  options: ResolveSchemaForChangeOptions = {}
 ): string {
   // Derive project root from changeDir (changeDir is typically projectRoot/openspec/changes/change-name)
   const projectRoot = path.resolve(changeDir, '../../..');
@@ -182,14 +190,22 @@ export function resolveSchemaForChange(
     // If metadata read fails, continue to next option
   }
 
-  // 3. Try reading from project config
-  try {
-    const config = readProjectConfig(projectRoot);
-    if (config?.schema) {
-      return config.schema;
+  // 3. Try reading from project config when metadata is absent.
+  // A provided snapshot (even null) suppresses the fallback read so the caller
+  // parses config.yaml - and emits any warnings - exactly once per command.
+  if (options.projectConfig !== undefined) {
+    if (options.projectConfig?.schema) {
+      return options.projectConfig.schema;
     }
-  } catch {
-    // If config read fails, fall back to default
+  } else {
+    try {
+      const config = readProjectConfig(projectRoot);
+      if (config?.schema) {
+        return config.schema;
+      }
+    } catch {
+      // If config read fails, fall back to default
+    }
   }
 
   // 4. Default

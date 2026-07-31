@@ -56,7 +56,7 @@ export const CLI_DESCRIPTIONS = {
   completionUninstall: 'Remove script de autocomplete de um shell',
   __complete: 'Saída de dados de autocomplete em formato legível por máquinas (uso interno)',
   status: 'Exibe o status de conclusão dos artefatos de uma alteração',
-  instructions: 'Exibe instruções enriquecidas para criar um artefato ou aplicar tarefas',
+  instructions: 'Exibe instruções enriquecidas para artefatos, apply ou archive',
   templates: 'Mostra os caminhos dos templates resolvidos para todos os artefatos de um esquema',
   schemas: 'Lista os esquemas de fluxo de trabalho disponíveis com descrições',
   new: 'Cria novos itens',
@@ -1101,6 +1101,11 @@ export const WORKFLOW_MESSAGES = {
   progressCompleteWithCheck: (complete: number, total: number) => `${complete}/${total} concluído ✓`,
   tasksTitle: '### Tarefas',
   instructionTitle: '### Instrução',
+  generatingArchiveInputs: 'Carregando entradas de arquivamento...',
+  archiveInputsTitle: (changeName: string) => `## Entradas de Arquivamento: ${changeName}`,
+  projectContextTitle: '### Contexto do Projeto (entrada de instrução obrigatória)',
+  operationGuidanceTitle: '### Orientação da Operação (consultiva)',
+  noOperationInputs: 'Nenhum contexto de projeto ou orientação de operação configurado.',
   // new-change.ts
   missingNameArgument: 'Argumento obrigatório <name> ausente',
   creatingChange: (name: string, schema?: string) => `Criando alteração '${name}'${schema ? ` com esquema '${schema}'` : ''}...`,
@@ -1216,6 +1221,12 @@ export const PROJECT_CONFIG_MESSAGES = {
   emptyRulesForArtifact: (artifactId: string) => `Algumas regras para '${artifactId}' são strings vazias, ignorando-as`,
   rulesMustBeArrayOfStrings: (artifactId: string) => `Regras para '${artifactId}' devem ser um array de strings, ignorando as regras deste artefato`,
   invalidRulesField: "Campo 'rules' inválido na configuração (deve ser um objeto)",
+  invalidOperationsField: "Campo 'operations' inválido na configuração (deve ser um objeto)",
+  unknownOperationId: (operationId: string, supportedIds: string) => `ID de operação desconhecido '${operationId}' na configuração. IDs de operação suportados: ${supportedIds}`,
+  invalidOperationEntry: (operationId: string) => `Campo 'operations.${operationId}' inválido na configuração (deve ser um objeto), ignorando esta operação`,
+  unknownOperationFields: (operationId: string, fields: string) => `Campo(s) desconhecido(s) em 'operations.${operationId}': ${fields}. Campos suportados: guidance`,
+  operationGuidanceMustBeArray: (operationId: string) => `A orientação da operação '${operationId}' deve ser um array de strings, ignorando a orientação desta operação`,
+  emptyGuidanceForOperation: (operationId: string) => `Algumas orientações da operação '${operationId}' são strings vazias, ignorando-as`,
 };
 
 

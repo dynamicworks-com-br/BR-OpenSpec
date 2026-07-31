@@ -17,6 +17,7 @@ O arquivo `openspec/config.yaml` é a maneira mais fácil de personalizar o BR-O
 - **Definir um schema padrão** - Evita usar `--schema` em todo comando
 - **Injetar contexto do projeto** - A IA vê sua stack tecnológica, convenções, etc.
 - **Adicionar regras por artefato** - Regras personalizadas para artefatos específicos
+- **Adicionar orientação por operação** - Preferências consultivas para o trabalho de apply e archive
 
 ### Configuração Rápida
 
@@ -43,6 +44,14 @@ rules:
   specs:
     - Use o formato Given/When/Then
     - Referencie padrões existentes antes de inventar novos
+
+operations:
+  apply:
+    guidance:
+      - Execute testes focados antes da suíte completa
+  archive:
+    guidance:
+      - Mantenha o resumo de conclusão conciso
 ```
 
 ### Como Funciona
@@ -79,6 +88,66 @@ Stack tecnológica: TypeScript, React, Node.js, PostgreSQL
 
 - **Contexto** aparece em TODOS os artefatos
 - **Regras** aparecem APENAS para o artefato correspondente
+
+**Orientação da operação:**
+
+`operations.apply.guidance` e `operations.archive.guidance` são arrays
+opcionais de instruções consultivas sobre como um agente deve conduzir essas
+operações. Elas são separadas de `rules`: a orientação da operação não
+restringe o conteúdo de artefatos, e regras de artefato nunca são reclassificadas
+como orientação de operação.
+
+Apply e archive buscam essas entradas no momento da execução:
+
+```bash
+openspec instructions apply --change my-feature --json
+openspec instructions archive --change my-feature --json
+```
+
+Ambas as superfícies retornam o `context` atual do projeto e a
+`operationGuidance` correspondente como campos opcionais separados. Cada
+invocação lê um snapshot novo do projeto atual. O comando de instruções de
+arquivamento é somente leitura: ele não inspeciona nem mescla delta specs, não
+escreve specs principais, não move a mudança e não executa o workflow estático
+de arquivamento.
+
+O contexto do projeto é uma entrada obrigatória em nível de prompt. Os
+workflows gerados o leem e aplicam fatos, convenções e restrições relevantes
+do projeto. A orientação da operação é um conselho aditivo opcional: os
+workflows consideram cada entrada e seguem as que forem aplicáveis e
+compatíveis com o workflow embutido.
+
+Ambos os campos permanecem separados do estado controlado pelo CLI, dos
+caminhos resolvidos, dos passos embutidos, das escolhas explícitas do usuário
+e das regras de artefato. Um workflow reporta conflitos de contexto preservando
+o valor controlador. Ele não segue orientação inaplicável ou conflitante e
+explica o motivo. Nenhum dos campos é uma verificação imposta, e os workflows
+não copiam o texto deles para arquivos de implementação, specs, artefatos da
+mudança ou resumos, a menos que o usuário peça separadamente por esse conteúdo.
+
+**Segurança das entradas de arquivamento e sincronização de specs:**
+
+Archive, bulk archive e sync standalone usam
+`artifactPaths.specs.existingOutputPaths` do `openspec status --json` como a
+única fonte de delta specs. Um schema sem artefato `specs`, ou uma mudança cuja
+lista concreta de saídas está vazia, não tem nada para sincronizar; outros
+artefatos não são usados para inferir delta specs.
+
+Antes que uma mesclagem semântica escreva um spec principal, o workflow consome
+a saída atual de `openspec instructions specs --change <nome> --json`. As
+regras de `specs` retornadas restringem apenas os specs principais produzidos
+por aquela mesclagem. O arquivamento único passa esse snapshot para o sync
+inline, o sync standalone o busca diretamente, e o bulk archive obtém todos os
+snapshots necessários antes da primeira escrita de spec. Uma resposta de
+instruções de archive/specs com código não-zero ou JSON inválido é uma falha
+de consulta, não uma entrada vazia: o workflow para antes da escrita de spec ou
+movimentação de mudança afetada (para o bulk archive, antes de qualquer escrita
+ou movimentação do lote).
+
+Esta configuração não muda as fases de execução do arquivamento, os prompts ao
+usuário, as operações de sistema de arquivos, a propriedade da mesclagem
+semântica, o comando direto `openspec archive`, nem a estrutura e a saída das
+`rules` de artefato.
 
 ### Ordem de Resolução do Schema
 

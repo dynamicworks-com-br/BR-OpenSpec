@@ -28,6 +28,36 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
    Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:archive <outra>\`).
 
+   **Carregue as entradas atuais de arquivamento antes das verificações de arquivamento existentes:**
+
+   Após resolver a change selecionada, execute:
+   \`\`\`bash
+   openspec instructions archive --change "<nome>" --json
+   \`\`\`
+   Essa consulta é consultiva e opcional: ela só fornece entradas extras de
+   prompt, então nunca deve bloquear o arquivamento. Se sair com código não-zero
+   ou retornar JSON inválido — por exemplo em um CLI mais antigo que ainda não
+   suporta este comando — continue o workflow de arquivamento sem contexto e sem
+   orientação de operação. Não reporte erro e não pare.
+
+   Uma resposta bem-sucedida pode omitir ambos os campos opcionais. Trate
+   \`context\` como uma entrada obrigatória em nível de prompt: leia e considere
+   esse conteúdo, aplicando fatos, convenções e restrições relevantes do
+   projeto. Trate \`operationGuidance\` como conselho aditivo opcional: leia e
+   considere cada entrada, seguindo as que forem aplicáveis e compatíveis com o
+   workflow de arquivamento embutido.
+
+   Mantenha ambos os campos separados dos passos embutidos, das escolhas
+   explícitas do usuário, dos caminhos resolvidos, das verificações do CLI e
+   dos contratos de comandos. Se o contexto conflitar com uma dessas entradas
+   controladoras, reporte o conflito e preserve o valor controlador. Se a
+   orientação for inaplicável ou conflitar com uma entrada controladora, não a
+   siga e explique por quê. Não infira caminhos substitutos, prompts ignorados
+   ou flags a partir desses campos, e não copie o texto deles verbatim para
+   specs, artifacts da change ou resumos de arquivamento, a menos que o usuário
+   peça separadamente por esse conteúdo. Estes são contratos de comportamento
+   em nível de prompt, não verificações impostas.
+
 2. **Verifique o status de conclusão dos artifacts**
 
    Execute \`openspec status --change "<nome>" --json\` para verificar a conclusão dos artifacts.
@@ -58,9 +88,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 
 4. **Avalie o estado de sincronização dos delta specs**
 
-   Execute \`openspec status --change "<nome>" --json\` e leia \`artifactPaths\` para localizar delta specs (tipicamente sob o artifact \`specs\`). Use apenas os caminhos retornados — não assuma \`openspec/changes/<nome>/specs/\`.
-
-   Se nenhum delta spec existir nos caminhos retornados, prossiga sem prompt de sync.
+   Execute \`openspec status --change "<nome>" --json\` e use \`artifactPaths.specs.existingOutputPaths\` como a única fonte de delta specs. Se a entrada \`specs\` estiver ausente ou \`existingOutputPaths\` estiver vazia, prossiga sem prompt de sync e não infira delta specs de outros artifacts.
 
    **Se delta specs existirem:**
    - Compare cada delta spec com seu spec principal correspondente em \`openspec/specs/\`
@@ -77,7 +105,17 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
    - "Sincronizar agora" ou "Sincronizar mesmo assim" — sincronize, depois verifique (abaixo)
    - Qualquer outra resposta — pergunte novamente em vez de arquivar
 
-   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima, e aguarde a conclusão. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
+   Antes que um sync selecionado escreva qualquer spec principal, execute
+   \`openspec instructions specs --change "<nome>" --json\` uma vez. Exija código de
+   saída zero e JSON de instrução de artifact válido. Se a consulta falhar ou
+   retornar JSON inválido, reporte o erro e pare antes de escrever qualquer spec
+   principal ou mover a change. Uma resposta válida com \`rules\` omitido é o
+   caso sem regras. Aplique as \`rules\` retornadas apenas ao conteúdo e à forma
+   dos specs principais produzidos por esta mesclagem; não as use como
+   orientação de arquivamento, não mude o comportamento do CLI nem copie o
+   texto das regras para qualquer arquivo de saída.
+
+   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima e o snapshot de regras de specs obtido, e aguarde a conclusão. O sync inline deve reutilizar esse snapshot sem buscar as instruções de \`specs\` novamente. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
 
    Em seguida, refaça a comparação do topo deste passo contra cada capability que tem um delta spec em \`artifactPaths.specs.existingOutputPaths\` — não apenas as que o sync reporta ter tocado. Um sync bem-sucedido não deixa nada para aplicar, então cada capability deve agora constar como já sincronizada:
    - Requisitos ADDED presentes
@@ -127,7 +165,12 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
 - Mostre um resumo claro do que aconteceu
 - Se sync for solicitado, execute o workflow \`openspec-sync-specs\` inline (agent-driven)
 - Nunca arquive enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais antes de mover o diretório da change
-- Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar`,
+- Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar
+- Aplique o contexto de runtime relevante e reporte conflitos; a orientação da operação permanece consultiva
+- Considere cada entrada de orientação e explique qualquer conselho inaplicável ou conflitante
+- Verificações do CLI, caminhos resolvidos, prompts e contratos de comandos existentes permanecem inalterados
+- Regras de artifact restringem apenas os specs sendo escritos e nunca são orientação de operação
+- Nunca copie contexto de runtime, orientação da operação ou texto de regras de artifact verbatim para arquivos de saída`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
@@ -157,6 +200,36 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
    Inclua o schema usado para cada change, se disponível.
 
    Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:archive <outra>\`).
+
+   **Carregue as entradas atuais de arquivamento antes das verificações de arquivamento existentes:**
+
+   Após resolver a change selecionada, execute:
+   \`\`\`bash
+   openspec instructions archive --change "<nome>" --json
+   \`\`\`
+   Essa consulta é consultiva e opcional: ela só fornece entradas extras de
+   prompt, então nunca deve bloquear o arquivamento. Se sair com código não-zero
+   ou retornar JSON inválido — por exemplo em um CLI mais antigo que ainda não
+   suporta este comando — continue o workflow de arquivamento sem contexto e sem
+   orientação de operação. Não reporte erro e não pare.
+
+   Uma resposta bem-sucedida pode omitir ambos os campos opcionais. Trate
+   \`context\` como uma entrada obrigatória em nível de prompt: leia e considere
+   esse conteúdo, aplicando fatos, convenções e restrições relevantes do
+   projeto. Trate \`operationGuidance\` como conselho aditivo opcional: leia e
+   considere cada entrada, seguindo as que forem aplicáveis e compatíveis com o
+   workflow de arquivamento embutido.
+
+   Mantenha ambos os campos separados dos passos embutidos, das escolhas
+   explícitas do usuário, dos caminhos resolvidos, das verificações do CLI e
+   dos contratos de comandos. Se o contexto conflitar com uma dessas entradas
+   controladoras, reporte o conflito e preserve o valor controlador. Se a
+   orientação for inaplicável ou conflitar com uma entrada controladora, não a
+   siga e explique por quê. Não infira caminhos substitutos, prompts ignorados
+   ou flags a partir desses campos, e não copie o texto deles verbatim para
+   specs, artifacts da change ou resumos de arquivamento, a menos que o usuário
+   peça separadamente por esse conteúdo. Estes são contratos de comportamento
+   em nível de prompt, não verificações impostas.
 
 2. **Verifique o status de conclusão dos artifacts**
 
@@ -188,9 +261,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
 
 4. **Avalie o estado de sincronização dos delta specs**
 
-   Execute \`openspec status --change "<nome>" --json\` e leia \`artifactPaths\` para localizar delta specs (tipicamente sob o artifact \`specs\`). Use apenas os caminhos retornados — não assuma \`openspec/changes/<nome>/specs/\`.
-
-   Se nenhum delta spec existir nos caminhos retornados, prossiga sem prompt de sync.
+   Execute \`openspec status --change "<nome>" --json\` e use \`artifactPaths.specs.existingOutputPaths\` como a única fonte de delta specs. Se a entrada \`specs\` estiver ausente ou \`existingOutputPaths\` estiver vazia, prossiga sem prompt de sync e não infira delta specs de outros artifacts.
 
    **Se delta specs existirem:**
    - Compare cada delta spec com seu spec principal correspondente em \`openspec/specs/\`
@@ -207,7 +278,17 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
    - "Sincronizar agora" ou "Sincronizar mesmo assim" — sincronize, depois verifique (abaixo)
    - Qualquer outra resposta — pergunte novamente em vez de arquivar
 
-   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima, e aguarde a conclusão. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
+   Antes que um sync selecionado escreva qualquer spec principal, execute
+   \`openspec instructions specs --change "<nome>" --json\` uma vez. Exija código de
+   saída zero e JSON de instrução de artifact válido. Se a consulta falhar ou
+   retornar JSON inválido, reporte o erro e pare antes de escrever qualquer spec
+   principal ou mover a change. Uma resposta válida com \`rules\` omitido é o
+   caso sem regras. Aplique as \`rules\` retornadas apenas ao conteúdo e à forma
+   dos specs principais produzidos por esta mesclagem; não as use como
+   orientação de arquivamento, não mude o comportamento do CLI nem copie o
+   texto das regras para qualquer arquivo de saída.
+
+   Para sincronizar, execute o workflow \`openspec-sync-specs\` inline (merge inteligente dirigido por agente) para a change '<nome>', passando a análise de delta spec acima e o snapshot de regras de specs obtido, e aguarde a conclusão. O sync inline deve reutilizar esse snapshot sem buscar as instruções de \`specs\` novamente. Não o delegue a uma tarefa em background — o passo 5 moveria o diretório da change enquanto um sync ainda o lê, deixando a change arquivada e os specs principais nunca atualizados. Se o seu agente só conseguir executá-lo por delegação, delegue de forma síncrona e aguarde o resultado.
 
    Em seguida, refaça a comparação do topo deste passo contra cada capability que tem um delta spec em \`artifactPaths.specs.existingOutputPaths\` — não apenas as que o sync reporta ter tocado. Um sync bem-sucedido não deixa nada para aplicar, então cada capability deve agora constar como já sincronizada:
    - Requisitos ADDED presentes
@@ -304,6 +385,11 @@ O diretório de arquivo de destino já existe.
 - Mostre um resumo claro do que aconteceu
 - Se sync for solicitado, execute o workflow \`openspec-sync-specs\` inline (agent-driven)
 - Nunca arquive enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais antes de mover o diretório da change
-- Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar`
+- Se delta specs existirem, sempre execute a avaliação de sync e mostre o resumo combinado antes de solicitar
+- Aplique o contexto de runtime relevante e reporte conflitos; a orientação da operação permanece consultiva
+- Considere cada entrada de orientação e explique qualquer conselho inaplicável ou conflitante
+- Verificações do CLI, caminhos resolvidos, prompts e contratos de comandos existentes permanecem inalterados
+- Regras de artifact restringem apenas os specs sendo escritos e nunca são orientação de operação
+- Nunca copie contexto de runtime, orientação da operação ou texto de regras de artifact verbatim para arquivos de saída`
   };
 }

@@ -33,6 +33,33 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    **IMPORTANTE**: NÃO selecione automaticamente. Sempre deixe o usuário escolher.
 
+   **Carregue as entradas atuais de arquivamento uma vez antes da validação em lote:**
+
+   Escolha uma change selecionada e execute
+   \`openspec instructions archive --change "<change-selecionada>" --json\`.
+   Essa consulta é consultiva e opcional: ela só fornece entradas extras de
+   prompt, então nunca deve bloquear o lote. Se falhar ou retornar JSON
+   inválido — por exemplo em um CLI mais antigo que ainda não suporta este
+   comando — continue o lote sem contexto e sem orientação de operação. Não
+   reporte erro e não pare.
+
+   Uma resposta válida pode omitir \`context\` e \`operationGuidance\`. Trate
+   \`context\` como uma entrada obrigatória em nível de prompt para todo o
+   lote: leia e considere esse conteúdo, aplicando fatos, convenções e
+   restrições relevantes do projeto. Trate \`operationGuidance\` como conselho
+   aditivo opcional: leia e considere cada entrada, seguindo as que forem
+   aplicáveis e compatíveis com o workflow em lote embutido.
+
+   Mantenha ambos os campos separados da análise de conflitos, das escolhas
+   explícitas do usuário, dos caminhos resolvidos, das verificações do CLI e
+   dos contratos de comandos. Se o contexto conflitar com uma dessas entradas
+   controladoras, reporte o conflito e preserve o valor controlador. Se a
+   orientação for inaplicável ou conflitar com uma entrada controladora, não a
+   siga e explique por quê. Não infira prompts ignorados, caminhos substitutos
+   ou flags a partir desses campos, e não copie o texto deles verbatim para
+   specs, changes ou resumos. Estes são contratos de comportamento em nível de
+   prompt, não verificações impostas.
+
 3. **Validação em lote - colete o status de todas as changes selecionadas**
 
    Para cada change selecionada, colete:
@@ -45,9 +72,15 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Conte \`- [ ]\` (incompleto) vs \`- [x]\` (concluído)
       - Se não existir arquivo de tasks, note como "Sem tarefas"
 
-   c. **Delta specs** - Verifique o diretório \`openspec/changes/<nome>/specs/\`
+   c. **Delta specs** - Verifique \`artifactPaths.specs.existingOutputPaths\` do JSON de status
       - Liste quais capability specs existem
       - Para cada um, extraia os nomes dos requisitos (linhas correspondentes a \`### Requirement: <nome>\`)
+      - Trate essa lista como a única fonte de delta specs. Se a entrada \`specs\`
+        estiver ausente ou a lista estiver vazia, não faça sync de specs nem
+        consulta de instruções de specs para aquela change; não infira deltas de
+        artifacts não relacionados.
+      - Avalie isso independentemente para cada change, incluindo lotes com
+        schemas mistos em que alguns schemas não têm artifact \`specs\`.
 
 4. **Detecte conflitos de specs**
 
@@ -124,6 +157,18 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    - A opção de arquivar apenas as prontas — prossiga apenas com as changes que a tabela do passo 6 marca como \`Pronto\` ou \`Pronto*\`, e registre o restante como Ignorado no passo 8c. Se o parceiro de conflito de uma change \`Pronto*\` for ignorado, derive novamente a resolução daquele conflito usando apenas as changes que estão sendo arquivadas.
    - Qualquer outra resposta — pergunte novamente em vez de arquivar
 
+   Antes que o passo 8 escreva o primeiro spec principal ou mova qualquer
+   change, obtenha todos os snapshots de regras de specs necessários para o
+   lote confirmado. Para cada change que for sincronizar
+   \`artifactPaths.specs.existingOutputPaths\` concretos, execute
+   \`openspec instructions specs --change "<nome>" --json\` exatamente uma vez.
+   Obtenha todos os snapshots antes da primeira escrita ou movimentação. Se
+   qualquer consulta sair com código não-zero ou retornar JSON de instrução de
+   artifact inválido, identifique a change afetada, reporte o erro e pare todo
+   o lote antes de qualquer escrita de spec principal ou movimentação de
+   change. Não trate falha da consulta como regras omitidas. Uma resposta
+   válida sem \`rules\` é o caso sem regras.
+
 8. **Execute o arquivamento para cada change confirmada**
 
    Processe as changes na ordem determinada (respeitando a resolução de conflitos):
@@ -131,6 +176,12 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    a. **Sincronize specs** se delta specs existirem:
       - Use a abordagem openspec-sync-specs (merge inteligente agent-driven)
       - Para conflitos, aplique na ordem resolvida
+      - Passe o snapshot de regras de specs obtido daquela change para o sync
+        inline; o sync inline deve reutilizá-lo sem buscar instruções novamente
+      - Aplique regras de artifact apenas aos specs principais produzidos por
+        aquela change. Elas não mudam a resolução de conflitos, o comportamento
+        de arquivamento ou os contratos do CLI, e seu texto não é copiado para
+        nenhum arquivo de saída
       - Rastreie se o sync foi feito
 
    b. **Realize o arquivamento**:
@@ -257,7 +308,17 @@ Nenhuma change ativa encontrada. Crie uma nova change para começar.
 - Rastreie e reporte todos os resultados (sucesso/ignorado/falha)
 - Preservar .openspec.yaml ao mover para o arquivo
 - O diretório de destino do arquivo usa a data atual: YYYY-MM-DD-<nome>; um nome que já começa com um prefixo \`YYYY-MM-DD-\` é usado como está (nunca empilhe uma segunda data)
-- Se o destino do arquivo existir, falhe aquela change mas continue com as outras`,
+- Se o destino do arquivo existir, falhe aquela change mas continue com as outras
+- Obtenha as entradas de arquivamento uma vez antes da inspeção de specs ou movimentações
+- Obtenha todos os snapshots de regras de specs necessários antes da primeira escrita de spec principal ou movimentação do lote
+- Uma consulta de entradas de arquivamento malsucedida nunca bloqueia o lote; ele prossegue sem contexto nem orientação
+- Uma consulta de instruções de specs malsucedida interrompe todo o lote atomicamente
+- Changes sem \`artifactPaths.specs.existingOutputPaths\` concretos continuam sem sync de specs
+- Aplique o contexto de runtime relevante em todo o lote e reporte conflitos
+- A orientação da operação permanece consultiva; considere cada entrada e explique conselhos rejeitados
+- Mantenha entradas de runtime, análise de conflitos, valores derivados do CLI e regras de artifact separados
+- Regras de artifact restringem apenas os specs escritos
+- Nunca copie texto de entradas de runtime ou de regras de artifact verbatim para arquivos de saída`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
@@ -293,6 +354,33 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    **IMPORTANTE**: NÃO selecione automaticamente. Sempre deixe o usuário escolher.
 
+   **Carregue as entradas atuais de arquivamento uma vez antes da validação em lote:**
+
+   Escolha uma change selecionada e execute
+   \`openspec instructions archive --change "<change-selecionada>" --json\`.
+   Essa consulta é consultiva e opcional: ela só fornece entradas extras de
+   prompt, então nunca deve bloquear o lote. Se falhar ou retornar JSON
+   inválido — por exemplo em um CLI mais antigo que ainda não suporta este
+   comando — continue o lote sem contexto e sem orientação de operação. Não
+   reporte erro e não pare.
+
+   Uma resposta válida pode omitir \`context\` e \`operationGuidance\`. Trate
+   \`context\` como uma entrada obrigatória em nível de prompt para todo o
+   lote: leia e considere esse conteúdo, aplicando fatos, convenções e
+   restrições relevantes do projeto. Trate \`operationGuidance\` como conselho
+   aditivo opcional: leia e considere cada entrada, seguindo as que forem
+   aplicáveis e compatíveis com o workflow em lote embutido.
+
+   Mantenha ambos os campos separados da análise de conflitos, das escolhas
+   explícitas do usuário, dos caminhos resolvidos, das verificações do CLI e
+   dos contratos de comandos. Se o contexto conflitar com uma dessas entradas
+   controladoras, reporte o conflito e preserve o valor controlador. Se a
+   orientação for inaplicável ou conflitar com uma entrada controladora, não a
+   siga e explique por quê. Não infira prompts ignorados, caminhos substitutos
+   ou flags a partir desses campos, e não copie o texto deles verbatim para
+   specs, changes ou resumos. Estes são contratos de comportamento em nível de
+   prompt, não verificações impostas.
+
 3. **Validação em lote - colete o status de todas as changes selecionadas**
 
    Para cada change selecionada, colete:
@@ -305,9 +393,15 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Conte \`- [ ]\` (incompleto) vs \`- [x]\` (concluído)
       - Se não existir arquivo de tasks, note como "Sem tarefas"
 
-   c. **Delta specs** - Verifique o diretório \`openspec/changes/<nome>/specs/\`
+   c. **Delta specs** - Verifique \`artifactPaths.specs.existingOutputPaths\` do JSON de status
       - Liste quais capability specs existem
       - Para cada um, extraia os nomes dos requisitos (linhas correspondentes a \`### Requirement: <nome>\`)
+      - Trate essa lista como a única fonte de delta specs. Se a entrada \`specs\`
+        estiver ausente ou a lista estiver vazia, não faça sync de specs nem
+        consulta de instruções de specs para aquela change; não infira deltas de
+        artifacts não relacionados.
+      - Avalie isso independentemente para cada change, incluindo lotes com
+        schemas mistos em que alguns schemas não têm artifact \`specs\`.
 
 4. **Detecte conflitos de specs**
 
@@ -384,6 +478,18 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    - A opção de arquivar apenas as prontas — prossiga apenas com as changes que a tabela do passo 6 marca como \`Pronto\` ou \`Pronto*\`, e registre o restante como Ignorado no passo 8c. Se o parceiro de conflito de uma change \`Pronto*\` for ignorado, derive novamente a resolução daquele conflito usando apenas as changes que estão sendo arquivadas.
    - Qualquer outra resposta — pergunte novamente em vez de arquivar
 
+   Antes que o passo 8 escreva o primeiro spec principal ou mova qualquer
+   change, obtenha todos os snapshots de regras de specs necessários para o
+   lote confirmado. Para cada change que for sincronizar
+   \`artifactPaths.specs.existingOutputPaths\` concretos, execute
+   \`openspec instructions specs --change "<nome>" --json\` exatamente uma vez.
+   Obtenha todos os snapshots antes da primeira escrita ou movimentação. Se
+   qualquer consulta sair com código não-zero ou retornar JSON de instrução de
+   artifact inválido, identifique a change afetada, reporte o erro e pare todo
+   o lote antes de qualquer escrita de spec principal ou movimentação de
+   change. Não trate falha da consulta como regras omitidas. Uma resposta
+   válida sem \`rules\` é o caso sem regras.
+
 8. **Execute o arquivamento para cada change confirmada**
 
    Processe as changes na ordem determinada (respeitando a resolução de conflitos):
@@ -391,6 +497,12 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    a. **Sincronize specs** se delta specs existirem:
       - Use a abordagem openspec-sync-specs (merge inteligente agent-driven)
       - Para conflitos, aplique na ordem resolvida
+      - Passe o snapshot de regras de specs obtido daquela change para o sync
+        inline; o sync inline deve reutilizá-lo sem buscar instruções novamente
+      - Aplique regras de artifact apenas aos specs principais produzidos por
+        aquela change. Elas não mudam a resolução de conflitos, o comportamento
+        de arquivamento ou os contratos do CLI, e seu texto não é copiado para
+        nenhum arquivo de saída
       - Rastreie se o sync foi feito
 
    b. **Realize o arquivamento**:
@@ -517,6 +629,16 @@ Nenhuma change ativa encontrada. Crie uma nova change para começar.
 - Rastreie e reporte todos os resultados (sucesso/ignorado/falha)
 - Preservar .openspec.yaml ao mover para o arquivo
 - O diretório de destino do arquivo usa a data atual: YYYY-MM-DD-<nome>; um nome que já começa com um prefixo \`YYYY-MM-DD-\` é usado como está (nunca empilhe uma segunda data)
-- Se o destino do arquivo existir, falhe aquela change mas continue com as outras`
+- Se o destino do arquivo existir, falhe aquela change mas continue com as outras
+- Obtenha as entradas de arquivamento uma vez antes da inspeção de specs ou movimentações
+- Obtenha todos os snapshots de regras de specs necessários antes da primeira escrita de spec principal ou movimentação do lote
+- Uma consulta de entradas de arquivamento malsucedida nunca bloqueia o lote; ele prossegue sem contexto nem orientação
+- Uma consulta de instruções de specs malsucedida interrompe todo o lote atomicamente
+- Changes sem \`artifactPaths.specs.existingOutputPaths\` concretos continuam sem sync de specs
+- Aplique o contexto de runtime relevante em todo o lote e reporte conflitos
+- A orientação da operação permanece consultiva; considere cada entrada e explique conselhos rejeitados
+- Mantenha entradas de runtime, análise de conflitos, valores derivados do CLI e regras de artifact separados
+- Regras de artifact restringem apenas os specs escritos
+- Nunca copie texto de entradas de runtime ou de regras de artifact verbatim para arquivos de saída`
   };
 }

@@ -7,7 +7,7 @@ import { resolveArtifactOutputs } from './outputs.js';
 import { resolveSchemaForChange, readChangeMetadata } from '../../utils/change-metadata.js';
 import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
-import { readProjectConfig, validateConfigRules } from '../project-config.js';
+import { readProjectConfig, validateConfigRules, type ProjectConfig } from '../project-config.js';
 import type { Artifact, CompletedSet } from './types.js';
 
 // Session-level cache for validation warnings (avoid repeating same warnings)
@@ -195,6 +195,14 @@ export function loadTemplate(
 }
 
 /**
+ * Options for loadChangeContext.
+ */
+export interface LoadChangeContextOptions {
+  /** Pre-read project config; suppresses schema resolution's fallback config read. */
+  projectConfig?: ProjectConfig | null;
+}
+
+/**
  * Loads change context combining graph and completion state.
  *
  * Schema resolution order:
@@ -205,19 +213,23 @@ export function loadTemplate(
  * @param projectRoot - Project root directory
  * @param changeName - Change name
  * @param schemaName - Optional schema name override. If not provided, auto-detected from metadata.
+ * @param options - Optional pre-read project config reused for schema resolution
  * @returns Change context with graph, completed set, and metadata
  */
 export function loadChangeContext(
   projectRoot: string,
   changeName: string,
-  schemaName?: string
+  schemaName?: string,
+  options: LoadChangeContextOptions = {}
 ): ChangeContext {
   const changeDir = FileSystemUtils.canonicalizeExistingPath(
     path.join(projectRoot, 'openspec', 'changes', changeName)
   );
 
   // Resolve schema: explicit > metadata > default
-  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName);
+  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName, {
+    projectConfig: options.projectConfig,
+  });
 
   const schema = resolveSchema(resolvedSchemaName, projectRoot);
   const graph = ArtifactGraph.fromSchema(schema);

@@ -33,6 +33,7 @@ import {
   statusCommand,
   instructionsCommand,
   applyInstructionsCommand,
+  archiveInstructionsCommand,
   templatesCommand,
   schemasCommand,
   newChangeCommand,
@@ -514,9 +515,11 @@ program
   .option('--json', CLI_DESCRIPTIONS.instructionsJson)
   .action(async (artifactId: string | undefined, options: InstructionsOptions) => {
     try {
-      // Special case: "apply" is not an artifact, but a command to get apply instructions
+      // Superfícies de instrução de workflow são ramos reservados do comando, não artefatos.
       if (artifactId === 'apply') {
         await applyInstructionsCommand(options);
+      } else if (artifactId === 'archive') {
+        await archiveInstructionsCommand(options);
       } else {
         await instructionsCommand(artifactId, options);
       }
