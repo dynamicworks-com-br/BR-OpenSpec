@@ -18,6 +18,30 @@ Por padrão, o BR-OpenSpec usa o perfil `core`, que inclui:
 
 Você pode habilitar fluxos de trabalho expandidos (`new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`) via `openspec config profile` e depois executar `openspec update`.
 
+## Como Invocar
+
+Esta documentação usa `/opsx:propose` como nome canônico, mas cada ferramenta o escreve da forma como carrega o arquivo que o BR-OpenSpec gerou. Encontre o caminho de comando da sua ferramenta na [Referência de Diretórios das Ferramentas](#referência-de-diretórios-das-ferramentas) abaixo e depois combine com a forma correspondente aqui.
+
+| Arquivo de comando que o BR-OpenSpec escreve | Você digita | Ferramentas |
+|----------------------------------------------|-------------|-------------|
+| `.../commands/opsx/<id>.*` — uma pasta `opsx/` o namespacia | `/opsx:<id>` | Claude Code, CodeBuddy, Crush, Gemini CLI, Lingma, Qoder |
+| `.../opsx-<id>.*` — o nome do arquivo é o comando | `/opsx-<id>` | Todas as outras ferramentas com arquivos de comando gerados (incluindo os prompts globais do Codex), exceto Amazon Q |
+| `.amazonq/prompts/opsx-<id>.md` — um prompt, não um comando | `@opsx-<id>` | Amazon Q Developer |
+| nenhum — somente skills | `/openspec-<skill>` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
+| nenhum — Kimi Code | `/skill:openspec-<skill>` | Kimi Code |
+| skills do Codex | `$openspec-<skill>` | Codex ([`/openspec-<skill>` não é reconhecido](https://github.com/openai/codex/issues/11817)) |
+
+Então `/opsx:propose` é `/opsx-propose` no Cursor, `@opsx-propose` no Amazon Q e `$openspec-propose` para uma skill do Codex.
+
+Duas coisas variam independentemente, e é por isso que as linhas não se fundem:
+
+- **O nome.** As linhas 1–2 diferem apenas em como o arquivo nomeia o comando, e o radical `opsx-<id>` / `opsx:<id>` é o mesmo para toda ferramenta com arquivos de comando gerados.
+- **O invólucro.** O Amazon Q carrega seus arquivos numa biblioteca de prompts invocada com `@`. Ferramentas somente-skill não recebem arquivos de comando, então suas três últimas linhas usam nomes de *skill* — listados em [Nomes de Skills Geradas](#nomes-de-skills-geradas) — que não correspondem um-a-um aos ids de comando (`/opsx:apply` é a skill `openspec-apply-change`).
+
+Os padrões de caminho acima são neutros quanto à extensão (`.*`) de propósito: a extensão é da ferramenta (`.toml` para Gemini CLI e Qwen Code, `.prompt` para Continue, `.prompt.md` para Kiro e GitHub Copilot), e algumas ferramentas mostram o nome com a extensão no seletor. Combine pela forma do diretório, não pela extensão.
+
+Os arquivos que o BR-OpenSpec gera e a dica de "Início rápido" impressa após a configuração já usam a forma correta para as ferramentas que você selecionou — então a resposta mais rápida é ler a dica.
+
 ## Referência de Diretórios das Ferramentas
 
 | Ferramenta (ID) | Padrão de caminho de skills | Padrão de caminho de comandos |

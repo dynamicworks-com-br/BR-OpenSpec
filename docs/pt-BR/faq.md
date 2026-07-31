@@ -36,11 +36,11 @@ Não existe um modo separado para iniciar. Você abre seu assistente de IA como 
 
 ### Digitei um slash command e nada aconteceu. Por quê?
 
-Muito provavelmente você o digitou no terminal em vez do chat da IA, ou os comandos ainda não estão instalados. Rode `openspec update` no seu projeto, reinicie seu assistente, depois tente digitar `/opsx` no chat e observe o autocompletar. [Solução de Problemas](troubleshooting.md#comandos-não-aparecem) tem a checklist completa.
+Muito provavelmente você o digitou no terminal em vez do chat da IA, usou uma grafia que sua ferramenta não registra, ou os comandos ainda não estão instalados. Se os arquivos estiverem faltando — ou você nunca configurou a ferramenta — rode `openspec init`; o `openspec update` só atualiza arquivos que já existem. Depois reinicie seu assistente e use a forma impressa no "Início rápido" — veja [Como Invocar](supported-tools.md#como-invocar). [Solução de Problemas](troubleshooting.md#comandos-não-aparecem) tem a checklist completa.
 
 ### Por que a sintaxe é `/opsx:propose` em uma ferramenta e `/opsx-propose` em outra?
 
-Cada ferramenta de IA expõe comandos personalizados de um jeito levemente diferente. A intenção é idêntica; só a pontuação muda. Digite uma barra no seu chat e o autocompletar mostra a forma que sua ferramenta espera. A tabela por ferramenta está em [Como os Comandos Funcionam](how-commands-work.md#sintaxe-de-slash-command-por-ferramenta).
+Cada ferramenta de IA expõe comandos personalizados de um jeito levemente diferente, e o BR-OpenSpec os escreve da forma como sua ferramenta carrega o arquivo gerado. Um arquivo de comando chamado `opsx-propose.md` é digitado `/opsx-propose`; um arquivado sob `commands/opsx/` é digitado `/opsx:propose`. Os arquivos do Amazon Q são entradas de biblioteca de prompts, digitados `@opsx-propose`. Ferramentas que recebem skills em vez de comandos usam o nome da skill — skills do Codex são `$openspec-propose`, Kimi Code `/skill:openspec-propose`. A linha de "Início rápido" do `openspec init` já imprime a forma correta para as ferramentas que você escolheu; a tabela completa está em [Como Invocar](supported-tools.md#como-invocar).
 
 ### Qual a diferença entre uma skill e um comando?
 

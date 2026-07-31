@@ -4,6 +4,8 @@ Esta é a referência dos comandos slash do BR-OpenSpec. Esses comandos são inv
 
 Para padrões de fluxo de trabalho e quando usar cada comando, consulte [Workflows](workflows.md). Para comandos CLI, consulte [CLI](cli.md).
 
+Estas páginas usam `/opsx:<command>` como nome canônico. Algumas ferramentas o escrevem de forma diferente — Cursor e GitHub Copilot registram `/opsx-propose`, o Amazon Q responde a `@opsx-propose`, skills do Codex são `$openspec-propose` — então verifique [Como Invocar](supported-tools.md#como-invocar) para a sua ferramenta. Os arquivos que o BR-OpenSpec gera já usam a forma correta.
+
 ## Referência Rápida
 
 ### Caminho Rápido Padrão (perfil `core`)
@@ -687,17 +689,16 @@ IA:   Bem-vindo ao BR-OpenSpec!
 
 Diferentes ferramentas de IA usam sintaxes de comando ligeiramente diferentes. Use o formato que corresponde à sua ferramenta:
 
-| Ferramenta | Exemplo de Sintaxe |
-|------|----------------|
-| Claude Code | `/opsx:propose`, `/opsx:apply` |
-| Cursor | `/opsx-propose`, `/opsx-apply` |
-| Windsurf | `/opsx-propose`, `/opsx-apply` |
-| Copilot (IDE) | `/opsx-propose`, `/opsx-apply` |
-| Kimi Code | Invocações baseadas em skills como `/skill:openspec-propose`, `/skill:openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
-| Trae | Invocações baseadas em skills como `/openspec-propose`, `/openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
-| Skills `.agents` compartilhadas | Invocações baseadas em skills como `/openspec-propose`, `/openspec-apply-change` (sem arquivos de comando `opsx-*` gerados) |
+| Arquivo de comando da sua ferramenta | Exemplo de sintaxe | Ferramentas de exemplo |
+|--------------------------------------|--------------------|------------------------|
+| `.../commands/opsx/<id>.*` | `/opsx:propose`, `/opsx:apply` | Claude Code, Gemini CLI, Crush |
+| `.../opsx-<id>.*` | `/opsx-propose`, `/opsx-apply` | Cursor, Windsurf, Copilot (IDE), Codex (prompts globais) |
+| `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose`, `@opsx-apply` | Amazon Q Developer |
+| nenhum — somente skills | `/openspec-propose`, `/openspec-apply-change` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
+| nenhum — Kimi Code | `/skill:openspec-propose` | Kimi Code |
+| skills do Codex | `$openspec-propose` | Codex |
 
-A intenção é a mesma em todas as ferramentas, mas como os comandos são exibidos pode variar por integração.
+A intenção é a mesma em todas as ferramentas, mas como os comandos são exibidos pode variar por integração. [Como Invocar](supported-tools.md#como-invocar) lista todas as ferramentas suportadas; esta tabela mostra apenas exemplos de cada forma.
 
 > **Nota:** Os comandos do GitHub Copilot (`.github/prompts/*.prompt.md`) estão disponíveis apenas em extensões de IDE (VS Code, JetBrains, Visual Studio). O GitHub Copilot CLI atualmente não suporta arquivos de prompt personalizados — consulte [Ferramentas Suportadas](supported-tools.md) para detalhes e alternativas.
 

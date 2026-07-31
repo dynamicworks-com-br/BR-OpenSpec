@@ -10,6 +10,7 @@
 import os from 'os';
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
+import { escapeYamlValue } from '../yaml.js';
 
 /**
  * Returns the Codex home directory.
@@ -34,7 +35,7 @@ export const codexAdapter: ToolCommandAdapter = {
 
   formatFile(content: CommandContent): string {
     return `---
-description: ${content.description}
+description: ${escapeYamlValue(content.description)}
 argument-hint: command arguments
 ---
 

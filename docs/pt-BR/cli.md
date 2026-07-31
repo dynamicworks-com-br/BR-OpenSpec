@@ -159,9 +159,37 @@ openspec update [path] [options]
 
 ```bash
 # Atualizar arquivos de instrução após atualização via npm
-npm update @dynamicworks/br-openspec
+npm install -g @dynamicworks/br-openspec@latest
 openspec update
 ```
+
+Atualize o pacote primeiro. Os arquivos de instrução são gerados pela CLI instalada, então rodar `openspec update` com uma instalação desatualizada reporta tudo como atualizado sem adicionar os fluxos de trabalho que as versões mais novas trazem.
+
+Para tornar isso visível, o `openspec update` consulta o registry do npm para saber se uma CLI mais nova foi publicada. Quando a sua está atrás, ele oferece a atualização:
+
+```text
+Uma nova versão da CLI do BR-OpenSpec está disponível (v2.2.0 → v2.3.0).
+  Executando a partir de: /usr/local/lib/node_modules/@dynamicworks/br-openspec
+? Atualizar para v2.3.0 agora? (Y/n)
+```
+
+Respondendo sim, ele executa `npm install -g @dynamicworks/br-openspec@latest` e depois roda a atualização novamente com a nova CLI, para que os novos fluxos de trabalho cheguem no mesmo comando. Ele confirma a atualização perguntando a versão ao binário instalado em vez de confiar no código de saída do npm, então se outra instalação anterior no seu `PATH` ainda estiver respondendo, ele avisa em vez de declarar sucesso. Respondendo não, ele imprime o comando e atualiza com a CLI que você tem. Ctrl-C interrompe o comando.
+
+A oferta aparece apenas em um terminal interativo, e apenas quando o npm é o dono da instalação — o único caso que `npm install -g` realmente resolve. Todas as outras recebem o comando correspondente à forma como foram instaladas:
+
+| Como o BR-OpenSpec está instalado | O que você recebe |
+|-----------------------------------|-------------------|
+| Instalação global via npm | O prompt, com a atualização executada para você — em um terminal interativo; saída redirecionada recebe o comando impresso |
+| Instalação global via pnpm, bun, yarn ou volta | O comando do próprio gerenciador: `pnpm add -g …@latest`, `bun add -g …@latest`, `yarn global add …@latest` ou `volta install …@latest` |
+| Dependência do projeto | Um aviso para atualizar a dependência, já que o gerenciador de pacotes do projeto é dono do lockfile |
+| Cache de `npx` / `dlx` | `npx @dynamicworks/br-openspec@latest update` — esse comando já é a atualização, então não há segundo passo |
+| Clone do git | Nada — sua versão é o que o branch disser |
+
+Sempre que algo é impresso, ele informa o diretório de onde a CLI em execução foi carregada — o lugar a verificar quando você já atualizou, mas um shim desatualizado ainda é dono do seu `PATH`.
+
+Ele consulta o registry em `npm_config_registry` quando o npm a exporta, e `https://registry.npmjs.org` caso contrário. Nenhum `.npmrc` é lido: deixar o conteúdo de um arquivo escolher o destino de uma requisição externa é um fluxo que vale evitar, e o `.npmrc` de um projeto viaja com o repositório clonado. Em um mirror privado, exporte `npm_config_registry` — ou defina `OPENSPEC_NO_UPDATE_CHECK` para pular a verificação por completo. A verificação é pulada quando `CI` está definida com qualquer valor que não seja um valor de desligamento explícito (`false`, `0`, `no`, `off` ou vazio), sob `NODE_ENV=test`, e sempre que `OPENSPEC_NO_UPDATE_CHECK` (qualquer valor), `DO_NOT_TRACK=1` ou `OPENSPEC_TELEMETRY=0` estiver definida. Ela roda antes da atualização e pode atrasá-la em no máximo 1,5 segundo — desiste depois disso mesmo quando a rede descarta pacotes silenciosamente, e fica em silêncio quando o registry está inalcançável.
+
+**Como "está atualizado" é decidido:** os arquivos de skill registram a versão que os gerou, então o BR-OpenSpec compara essa versão com a CLI instalada. Arquivos de comando não carregam registro de versão, então para uma ferramenta que tem comandos mas não tem skills (entrega `commands`), o BR-OpenSpec compara o conteúdo dos arquivos com o que seria gerado agora — edições nesses arquivos contam como divergência e são sobrescritas. Com entrega `skills` ou `both`, apenas a versão registrada é verificada, então um arquivo editado manualmente cuja versão ainda confere é deixado como está; use `--force` para reescrevê-lo. De qualquer forma, os arquivos gerados pertencem ao BR-OpenSpec — mantenha suas próprias instruções em outro lugar.
 
 ---
 
@@ -968,12 +996,14 @@ openspec completion uninstall
 
 | Variável | Descrição |
 |----------|-----------|
-| `OPENSPEC_TELEMETRY` | Definir como `0` para desabilitar telemetria |
-| `DO_NOT_TRACK` | Definir como `1` para desabilitar telemetria (sinal DNT padrão) |
+| `OPENSPEC_TELEMETRY` | Definir como `0` para desabilitar telemetria e a verificação de versão do `openspec update` |
+| `DO_NOT_TRACK` | Definir como `1` para desabilitar telemetria e a verificação de versão do `openspec update` (sinal DNT padrão) |
 | `OPENSPEC_CONCURRENCY` | Concorrência padrão para validação em massa (padrão: 6) |
 | `EDITOR` ou `VISUAL` | Editor para `openspec config edit` |
 | `NO_COLOR` | Desabilitar saída colorida quando definido |
 | `OPENSPEC_NO_ANIMATION` | Desabilitar a animação de boas-vindas do `openspec init` quando definido |
+| `OPENSPEC_NO_UPDATE_CHECK` | Desabilitar a verificação de CLI mais nova publicada do `openspec update` quando definido (qualquer valor, inclusive vazio). Também é pulada quando `CI` está definida (exceto `false`/`0`/`no`/`off`) ou `NODE_ENV=test` |
+| `npm_config_registry` | Registry que a verificação de versão do `openspec update` consulta. Precisa ser uma URL `http(s)` ou volta para `https://registry.npmjs.org`. Nenhum arquivo `.npmrc` é lido |
 
 ---
 

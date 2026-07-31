@@ -452,7 +452,7 @@ export const INIT_MESSAGES = {
   configureWorkflowsHint: "Execute 'openspec config profile' para configurar seus fluxos de trabalho.",
   learnMore: (url: string) => `Saiba mais: ${url}`,
   feedback: (url: string) => `Feedback:   ${url}`,
-  restartIDE: 'Reinicie sua IDE para que os comandos de barra tenham efeito.',
+  restartIDE: 'Reinicie sua IDE para que os novos comandos tenham efeito.',
   restartIDESkills: 'Reinicie sua IDE para que as novas skills tenham efeito.',
   configuredPreselected: (names: string) => `BR-OpenSpec configurado: ${names} (pré-selecionado)`,
   detectedToolsLabel: (names: string, label: string) => `Diretórios de ferramentas detectados: ${names} (${label})`,
@@ -838,8 +838,16 @@ export const UI_MESSAGES = {
   welcomeSubtitle: 'Leve e orientado a especificações',
   setupWillConfigure: 'Esta configuração irá configurar:',
   agentSkills: '  • Agent Skills para sua IA',
-  slashCommands: '  • Comandos /opsx:*',
+  // Não "comandos /opsx:*": esta tela roda antes da seleção de ferramentas, e
+  // ferramentas só-de-skills (Kimi Code, Mistral Vibe, ...) corretamente não
+  // recebem arquivos de comando. A grafia exata por ferramenta aparece no
+  // "Início rápido" pós-configuração.
+  slashCommands: '  • Comandos, se suportados',
   quickStart: 'Início rápido após a configuração:',
+  // Os nomes exibidos são os canônicos; cada ferramenta os escreve de um jeito
+  // (/opsx-propose, @opsx-propose, $openspec-propose ...) e isso só é conhecido
+  // depois da seleção de ferramentas, um prompt adiante.
+  spellingVaries: '  (a grafia varia por ferramenta)',
   pressEnter: 'Pressione Enter para continuar...',
 };
 
@@ -939,6 +947,29 @@ export const UPDATE_MESSAGES = {
   settingUp: (name: string) => `Configurando ${name}...`,
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   failedToSetup: (name: string) => `Falha ao configurar ${name}`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Verificação de versão da CLI (src/core/version-check.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const VERSION_CHECK_MESSAGES = {
+  newerCliAvailable: (current: string, latest: string) =>
+    `Uma nova versão da CLI do BR-OpenSpec está disponível (v${current} → v${latest}).`,
+  runningFrom: (installDir: string) => `  Executando a partir de: ${installDir}`,
+  updateProjectDependency: (packageName: string) =>
+    `  Atualize a dependência ${packageName} neste projeto.`,
+  rerunUpdateHint: '  Depois execute "openspec update" novamente para aplicar os novos fluxos de trabalho.',
+  upgradePrompt: (latest: string) => `Atualizar para v${latest} agora?`,
+  upgradeIncompleteLine1: 'A atualização não foi concluída. Uma instalação global pode precisar de',
+  upgradeIncompleteLine2: 'permissões elevadas ou de um gerenciador de pacotes diferente.',
+  upgradeUnconfirmed: 'A atualização terminou, mas nenhum "openspec" pôde ser executado para confirmá-la.',
+  upgradeStillReportsOld: (version: string) => `A atualização terminou, mas "openspec" ainda reporta v${version}.`,
+  binUnchanged: (binPath: string) => `  O npm reportou sucesso, mas ${binPath} não mudou.`,
+  stalePathInstallAnswering: '  Outra instalação anterior no seu PATH está respondendo primeiro.',
+  upgradedTo: (version: string) => `✓ Atualizado para v${version}.`,
+  filesNotRegenerated: 'Os arquivos de instrução não foram regenerados.',
+  runUpdateToRegenerate: '  Execute "openspec update" para aplicar os novos fluxos de trabalho.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1116,7 +1147,7 @@ export const LEGACY_CLEANUP_MESSAGES = {
   failedToDeleteOpenspecAgents: (error: string) => `Falha ao excluir openspec/AGENTS.md: ${error}`,
   cleanedUpHeader: 'Arquivos legados limpos:',
   removedFile: (file: string) => `  ✓ Removido ${file}`,
-  removedDir: (dir: string) => `  ✓ Removido ${dir}/ (substituído por /opsx:*)`,
+  removedDir: (dir: string) => `  ✓ Removido ${dir}/ (substituído por skills e comandos do BR-OpenSpec)`,
   removedMarkers: (file: string) => `  ✓ Marcadores BR-OpenSpec removidos de ${file}`,
   errorsHeader: 'Erros durante a limpeza:',
   errorItem: (error: string) => `  ⚠ ${error}`,

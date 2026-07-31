@@ -628,7 +628,7 @@ ${OPENSPEC_MARKERS.end}`);
       };
 
       const summary = formatCleanupSummary(result);
-      expect(summary).toContain('✓ Removido .claude/commands/openspec/ (substituído por /opsx:*)');
+      expect(summary).toContain('✓ Removido .claude/commands/openspec/ (substituído por skills e comandos do BR-OpenSpec)');
     });
 
     it('should format modified files', () => {

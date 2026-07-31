@@ -71,30 +71,33 @@ The strength of this design: you learn the workflow once and carry it across too
 
 ## Slash command syntax by tool
 
-The intent is identical everywhere. The punctuation differs. Use the form that matches your assistant.
+The intent is identical everywhere. The spelling follows the file your tool loads.
 
-| Tool | How you type it |
-|------|-----------------|
-| Claude Code | `/opsx:propose`, `/opsx:apply` |
-| Cursor | `/opsx-propose`, `/opsx-apply` |
-| Windsurf | `/opsx-propose`, `/opsx-apply` |
-| GitHub Copilot (IDE) | `/opsx-propose`, `/opsx-apply` |
-| Codex | skill-style via `.codex/skills/openspec-*` |
-| Oh My Pi | `/opsx-propose`, `/opsx-apply` |
-| Kimi Code | skill-style, e.g. `/skill:openspec-propose` |
-| Trae | `/opsx-propose`, `/opsx-apply` |
-| Shared `.agents` skills | skill-style, e.g. `/openspec-propose` |
+| Your tool's command file | How you type it | Example tools |
+|--------------------------|-----------------|---------------|
+| `.../commands/opsx/<id>.*` | `/opsx:propose` | Claude Code, Gemini CLI, Crush |
+| `.../opsx-<id>.*` | `/opsx-propose` | Cursor, GitHub Copilot (IDE), Windsurf, Codex (global prompts) |
+| `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose` | Amazon Q Developer |
+| none — skills only | `/openspec-propose` | ForgeCode, Mistral Vibe, Trae, shared `.agents` target |
+| none — Kimi Code | `/skill:openspec-propose` | Kimi Code |
+| Codex skills | `$openspec-propose` | Codex |
 
-Most tools use either the colon form (`/opsx:propose`) or the dash form (`/opsx-propose`). A few tools surface BR-OpenSpec as named skills instead of slash commands; for those you invoke the skill by name. The full per-tool list, including exactly which files get written where, lives in [Supported Tools](supported-tools.md).
+Every tool is listed in [How To Invoke](supported-tools.md#how-to-invoke) — that
+table is the authoritative one. Two rows are not slash commands at all: Amazon Q
+loads its files into a prompt library invoked with `@`, and the skill rows
+use the *skill* name, which is not the command id (`/opsx:apply` is the
+`openspec-apply-change` skill).
 
-When in doubt, type a slash in your AI chat and look at the autocomplete. Your tool will show you the form it expects.
+When in doubt, read the "Getting started" line `openspec init` printed: it already
+uses the form your tools registered. Typing a slash and watching the autocomplete
+works too, for the tools that surface slash commands at all.
 
 ## How the commands got there: skills and commands
 
 When you run `openspec init` (or `openspec update`), BR-OpenSpec writes small files into your project so your AI tool can find the workflow. Depending on your tool and settings, these are **skills**, **commands**, or both.
 
 - **Skills** live in places like `.claude/skills/openspec-*/SKILL.md`. They're the emerging cross-tool standard: a folder of instructions your assistant auto-detects.
-- **Commands** live in places like `.claude/commands/opsx/<id>.md`. They're the older per-tool slash command files. Codex does not get generated command files; use `.codex/skills/openspec-*`.
+- **Commands** live in places like `.cursor/commands/opsx-<id>.md` or `.claude/commands/opsx/<id>.md` — the layout is the tool's, and it decides how you type the command. They're the older per-tool slash command files. Codex's command files live in the global Codex home (`$CODEX_HOME/prompts/`), not your project.
 
 You don't have to care which one your tool uses. You just type the slash command and it works. But knowing these files exist helps when something goes wrong: if your commands vanish, it usually means these files are missing or stale, and `openspec update` regenerates them.
 

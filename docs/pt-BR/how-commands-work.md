@@ -71,30 +71,27 @@ A força desse design: você aprende o fluxo de trabalho uma vez e o carrega ent
 
 ## Sintaxe de slash command por ferramenta
 
-A intenção é idêntica em todo lugar. A pontuação difere. Use a forma que corresponde ao seu assistente.
+A intenção é idêntica em todo lugar. A grafia segue o arquivo que sua ferramenta carrega.
 
-| Ferramenta | Como você digita |
-|------|-----------------|
-| Claude Code | `/opsx:propose`, `/opsx:apply` |
-| Cursor | `/opsx-propose`, `/opsx-apply` |
-| Windsurf | `/opsx-propose`, `/opsx-apply` |
-| GitHub Copilot (IDE) | `/opsx-propose`, `/opsx-apply` |
-| Codex | estilo skill via `.codex/skills/openspec-*` |
-| Oh My Pi | `/opsx-propose`, `/opsx-apply` |
-| Kimi Code | estilo skill, ex. `/skill:openspec-propose` |
-| Trae | `/opsx-propose`, `/opsx-apply` |
-| Skills `.agents` compartilhadas | estilo skill, ex. `/openspec-propose` |
+| Arquivo de comando da sua ferramenta | Como você digita | Ferramentas de exemplo |
+|--------------------------------------|------------------|------------------------|
+| `.../commands/opsx/<id>.*` | `/opsx:propose` | Claude Code, Gemini CLI, Crush |
+| `.../opsx-<id>.*` | `/opsx-propose` | Cursor, GitHub Copilot (IDE), Windsurf, Codex (prompts globais) |
+| `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose` | Amazon Q Developer |
+| nenhum — somente skills | `/openspec-propose` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
+| nenhum — Kimi Code | `/skill:openspec-propose` | Kimi Code |
+| skills do Codex | `$openspec-propose` | Codex |
 
-A maioria das ferramentas usa a forma com dois-pontos (`/opsx:propose`) ou a forma com hífen (`/opsx-propose`). Algumas ferramentas expõem o BR-OpenSpec como skills nomeadas em vez de slash commands; para essas, você invoca a skill pelo nome. A lista completa por ferramenta, incluindo exatamente quais arquivos são escritos onde, está em [Ferramentas Suportadas](supported-tools.md).
+Todas as ferramentas estão listadas em [Como Invocar](supported-tools.md#como-invocar) — aquela tabela é a autoritativa. Duas linhas não são slash commands de forma alguma: o Amazon Q carrega seus arquivos numa biblioteca de prompts invocada com `@`, e as linhas de skill usam o nome da *skill*, que não é o id do comando (`/opsx:apply` é a skill `openspec-apply-change`).
 
-Na dúvida, digite uma barra no chat da sua IA e olhe o autocompletar. Sua ferramenta mostrará a forma que ela espera.
+Na dúvida, leia a linha de "Início rápido" que o `openspec init` imprimiu: ela já usa a forma que suas ferramentas registraram. Digitar uma barra e observar o autocompletar também funciona, para as ferramentas que expõem slash commands.
 
 ## Como os comandos chegaram lá: skills e comandos
 
 Quando você roda `openspec init` (ou `openspec update`), o BR-OpenSpec escreve pequenos arquivos no seu projeto para que sua ferramenta de IA encontre o fluxo de trabalho. Dependendo da sua ferramenta e configurações, esses são **skills**, **comandos**, ou ambos.
 
 - **Skills** vivem em lugares como `.claude/skills/openspec-*/SKILL.md`. São o padrão emergente entre ferramentas: uma pasta de instruções que seu assistente detecta automaticamente.
-- **Comandos** vivem em lugares como `.claude/commands/opsx/<id>.md`. São os arquivos de slash command mais antigos, específicos de cada ferramenta. O Codex não recebe arquivos de comando gerados; use `.codex/skills/openspec-*`.
+- **Comandos** vivem em lugares como `.cursor/commands/opsx-<id>.md` ou `.claude/commands/opsx/<id>.md` — o layout é da ferramenta, e ele decide como você digita o comando. São os arquivos de slash command mais antigos, específicos de cada ferramenta. Os arquivos de comando do Codex vivem no diretório global do Codex (`$CODEX_HOME/prompts/`), não no seu projeto.
 
 Você não precisa se importar com qual deles sua ferramenta usa. Você simplesmente digita o slash command e funciona. Mas saber que esses arquivos existem ajuda quando algo dá errado: se seus comandos somem, geralmente significa que esses arquivos estão faltando ou desatualizados, e `openspec update` os regenera.
 

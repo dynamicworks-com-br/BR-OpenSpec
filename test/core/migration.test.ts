@@ -42,10 +42,14 @@ function captureMigrationLogs(projectDir: string, tools: AIToolOption[]): string
   }
 }
 
-async function writeManagedCommand(projectPath: string, workflowId: string): Promise<void> {
-  const adapter = CommandAdapterRegistry.get('claude');
+async function writeManagedCommand(
+  projectPath: string,
+  workflowId: string,
+  toolId = 'claude'
+): Promise<void> {
+  const adapter = CommandAdapterRegistry.get(toolId);
   if (!adapter) {
-    throw new Error('Claude adapter not found');
+    throw new Error(`${toolId} adapter not found`);
   }
   const commandPath = adapter.getFilePath(workflowId);
   const fullPath = path.isAbsolute(commandPath)
@@ -166,17 +170,75 @@ describe('migration', () => {
     expect(message).not.toContain('/opsx:propose');
   });
 
-  it('prints the default skill reference when migrating a codex-only project (skills-only inferred delivery)', async () => {
+  it('prints the $-prefixed skill reference when migrating a codex-only project (skills-only inferred delivery)', async () => {
     // Neste fork o Codex tem adaptador de comandos, mas com apenas skills
     // instaladas a entrega inferida é 'skills' e os comandos nunca serão
-    // gerados — a mensagem deve usar a referência de skill padrão.
+    // gerados — e o Codex CLI invoca skills como $<name>, não como /<name>.
     await writeSkill(projectDir, 'openspec-propose', '.codex');
 
     const message = captureMigrationLogs(projectDir, [requireTool('codex')]).find((entry) =>
       entry.includes('Novo nesta versão')
     );
-    expect(message).toContain('/openspec-propose');
+    expect(message).toContain('$openspec-propose');
     expect(message).not.toContain('/opsx:propose');
+    expect(message).not.toContain('/openspec-propose');
+  });
+
+  it('prints the hyphen propose reference when migrating a qwen-only project', async () => {
+    // Qwen invokes commands by filename (.qwen/commands/opsx-propose.toml ->
+    // /opsx-propose), so the upgrade message must not advertise the colon form
+    // its palette never registers.
+    await writeManagedCommand(projectDir, 'apply', 'qwen');
+
+    const message = captureMigrationLogs(projectDir, [requireTool('qwen')]).find((entry) =>
+      entry.includes('Novo nesta versão')
+    );
+    expect(message).toContain('/opsx-propose');
+    expect(message).not.toContain('/opsx:propose');
+  });
+
+  it('prints the @ propose reference when migrating an amazon-q-only project', async () => {
+    // Amazon Q's generated files land in its prompt library, invoked as
+    // @opsx-propose. It registers no slash command, so the upgrade message
+    // must advertise neither the colon nor the plain hyphen form.
+    await writeManagedCommand(projectDir, 'apply', 'amazon-q');
+
+    const message = captureMigrationLogs(projectDir, [requireTool('amazon-q')]).find((entry) =>
+      entry.includes('Novo nesta versão')
+    );
+    expect(message).toContain('@opsx-propose');
+    expect(message).not.toContain('/opsx:propose');
+    expect(message).not.toContain('/opsx-propose');
+  });
+
+  it('falls back to the skill name when amazon-q and a slash tool disagree', async () => {
+    // @opsx-propose and /opsx-propose are both "flat", so a style-only model
+    // would wrongly treat these as agreeing and advertise one form to both.
+    await writeManagedCommand(projectDir, 'apply', 'amazon-q');
+    await writeManagedCommand(projectDir, 'apply', 'qwen');
+
+    const message = captureMigrationLogs(projectDir, [
+      requireTool('amazon-q'),
+      requireTool('qwen'),
+    ]).find((entry) => entry.includes('Novo nesta versão'));
+    expect(message).toContain('a skill openspec-propose');
+    expect(message).not.toContain('@opsx-propose');
+    expect(message).not.toContain('/opsx-propose');
+  });
+
+  it('falls back to the skill name when a namespaced and a flat tool disagree', async () => {
+    // Claude registers /opsx:propose, Qwen registers /opsx-propose: no single
+    // slash form is right for both, so neither may be advertised.
+    await writeManagedCommand(projectDir, 'apply', 'claude');
+    await writeManagedCommand(projectDir, 'apply', 'qwen');
+
+    const message = captureMigrationLogs(projectDir, [
+      ensureClaudeTool(),
+      requireTool('qwen'),
+    ]).find((entry) => entry.includes('Novo nesta versão'));
+    expect(message).toContain('a skill openspec-propose');
+    expect(message).not.toContain('/opsx:propose');
+    expect(message).not.toContain('/opsx-propose');
   });
 
   it('falls back to a syntax-neutral reference when detected tools disagree (kimi+vibe)', async () => {

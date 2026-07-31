@@ -49,13 +49,15 @@ Se `/opsx:propose` (ou o equivalente da sua ferramenta) não aparece ou não faz
 
    Isso reescreve os arquivos de skill e comando para cada ferramenta que você configurou.
 
+   Os arquivos de instrução vêm da CLI *instalada*, então uma CLI desatualizada reporta tudo como atualizado sem jamais escrever os fluxos de trabalho mais novos. O `openspec update` agora verifica isso e oferece a atualização — aceite a oferta se a vir.
+
 3. **Reinicie seu assistente.** A maioria das ferramentas varre skills e comandos na inicialização. Uma janela nova geralmente resolve.
 
 4. **Confirme que os arquivos existem.** Para o Claude Code, verifique que `.claude/skills/` contém pastas `openspec-*`. Outras ferramentas usam seus próprios diretórios, todos listados em [Ferramentas Suportadas](supported-tools.md).
 
 5. **Verifique que você inicializou este projeto.** Skills são escritas por projeto. Se você clonou um repo ou trocou de pasta, rode `openspec init` (ou `openspec update`) lá.
 
-6. **Confirme que sua ferramenta suporta arquivos de comando.** O Codex e algumas outras ferramentas (Kimi Code, ForgeCode, Mistral Vibe, Trae e o alvo `.agents` compartilhado) não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills. Para o Codex, verifique `.codex/skills/openspec-*`. O alvo `.agents` compartilhado é neutro em relação a fornecedores, então `/openspec-propose` é a forma comum, não uma garantida — se o seu assistente não responder a ela, consulte a documentação dele sobre como invocar uma skill. As formas diferem por ferramenta: veja [Ferramentas Suportadas](supported-tools.md) e [Como os Comandos Funcionam](how-commands-work.md#sintaxe-de-slash-command-por-ferramenta).
+6. **Confirme que sua ferramenta suporta arquivos de comando.** Kimi Code, ForgeCode, Mistral Vibe, Trae e o alvo `.agents` compartilhado não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills, então `/opsx` nunca vai autocompletar para elas. Digite `/skill:openspec-propose` no Kimi Code e `/openspec-propose` nas demais. O alvo `.agents` compartilhado é neutro em relação a fornecedores, então `/openspec-propose` é a forma comum, não uma garantida — se o seu assistente não responder a ela, consulte a documentação dele sobre como invocar uma skill. Os arquivos de comando do Codex ficam no diretório global do Codex (`$CODEX_HOME/prompts/opsx-*.md`), e suas skills são invocadas como `$openspec-propose`. O Amazon Q recebe arquivos de comando, mas os carrega na sua biblioteca de prompts em vez do menu de barra — digite `@opsx-propose` lá, não `/opsx`. A forma de cada ferramenta está listada em [Como Invocar](supported-tools.md#como-invocar).
 
 ## Trabalhando com mudanças
 

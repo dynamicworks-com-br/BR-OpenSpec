@@ -10,12 +10,16 @@ import path from 'path';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { transformToHyphenCommands } from '../utils/command-references.js';
+import { getTransformerForTool } from '../utils/command-references.js';
 import { AI_TOOLS, type AIToolOption } from './config.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
 } from './command-generation/index.js';
+import {
+  resolveCommandInvocation,
+  resolveCommandSurfaceCapability,
+} from './command-surface.js';
 import {
   getSkillTemplates,
   getCommandContents,
@@ -148,10 +152,12 @@ export async function addTool(
     for (const { template, dirName } of skillTemplates) {
       const skillDir = path.join(skillsDir, dirName);
       const skillFile = path.join(skillDir, 'SKILL.md');
-      const transformer =
-        tool.value === 'opencode' || tool.value === 'pi'
-          ? transformToHyphenCommands
-          : undefined;
+      const transformer = getTransformerForTool(
+        tool.value,
+        delivery,
+        resolveCommandSurfaceCapability(tool.value),
+        resolveCommandInvocation(tool.value)
+      );
       const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
       await FileSystemUtils.writeFile(skillFile, skillContent);
     }

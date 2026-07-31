@@ -18,6 +18,7 @@ import {
 } from '../utils/command-references.js';
 import {
   resolveCommandSurfaceCapability,
+  resolveCommandInvocation,
   shouldGenerateCommandsForTool,
 } from './command-surface.js';
 import { AI_TOOLS, OPENSPEC_DIR_NAME } from './config.js';
@@ -49,7 +50,6 @@ import { getOnboardingCommands } from './onboarding-commands.js';
 import { getAvailableTools } from './available-tools.js';
 import {
   WORKFLOW_TO_SKILL_DIR,
-  getCommandConfiguredTools,
   getConfiguredToolsForProfileSync,
   getToolsNeedingProfileSync,
 } from './profile-sync-drift.js';
@@ -138,16 +138,14 @@ export class UpdateCommand {
       return;
     }
 
-    // 6. Check version status for all configured tools
-    const commandConfiguredTools = getCommandConfiguredTools(resolvedProjectPath);
-    const commandConfiguredSet = new Set(commandConfiguredTools);
-    const toolStatuses = configuredTools.map((toolId) => {
-      const status = getToolVersionStatus(resolvedProjectPath, toolId, OPENSPEC_VERSION);
-      if (!status.configured && commandConfiguredSet.has(toolId)) {
-        return { ...status, configured: true };
-      }
-      return status;
-    });
+    // 6. Check version status for all configured tools, against the same workflow set
+    //    the generation loop below writes — otherwise a legacy-upgraded tool would be
+    //    fingerprinted against commands it was never given.
+    const toolStatuses = configuredTools.map((toolId) =>
+      getToolVersionStatus(resolvedProjectPath, toolId, OPENSPEC_VERSION, {
+        workflows: desiredWorkflows,
+      })
+    );
     const statusByTool = new Map(toolStatuses.map((status) => [status.toolId, status] as const));
 
     // 7. Smart update detection
@@ -214,7 +212,12 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            const transformer = getTransformerForTool(tool.value, delivery, resolveCommandSurfaceCapability(tool.value));
+            const transformer = getTransformerForTool(
+              tool.value,
+              delivery,
+              resolveCommandSurfaceCapability(tool.value),
+              resolveCommandInvocation(tool.value)
+            );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
@@ -301,22 +304,25 @@ export class UpdateCommand {
     }
 
     // 12. Show onboarding message for newly configured tools from legacy upgrade.
-    // Command tools keep the shared /opsx:* form (hyphen form for tools that
-    // invoke commands by filename), skill-only tools get their documented
-    // skill invocation, and disagreements fall back to naming the skill. Only
-    // workflows these tools actually received are hinted (the effective profile).
+    // Command tools get the command name their files answer to, skill-only
+    // tools their documented skill invocation, and disagreements fall back to
+    // naming the skill. Only workflows these tools actually received are
+    // hinted (the effective profile).
     if (newlyConfiguredTools.length > 0) {
       const referenceFor = (command: string): string => {
         const neutralForm = ONBOARDING_MESSAGES.skillReference(transformToSkillReferences(command).slice(1));
         const forms = new Set(
           newlyConfiguredTools.map((toolId) => {
-            const capability = resolveCommandSurfaceCapability(toolId);
             if (shouldGenerateCommandsForTool(toolId, delivery)) {
-              const transformer = getTransformerForTool(toolId, delivery, capability);
+              // Name the command the tool's files actually answer to:
+              // /opsx-<id> where the filename is the command name.
+              const transformer = getTransformerForTool(
+                toolId,
+                delivery,
+                resolveCommandSurfaceCapability(toolId),
+                resolveCommandInvocation(toolId)
+              );
               return transformer ? transformer(command) : command;
-            }
-            if (capability === 'skills-invocable') {
-              return neutralForm;
             }
             return getSkillReferenceTransformer(toolId)(command);
           })
@@ -751,7 +757,12 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            const transformer = getTransformerForTool(tool.value, delivery, resolveCommandSurfaceCapability(tool.value));
+            const transformer = getTransformerForTool(
+              tool.value,
+              delivery,
+              resolveCommandSurfaceCapability(tool.value),
+              resolveCommandInvocation(tool.value)
+            );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }

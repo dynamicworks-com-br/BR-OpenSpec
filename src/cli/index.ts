@@ -6,6 +6,17 @@ import { promises as fs } from 'fs';
 import { AI_TOOLS } from '../core/config.js';
 import { CLI_DESCRIPTIONS, CLI_MESSAGES, CONFIG_MESSAGES } from '../messages/index.js';
 import { UpdateCommand } from '../core/update.js';
+import {
+  getAvailableCliUpdate,
+  displayCliUpdateNote,
+  shouldOfferUpgrade,
+  getInstallDir,
+  offerCliUpgrade,
+  rerunUpdateWithUpgradedCli,
+  displayUpgradeCommand,
+  isSourceCheckout,
+} from '../core/version-check.js';
+import { isInteractive } from '../utils/interactive.js';
 import { ListCommand } from '../core/list.js';
 import { ArchiveCommand } from '../core/archive.js';
 import { ViewCommand } from '../core/view.js';
@@ -163,8 +174,59 @@ program
   .action(async (targetPath = '.', options?: { force?: boolean }) => {
     try {
       const resolvedPath = path.resolve(targetPath);
+      const installDir = getInstallDir();
+      // Running from a clone: the version is whatever the branch says, so any
+      // upgrade advice would be noise. Decided before the request, so a
+      // contributor never waits on an answer that gets thrown away.
+      const latestVersion = isSourceCheckout(installDir) ? null : await getAvailableCliUpdate();
+      const announce = latestVersion !== null;
+      // Offer to upgrade first: this process generates files from its own
+      // templates, so upgrading afterwards would leave the old ones on disk.
+      // Both streams must be a terminal — with stdout redirected the question
+      // lands in the file and the user waits at a blank screen forever.
+      const canOffer =
+        announce &&
+        shouldOfferUpgrade({
+          installDir,
+          projectPath: resolvedPath,
+          interactive: isInteractive(),
+          stdoutIsTty: Boolean(process.stdout.isTTY),
+        });
+
+      let declined = false;
+      if (latestVersion && canOffer) {
+        displayCliUpdateNote(latestVersion, resolvedPath, { withCommand: false });
+        const outcome = await offerCliUpgrade(latestVersion);
+
+        // Set the code and return rather than process.exit: exiting here would
+        // skip commander's postAction hook, killing the telemetry flush
+        // mid-request.
+        if (outcome === 'cancelled') {
+          // Ctrl-C means stop the command, not fall through to more prompts.
+          process.exitCode = 130;
+          return;
+        }
+        if (outcome === 'upgraded') {
+          process.exitCode = await rerunUpdateWithUpgradedCli(resolvedPath, {
+            force: options?.force,
+          });
+          return;
+        }
+        // Declined, failed, or upgraded-but-unreachable: fall through to the
+        // update, then leave the command on screen underneath it.
+        declined = true;
+      }
+
       const updateCommand = new UpdateCommand({ force: options?.force });
       await updateCommand.execute(resolvedPath);
+
+      if (declined) {
+        // The headline was printed before the prompt; only the manual route is
+        // still owed, and it belongs where the user is looking now.
+        displayUpgradeCommand(resolvedPath);
+      } else if (latestVersion) {
+        displayCliUpdateNote(latestVersion, resolvedPath);
+      }
     } catch (error) {
       console.log(); // Empty line for spacing
       ora().fail(CLI_MESSAGES.error((error as Error).message));

@@ -122,6 +122,46 @@ describe('welcome screen', () => {
     expect(output).not.toContain('Início rápido após a configuração:');
   });
 
+  it('does not promise opsx commands in the setup summary', async () => {
+    const { showWelcomeScreen } = await import('../../src/ui/welcome-screen.js');
+    renderStatically();
+
+    // This screen runs before tool selection, and skills-only tools (Codex,
+    // Kimi Code, ...) correctly receive no command files, so the summary must
+    // not state that opsx slash commands are part of every setup.
+    await showWelcomeScreen(['archive']);
+
+    const output = writtenOutput();
+
+    expect(output).toContain('Agent Skills para sua IA');
+    expect(output).toContain('Comandos, se suportados');
+    expect(output).not.toContain('Comandos /opsx:*');
+  });
+
+  it('flags that the quick-start spelling varies by tool', async () => {
+    const { showWelcomeScreen } = await import('../../src/ui/welcome-screen.js');
+    renderStatically();
+
+    // The quick start shows canonical names, but this screen renders one
+    // prompt before tools are picked — an Amazon Q user types @opsx-propose
+    // and a Codex user $openspec-propose, neither of which is shown here.
+    await showWelcomeScreen(['propose']);
+
+    const output = writtenOutput();
+
+    expect(output).toContain('/opsx:propose');
+    expect(output).toContain('a grafia varia por ferramenta');
+  });
+
+  it('omits the spelling caveat when there is no quick start block', async () => {
+    const { showWelcomeScreen } = await import('../../src/ui/welcome-screen.js');
+    renderStatically();
+
+    await showWelcomeScreen(['archive']);
+
+    expect(writtenOutput()).not.toContain('a grafia varia por ferramenta');
+  });
+
   it('keeps every rendered line inside the animation width budget', async () => {
     const { showWelcomeScreen } = await import('../../src/ui/welcome-screen.js');
     renderStatically();

@@ -81,7 +81,7 @@ npm install -g @dynamicworks/br-openspec@latest   # ou equivalente em pnpm/yarn/
 openspec update                                   # rode dentro de cada projeto
 ```
 
-`openspec update` regenera os arquivos de skill e comando para as ferramentas que você configurou, de modo que seus slash commands fiquem em dia com a versão instalada.
+`openspec update` regenera os arquivos de skill e comando para as ferramentas que você configurou, de modo que seus slash commands fiquem em dia com a versão instalada. Ele também verifica se uma CLI mais nova foi publicada e oferece a atualização, já que atualizar é o que disponibiliza os novos fluxos de trabalho em primeiro lugar — veja [Referência da CLI](cli.md#openspec-update).
 
 ## Desinstalando
 
