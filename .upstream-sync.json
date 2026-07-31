@@ -3,12 +3,13 @@
   "upstreamRepo": "Fission-AI/OpenSpec",
   "upstreamRemote": "upstream",
   "upstreamBranch": "main",
-  "lastSyncedCommit": "596d6ba7f41160da9ab99cf4b891353baeb7eeb0",
-  "lastSyncedVersion": "v1.6.0-30-g596d6ba",
-  "lastSyncedDate": "2026-07-20",
+  "lastSyncedCommit": "45cca5db6137ed209117cc70510eb3e057fb981b",
+  "lastSyncedVersion": "v1.7.0-7-g45cca5d",
+  "lastSyncedDate": "2026-07-31",
   "deferred": [
-    "Subsistema workspace/stores beta (src/core/workspace, src/core/store, src/core/context-store, src/core/planning-home, src/commands/workspace, initiative, file-state.ts, root-selection, relationship-health) — inclui os STABLE 15ef3bcf, 93e27a75, 5199f41a, 520aa8c4 e o hunk file-state.ts de 41ceebe2 — ver §7 de PLANO-sync-upstream-20260719.md",
-    "website/ Cloudflare (65a7233f parcial + 0a99f410) e workflow de beta prerelease (8e9e457c) — adiados por decisão D4 (2026-07-19)"
+    "Subsistema workspace/stores beta (src/core/workspace, src/core/store, src/core/context-store, src/core/planning-home, src/commands/workspace, initiative, file-state.ts, root-selection, relationship-health) — inclui os STABLE 15ef3bcf, 93e27a75, 5199f41a, 520aa8c4, o hunk file-state.ts de 41ceebe2 e o 6b3623a3 (view --store) — ver §7 de PLANO-sync-upstream-20260719.md e D1 de PLANO-sync-upstream-20260731.md",
+    "website/ Cloudflare (65a7233f parcial + 0a99f410) e workflow de beta prerelease (8e9e457c) — adiados por decisão D4 (2026-07-19); bumps de website 11a301d5/2b503389/b976fc06 idem (D2, 2026-07-31)",
+    "Adapters zcode.ts, oh-my-pi.ts, trae.ts (criados antes de 596d6ba7, lacuna das syncs anteriores — as ferramentas operam como skills-only no fork); lacuna registrada em 2026-07-31 para avaliação futura"
   ],
   "history": [
     {
@@ -30,6 +31,16 @@
       "tag": "synced/upstream-v1.6.0",
       "scope": "Bloco A (38 commits STABLE portados em 30 commits temáticos): /opsx:update no core, skills.sh, Kimi Code, auto-approve do CLI, resolução canônica validate/view/archive, parser fence-aware, specs aninhados, archive idempotente, datas locais, completions/shell, docs overhaul (13 páginas EN+PT-BR), bumps de segurança. Stores/workspace adiados; website e beta prerelease adiados (D4).",
       "plan": "PLANO-sync-upstream-20260719.md"
+    },
+    {
+      "date": "2026-07-31",
+      "fromCommit": "596d6ba7f41160da9ab99cf4b891353baeb7eeb0",
+      "toCommit": "45cca5db6137ed209117cc70510eb3e057fb981b",
+      "toVersion": "v1.7.0-7-g45cca5d",
+      "branch": "sync/upstream_20260731",
+      "tag": "synced/upstream-v1.7.0",
+      "scope": "Bloco A (62 commits portados em 18 commits temáticos + regen de skills): skip_specs, contexto de runtime + operation guidance (instructions archive), upgrade de CLI stale no update (version-check), alvo agents, Devin Desktop + Zoo Code (renames), archive/specs-apply (Purpose herdado, REMOVED no-op, aviso de nota absorvida, flag não-interativa), validate (scenario-loss, delta na raiz, prefixo numérico), schema (symlinks, init --force validado), templates (2 lotes + subconjunto de deltas do caller), init/onboarding (skill references, profile-aware, reduced-motion), adapters (escape YAML, invocação por ferramenta), telemetria sem posthog-node, hardening (SECURITY.md, dependabot, guards de config, CVEs), CI/deps (eslint 10, TS 6, ora 9, Node 22 no flake). Pulados: Version Packages, website (D2), CODEOWNERS (D4). Adiados: 6b3623a3 (stores).",
+      "plan": "PLANO-sync-upstream-20260731.md"
     }
   ]
 }

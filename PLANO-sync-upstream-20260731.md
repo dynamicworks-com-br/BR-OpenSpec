@@ -1,6 +1,6 @@
 # Plano de Sincronização BR-OpenSpec ← Fission-AI/OpenSpec (2026-07-31)
 
-> **Status:** 🚧 EM EXECUÇÃO
+> **Status:** ✅ EXECUTADO em 2026-07-31 — 18 commits temáticos + regen de skills na branch, suite verde (92 arquivos/2925 testes), marcador atualizado e tag `synced/upstream-v1.7.0` criada.
 > **Branch de trabalho:** `sync/upstream_20260731`
 > **Fork:** `@dynamicworks/br-openspec` v2.2.0 (PT-BR first)
 > **Upstream:** `@fission-ai/openspec` — ponto de partida `596d6ba7` (v1.6.0-30) → tip `45cca5db` (v1.7.0-7, 2026-07-30)
