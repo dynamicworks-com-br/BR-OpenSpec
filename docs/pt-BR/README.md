@@ -21,7 +21,7 @@ A segunda importa mais do que parece. O BR-OpenSpec tem duas metades: uma ferram
 
 **Tenho uma base de código grande e existente.** Você não documenta tudo. [Usando o BR-OpenSpec em um Projeto Existente](existing-projects.md) mostra como começar em código brownfield real sem tentar abraçar o oceano.
 
-**Só quero fazer funcionar.** [Instale](installation.md), rode `openspec init`, depois leia [Como os Comandos Funcionam](how-commands-work.md) para que seu primeiro slash command caia no lugar certo.
+**Só quero fazer funcionar.** [Instale](installation.md), rode `openspec init`, depois leia [Como os Comandos Funcionam](how-commands-work.md) para que seu primeiro slash command caia no lugar certo. Ou entregue o setup ao seu assistente com o [prompt de instalação assistida por IA](installation.md#instale-com-seu-assistente-de-ia).
 
 **Aprendo por exemplos.** A página [Exemplos e Receitas](examples.md) percorre mudanças reais do início ao fim: uma funcionalidade pequena, uma correção de bug, uma refatoração, uma exploração.
 
@@ -45,7 +45,7 @@ A segunda importa mais do que parece. O BR-OpenSpec tem duas metades: uma ferram
 | [Explore Primeiro](explore.md) | Use `/opsx:explore` para pensar uma ideia antes de se comprometer |
 | [Como os Comandos Funcionam](how-commands-work.md) | Onde os slash commands rodam, o que significa "modo interativo", terminal vs chat |
 | [Conceitos Essenciais em Resumo](overview.md) | Todo o modelo mental em uma página: specs, mudanças, deltas, arquivamento |
-| [Instalação](installation.md) | npm, pnpm, yarn, bun, Nix, e como verificar que funcionou |
+| [Instalação](installation.md) | npm, pnpm, yarn, bun, Nix, um prompt que entrega o setup ao seu assistente de IA, e como verificar que funcionou |
 
 ### Use no dia a dia
 
@@ -75,7 +75,7 @@ A segunda importa mais do que parece. O BR-OpenSpec tem duas metades: uma ferram
 |-----|-------------------|
 | [Personalização](customization.md) | Configuração do projeto, schemas personalizados, contexto compartilhado |
 | [Multi-Idioma](multi-language.md) | Gere artefatos em idiomas diferentes do inglês |
-| [Ferramentas Suportadas](supported-tools.md) | As 25+ ferramentas de IA com que o BR-OpenSpec se integra, e onde os arquivos vão parar |
+| [Ferramentas Suportadas](supported-tools.md) | As 30+ ferramentas de IA com que o BR-OpenSpec se integra, e onde os arquivos vão parar |
 
 ### Quando precisar de ajuda
 

@@ -15,7 +15,11 @@
 ### Modified Capabilities
 <!-- Capacidades existentes cujos REQUIREMENTS estão mudando (não apenas a implementação).
      Liste aqui somente se o comportamento em nível de spec mudar. Cada uma precisa de um arquivo de spec delta.
-     Use nomes de spec existentes de openspec/specs/. Deixe vazio se nenhum requisito mudar. -->
+     Use nomes de spec existentes de openspec/specs/. Deixe vazio se nenhum requisito mudar.
+     Uma change sem nenhuma capacidade (refatoração pura, ferramental, docs)
+     deve definir `skip_specs: true` em seu .openspec.yaml - openspec validate rejeita
+     uma change com zero deltas sem esse marcador. Não invente um requisito só para
+     satisfazer a validação. -->
 - `<existing-name>`: <qual requisito está mudando>
 
 ## Impact

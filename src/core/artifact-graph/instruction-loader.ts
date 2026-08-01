@@ -4,10 +4,10 @@ import { getSchemaDir, resolveSchema, listSchemasWithInfo } from './resolver.js'
 import { ArtifactGraph } from './graph.js';
 import { detectCompleted } from './state.js';
 import { resolveArtifactOutputs } from './outputs.js';
-import { resolveSchemaForChange } from '../../utils/change-metadata.js';
+import { resolveSchemaForChange, readChangeMetadata } from '../../utils/change-metadata.js';
 import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
-import { readProjectConfig, validateConfigRules } from '../project-config.js';
+import { readProjectConfig, validateConfigRules, type ProjectConfig } from '../project-config.js';
 import type { Artifact, CompletedSet } from './types.js';
 
 // Session-level cache for validation warnings (avoid repeating same warnings)
@@ -42,6 +42,12 @@ export interface ChangeContext {
   changeDir: string;
   /** Project root directory */
   projectRoot: string;
+  /**
+   * Artifact IDs counted as complete only because the change declares
+   * skip_specs, not because their files exist. Kept separate so status can
+   * render them as skipped rather than done.
+   */
+  skippedArtifacts?: Set<string>;
 }
 
 /**
@@ -72,7 +78,18 @@ export interface ArtifactInstructions {
   dependencies: DependencyInfo[];
   /** Artifacts that become available after completing this one */
   unlocks: string[];
+  /** True when the change declares skip_specs and this artifact is skipped */
+  skipped?: boolean;
+  /** Present only when skipped: tells the consumer not to create the artifact */
+  warning?: string;
 }
+
+/**
+ * Warning attached to instructions for an artifact skipped via skip_specs.
+ * Carried in the JSON payload too, so agents driving the CLI with --json see
+ * the same do-not-create signal as the text output.
+ */
+export const SKIP_SPECS_INSTRUCTIONS_WARNING = ARTIFACT_GRAPH_MESSAGES.skipSpecsInstructionsWarning;
 
 /**
  * Dependency information including path and description.
@@ -86,6 +103,8 @@ export interface DependencyInfo {
   path: string;
   /** Description of the dependency artifact */
   description: string;
+  /** True when the dependency is satisfied via skip_specs - no files exist to read */
+  skipped?: boolean;
 }
 
 /**
@@ -96,8 +115,13 @@ export interface ArtifactStatus {
   id: string;
   /** Output path pattern */
   outputPath: string;
-  /** Status: done, ready, or blocked */
-  status: 'done' | 'ready' | 'blocked';
+  /** Status: done, skipped (via skip_specs), ready, or blocked */
+  status: 'done' | 'skipped' | 'ready' | 'blocked';
+  /** Artifact IDs this artifact directly requires (its `requires` edges).
+   * Present for every status so callers can compute the transitive required
+   * set even when the artifact is already `done` (file-existence status does
+   * not imply its dependencies exist). */
+  requires: string[];
   /** Missing dependencies (only for blocked) */
   missingDeps?: string[];
 }
@@ -171,6 +195,14 @@ export function loadTemplate(
 }
 
 /**
+ * Options for loadChangeContext.
+ */
+export interface LoadChangeContextOptions {
+  /** Pre-read project config; suppresses schema resolution's fallback config read. */
+  projectConfig?: ProjectConfig | null;
+}
+
+/**
  * Loads change context combining graph and completion state.
  *
  * Schema resolution order:
@@ -181,23 +213,55 @@ export function loadTemplate(
  * @param projectRoot - Project root directory
  * @param changeName - Change name
  * @param schemaName - Optional schema name override. If not provided, auto-detected from metadata.
+ * @param options - Optional pre-read project config reused for schema resolution
  * @returns Change context with graph, completed set, and metadata
  */
 export function loadChangeContext(
   projectRoot: string,
   changeName: string,
-  schemaName?: string
+  schemaName?: string,
+  options: LoadChangeContextOptions = {}
 ): ChangeContext {
   const changeDir = FileSystemUtils.canonicalizeExistingPath(
     path.join(projectRoot, 'openspec', 'changes', changeName)
   );
 
   // Resolve schema: explicit > metadata > default
-  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName);
+  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName, {
+    projectConfig: options.projectConfig,
+  });
 
   const schema = resolveSchema(resolvedSchemaName, projectRoot);
   const graph = ArtifactGraph.fromSchema(schema);
   const completed = detectCompleted(graph, changeDir);
+
+  // A change that declares skip_specs has no spec deltas by design, so
+  // artifacts generating into specs/ count as complete; otherwise the graph
+  // would block their dependents (e.g. tasks) on files that must not exist.
+  // Tracked separately so status renders them as skipped, not done.
+  // Invalid metadata reads as absent here: validate/archive report the
+  // unhonorable marker themselves via readSkipSpecsMarker, and synthesizing
+  // no completions is the fail-safe direction for status/instructions.
+  let skipSpecsDeclared = false;
+  try {
+    skipSpecsDeclared = readChangeMetadata(changeDir, projectRoot)?.skip_specs === true;
+  } catch {
+    skipSpecsDeclared = false;
+  }
+  const skippedArtifacts = new Set<string>();
+  if (skipSpecsDeclared) {
+    for (const artifact of graph.getAllArtifacts()) {
+      // A schema may write generates as './specs/...' - the globs treat that
+      // identically to 'specs/...', so the skip set must too, or validate
+      // would honor the marker while instructions tell the agent to create
+      // the very files the conflict gate polices.
+      const generates = artifact.generates.replace(/^(?:\.\/)+/, '');
+      if (generates.startsWith('specs/') && !completed.has(artifact.id)) {
+        completed.add(artifact.id);
+        skippedArtifacts.add(artifact.id);
+      }
+    }
+  }
 
   return {
     graph,
@@ -206,6 +270,7 @@ export function loadChangeContext(
     changeName,
     changeDir,
     projectRoot,
+    ...(skippedArtifacts.size > 0 ? { skippedArtifacts } : {}),
   };
 }
 
@@ -234,7 +299,7 @@ export function generateInstructions(
   }
 
   const templateContent = loadTemplate(context.schemaName, artifact.template, context.projectRoot);
-  const dependencies = getDependencyInfo(artifact, context.graph, context.completed);
+  const dependencies = getDependencyInfo(artifact, context.graph, context.completed, context.skippedArtifacts);
   const unlocks = getUnlockedArtifacts(context.graph, artifactId);
 
   // Use projectRoot from context if not explicitly provided
@@ -283,6 +348,9 @@ export function generateInstructions(
     instruction: artifact.instruction,
     context: configContext,
     rules: configRules,
+    ...(context.skippedArtifacts?.has(artifact.id)
+      ? { skipped: true, warning: SKIP_SPECS_INSTRUCTIONS_WARNING }
+      : {}),
     template: templateContent,
     dependencies,
     unlocks,
@@ -295,7 +363,8 @@ export function generateInstructions(
 function getDependencyInfo(
   artifact: Artifact,
   graph: ArtifactGraph,
-  completed: CompletedSet
+  completed: CompletedSet,
+  skippedArtifacts?: Set<string>
 ): DependencyInfo[] {
   return artifact.requires.map(id => {
     const depArtifact = graph.getArtifact(id);
@@ -304,12 +373,17 @@ function getDependencyInfo(
       done: completed.has(id),
       path: depArtifact?.generates ?? id,
       description: depArtifact?.description ?? '',
+      ...(skippedArtifacts?.has(id) ? { skipped: true } : {}),
     };
   });
 }
 
 /**
  * Gets artifacts that become available after completing the given artifact.
+ *
+ * `getAllArtifacts()` already yields the schema's declaration order, so the list
+ * is returned as collected: sorting it alphabetically would have `unlocks` name
+ * the artifacts in a different order than `status` recommends them.
  */
 function getUnlockedArtifacts(graph: ArtifactGraph, artifactId: string): string[] {
   const unlocks: string[] = [];
@@ -320,7 +394,7 @@ function getUnlockedArtifacts(graph: ArtifactGraph, artifactId: string): string[
     }
   }
 
-  return unlocks.sort();
+  return unlocks;
 }
 
 /**
@@ -346,11 +420,21 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
       existingOutputPaths: resolveArtifactOutputs(context.changeDir, artifact.generates),
     };
 
+    if (context.skippedArtifacts?.has(artifact.id)) {
+      return {
+        id: artifact.id,
+        outputPath: artifact.generates,
+        status: 'skipped' as const,
+        requires: artifact.requires,
+      };
+    }
+
     if (context.completed.has(artifact.id)) {
       return {
         id: artifact.id,
         outputPath: artifact.generates,
         status: 'done' as const,
+        requires: artifact.requires,
       };
     }
 
@@ -359,6 +443,7 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
         id: artifact.id,
         outputPath: artifact.generates,
         status: 'ready' as const,
+        requires: artifact.requires,
       };
     }
 
@@ -366,6 +451,7 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
       id: artifact.id,
       outputPath: artifact.generates,
       status: 'blocked' as const,
+      requires: artifact.requires,
       missingDeps: blocked[artifact.id] ?? [],
     };
   });

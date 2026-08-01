@@ -18,17 +18,39 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Mostre as changes que possuem delta specs (no diretório \`specs/\`).
+   Ao solicitar, mostre as changes que possuem delta specs (no diretório \`specs/\`).
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:sync <outra>\`).
 
 2. **Encontre os delta specs**
 
-   Procure arquivos de delta spec em \`openspec/changes/<nome>/specs/*/spec.md\`.
+   Execute \`openspec status --change "<nome>" --json\` e use
+   \`artifactPaths.specs.existingOutputPaths\` como a única fonte de caminhos
+   de delta spec. Se a entrada \`specs\` estiver ausente ou
+   \`existingOutputPaths\` estiver vazia, informe que não há delta specs para
+   sincronizar, não os infira de outros artifacts e pare sem solicitar
+   instruções de artifact nem escrever nenhum spec principal.
+
+   Sincronize todos os caminhos de \`existingOutputPaths\`, a menos que o
+   caller tenha estreitado o conjunto. Um caller o estreita nomeando uma lista
+   explícita de caminhos de delta spec a sincronizar — o arquivamento faz isso
+   inline, e o usuário também pode ("sincronize só o delta billing"). Nesse
+   caso, sincronize apenas os caminhos nomeados e deixe os demais delta specs
+   intocados: o arquivamento em lote exclui um delta cuja implementação não
+   foi encontrada, e sincronizá-lo mesmo assim escreveria um spec principal
+   que o caller deliberadamente omitiu. Carregue essa seleção estreitada pelo
+   passo 3; nunca a alargue de volta à lista completa. Se um caminho nomeado
+   não estiver em \`existingOutputPaths\`, não o sincronize — reporte-o e
+   pare, em vez de descartá-lo silenciosamente. Se a lista nomeada estiver
+   vazia, informe que não há nada para sincronizar e pare sem escrever nenhum
+   spec principal.
 
    Cada arquivo de delta spec contém seções como:
    - \`## ADDED Requirements\` — Novos requisitos a adicionar
@@ -40,7 +62,28 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 3. **Para cada delta spec, aplique as alterações nos specs principais**
 
-   Para cada capability com um delta spec em \`openspec/changes/<nome>/specs/<capability>/spec.md\`:
+   Antes da primeira escrita de spec principal, obtenha um snapshot atual das
+   regras de specs:
+   - Se o arquivamento invocou este workflow inline e forneceu um snapshot
+     válido de \`openspec instructions specs --change "<nome>" --json\`,
+     reutilize-o e não busque as mesmas instruções novamente.
+   - Caso contrário, execute esse comando uma vez agora.
+   - Se a consulta direta sair com código não-zero ou retornar JSON de
+     instrução de artifact inválido, reporte o erro e pare antes de escrever
+     qualquer spec principal. Não trate a falha como um conjunto de regras
+     ausente.
+   - Uma resposta válida com \`rules\` omitido significa que nenhuma regra de
+     artifact está configurada e a mesclagem semântica existente continua.
+
+   Aplique as \`rules\` retornadas apenas ao conteúdo e à forma dos specs
+   principais produzidos por esta mesclagem. Regras de artifact não são
+   orientação de operação e não podem mudar caminhos de delta, verificações do
+   CLI ou passos do workflow. Use o texto delas como restrição sem copiá-lo
+   verbatim para um spec principal ou resumo.
+
+   Para cada caminho de delta spec selecionado no passo 2 — a lista completa
+   de \`existingOutputPaths\`, ou o subconjunto estreitado quando o caller
+   forneceu um:
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
@@ -58,7 +101,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       - Encontre o requisito no spec principal
       - Antes de adicionar cenários ou alterar conteúdo, compare com o que já existe; se já for equivalente, trate como no-op
       - Aplique apenas diferenças reais — isso pode ser:
-        - Adicionar novos cenários (não é necessário copiar os existentes)
+        - Adicionar novos cenários que o spec principal ainda não tem
         - Modificar cenários existentes
         - Alterar a descrição do requisito
       - Preserve cenários/conteúdo não mencionados no delta
@@ -69,20 +112,32 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       **RENAMED Requirements:**
       - Encontre o requisito FROM, renomeie para TO
 
+      **\`## Purpose\` no delta:**
+      - O spec principal já tem um e ele é a fonte autoritativa — não mexa nele
+        (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
+
    d. **Crie um novo spec principal** se a capability ainda não existir:
       - Crie \`openspec/specs/<capability>/spec.md\`
-      - Adicione a seção Purpose (pode ser breve, marque como TBD)
+      - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
+        (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
+      - Siga a **Referência de Formato de Spec Principal** abaixo
 
 4. **Exiba o resumo**
 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
+   - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
+     para que ele seja escrito agora em vez de ficar pendente
 
 **Referência de Formato de Delta Spec**
 
 \`\`\`markdown
+## Purpose
+
+Somente em um delta que introduz uma capability totalmente nova. Semeia o novo spec principal.
+
 ## ADDED Requirements
 
 ### Requirement: New Feature
@@ -95,6 +150,12 @@ The system SHALL do something new.
 ## MODIFIED Requirements
 
 ### Requirement: Existing Feature
+The system SHALL keep doing the existing thing, now also handling A.
+
+#### Scenario: Scenario the main spec already has
+- **WHEN** user does X
+- **THEN** system does Y
+
 #### Scenario: New scenario to add
 - **WHEN** user does A
 - **THEN** system does B
@@ -109,11 +170,31 @@ The system SHALL do something new.
 - TO: \`### Requirement: New Name\`
 \`\`\`
 
+**Referência de Formato de Spec Principal**
+
+Specs principais são o destino do merge do delta. Eles nunca devem conter cabeçalhos de operação de delta (\`## ADDED/MODIFIED/REMOVED/RENAMED Requirements\`) — após o sync, todo requisito vive sob uma única seção \`## Requirements\`:
+
+\`\`\`markdown
+# <capability> Specification
+
+## Purpose
+Short description of what this capability does and why it exists.
+
+## Requirements
+
+### Requirement: New Feature
+The system SHALL do something new.
+
+#### Scenario: Basic case
+- **WHEN** user does X
+- **THEN** system does Y
+\`\`\`
+
 **Princípio-Chave: Mesclagem Inteligente**
 
-Ao contrário da mesclagem programática, você pode aplicar **atualizações parciais**:
-- Para adicionar um cenário, basta incluí-lo sob MODIFIED — não copie os cenários existentes
-- O delta representa *intenção*, não uma substituição total
+Ao contrário da mesclagem programática, você mescla em vez de sobrescrever:
+- Um bloco MODIFIED carrega o requisito inteiro - corpo mais todos os cenários que sobrevivem à mudança. \`openspec validate\` e \`openspec archive\` rejeitam um bloco que descarte um cenário que o spec principal ainda tem.
+- Mantenha tudo o que o delta não menciona, na ordem existente do spec principal
 - Use seu julgamento para mesclar as alterações de forma sensata
 
 **Saída em Sucesso**
@@ -137,9 +218,15 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 **Guardrails**
 - Leia tanto os delta specs quanto os specs principais antes de fazer alterações
 - Preserve o conteúdo existente não mencionado no delta
+- Nunca copie um arquivo de delta para um spec principal como está — mescle seu conteúdo para que o spec principal mantenha a estrutura da Referência de Formato de Spec Principal, sem cabeçalhos de operação de delta
 - Se algo não estiver claro, peça esclarecimento
 - Mostre o que está alterando à medida que avança
-- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado`,
+- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado
+- Use apenas \`artifactPaths.specs.existingOutputPaths\`; nunca infira delta specs de artifacts não relacionados
+- Respeite um subconjunto de \`existingOutputPaths\` fornecido pelo caller; nunca o alargue de volta à lista completa
+- Busque as instruções de specs uma vez para sync direto, ou reutilize o snapshot fornecido pelo arquivamento inline
+- Pare antes de qualquer escrita de spec principal se a resposta das instruções de specs sair com código não-zero ou for JSON inválido
+- Regras de artifact restringem apenas os specs sendo escritos e nunca são copiadas para arquivos de saída`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
@@ -160,17 +247,39 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Mostre as changes que possuem delta specs (no diretório \`specs/\`).
+   Ao solicitar, mostre as changes que possuem delta specs (no diretório \`specs/\`).
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:sync <outra>\`).
 
 2. **Encontre os delta specs**
 
-   Procure arquivos de delta spec em \`openspec/changes/<nome>/specs/*/spec.md\`.
+   Execute \`openspec status --change "<nome>" --json\` e use
+   \`artifactPaths.specs.existingOutputPaths\` como a única fonte de caminhos
+   de delta spec. Se a entrada \`specs\` estiver ausente ou
+   \`existingOutputPaths\` estiver vazia, informe que não há delta specs para
+   sincronizar, não os infira de outros artifacts e pare sem solicitar
+   instruções de artifact nem escrever nenhum spec principal.
+
+   Sincronize todos os caminhos de \`existingOutputPaths\`, a menos que o
+   caller tenha estreitado o conjunto. Um caller o estreita nomeando uma lista
+   explícita de caminhos de delta spec a sincronizar — o arquivamento faz isso
+   inline, e o usuário também pode ("sincronize só o delta billing"). Nesse
+   caso, sincronize apenas os caminhos nomeados e deixe os demais delta specs
+   intocados: o arquivamento em lote exclui um delta cuja implementação não
+   foi encontrada, e sincronizá-lo mesmo assim escreveria um spec principal
+   que o caller deliberadamente omitiu. Carregue essa seleção estreitada pelo
+   passo 3; nunca a alargue de volta à lista completa. Se um caminho nomeado
+   não estiver em \`existingOutputPaths\`, não o sincronize — reporte-o e
+   pare, em vez de descartá-lo silenciosamente. Se a lista nomeada estiver
+   vazia, informe que não há nada para sincronizar e pare sem escrever nenhum
+   spec principal.
 
    Cada arquivo de delta spec contém seções como:
    - \`## ADDED Requirements\` — Novos requisitos a adicionar
@@ -182,7 +291,28 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
 3. **Para cada delta spec, aplique as alterações nos specs principais**
 
-   Para cada capability com um delta spec em \`openspec/changes/<nome>/specs/<capability>/spec.md\`:
+   Antes da primeira escrita de spec principal, obtenha um snapshot atual das
+   regras de specs:
+   - Se o arquivamento invocou este workflow inline e forneceu um snapshot
+     válido de \`openspec instructions specs --change "<nome>" --json\`,
+     reutilize-o e não busque as mesmas instruções novamente.
+   - Caso contrário, execute esse comando uma vez agora.
+   - Se a consulta direta sair com código não-zero ou retornar JSON de
+     instrução de artifact inválido, reporte o erro e pare antes de escrever
+     qualquer spec principal. Não trate a falha como um conjunto de regras
+     ausente.
+   - Uma resposta válida com \`rules\` omitido significa que nenhuma regra de
+     artifact está configurada e a mesclagem semântica existente continua.
+
+   Aplique as \`rules\` retornadas apenas ao conteúdo e à forma dos specs
+   principais produzidos por esta mesclagem. Regras de artifact não são
+   orientação de operação e não podem mudar caminhos de delta, verificações do
+   CLI ou passos do workflow. Use o texto delas como restrição sem copiá-lo
+   verbatim para um spec principal ou resumo.
+
+   Para cada caminho de delta spec selecionado no passo 2 — a lista completa
+   de \`existingOutputPaths\`, ou o subconjunto estreitado quando o caller
+   forneceu um:
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
@@ -200,7 +330,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       - Encontre o requisito no spec principal
       - Antes de adicionar cenários ou alterar conteúdo, compare com o que já existe; se já for equivalente, trate como no-op
       - Aplique apenas diferenças reais — isso pode ser:
-        - Adicionar novos cenários (não é necessário copiar os existentes)
+        - Adicionar novos cenários que o spec principal ainda não tem
         - Modificar cenários existentes
         - Alterar a descrição do requisito
       - Preserve cenários/conteúdo não mencionados no delta
@@ -211,20 +341,32 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
       **RENAMED Requirements:**
       - Encontre o requisito FROM, renomeie para TO
 
+      **\`## Purpose\` no delta:**
+      - O spec principal já tem um e ele é a fonte autoritativa — não mexa nele
+        (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
+
    d. **Crie um novo spec principal** se a capability ainda não existir:
       - Crie \`openspec/specs/<capability>/spec.md\`
-      - Adicione a seção Purpose (pode ser breve, marque como TBD)
+      - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
+        (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
+      - Siga a **Referência de Formato de Spec Principal** abaixo
 
 4. **Exiba o resumo**
 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
+   - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
+     para que ele seja escrito agora em vez de ficar pendente
 
 **Referência de Formato de Delta Spec**
 
 \`\`\`markdown
+## Purpose
+
+Somente em um delta que introduz uma capability totalmente nova. Semeia o novo spec principal.
+
 ## ADDED Requirements
 
 ### Requirement: New Feature
@@ -237,6 +379,12 @@ The system SHALL do something new.
 ## MODIFIED Requirements
 
 ### Requirement: Existing Feature
+The system SHALL keep doing the existing thing, now also handling A.
+
+#### Scenario: Scenario the main spec already has
+- **WHEN** user does X
+- **THEN** system does Y
+
 #### Scenario: New scenario to add
 - **WHEN** user does A
 - **THEN** system does B
@@ -251,11 +399,31 @@ The system SHALL do something new.
 - TO: \`### Requirement: New Name\`
 \`\`\`
 
+**Referência de Formato de Spec Principal**
+
+Specs principais são o destino do merge do delta. Eles nunca devem conter cabeçalhos de operação de delta (\`## ADDED/MODIFIED/REMOVED/RENAMED Requirements\`) — após o sync, todo requisito vive sob uma única seção \`## Requirements\`:
+
+\`\`\`markdown
+# <capability> Specification
+
+## Purpose
+Short description of what this capability does and why it exists.
+
+## Requirements
+
+### Requirement: New Feature
+The system SHALL do something new.
+
+#### Scenario: Basic case
+- **WHEN** user does X
+- **THEN** system does Y
+\`\`\`
+
 **Princípio-Chave: Mesclagem Inteligente**
 
-Ao contrário da mesclagem programática, você pode aplicar **atualizações parciais**:
-- Para adicionar um cenário, basta incluí-lo sob MODIFIED — não copie os cenários existentes
-- O delta representa *intenção*, não uma substituição total
+Ao contrário da mesclagem programática, você mescla em vez de sobrescrever:
+- Um bloco MODIFIED carrega o requisito inteiro - corpo mais todos os cenários que sobrevivem à mudança. \`openspec validate\` e \`openspec archive\` rejeitam um bloco que descarte um cenário que o spec principal ainda tem.
+- Mantenha tudo o que o delta não menciona, na ordem existente do spec principal
 - Use seu julgamento para mesclar as alterações de forma sensata
 
 **Saída em Sucesso**
@@ -279,8 +447,14 @@ Os specs principais foram atualizados. A change permanece ativa — arquive quan
 **Guardrails**
 - Leia tanto os delta specs quanto os specs principais antes de fazer alterações
 - Preserve o conteúdo existente não mencionado no delta
+- Nunca copie um arquivo de delta para um spec principal como está — mescle seu conteúdo para que o spec principal mantenha a estrutura da Referência de Formato de Spec Principal, sem cabeçalhos de operação de delta
 - Se algo não estiver claro, peça esclarecimento
 - Mostre o que está alterando à medida que avança
-- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado`
+- A operação deve ser idempotente — executar duas vezes deve dar o mesmo resultado
+- Use apenas \`artifactPaths.specs.existingOutputPaths\`; nunca infira delta specs de artifacts não relacionados
+- Respeite um subconjunto de \`existingOutputPaths\` fornecido pelo caller; nunca o alargue de volta à lista completa
+- Busque as instruções de specs uma vez para sync direto, ou reutilize o snapshot fornecido pelo arquivamento inline
+- Pare antes de qualquer escrita de spec principal se a resposta das instruções de specs sair com código não-zero ou for JSON inválido
+- Regras de artifact restringem apenas os specs sendo escritos e nunca são copiadas para arquivos de saída`
   };
 }

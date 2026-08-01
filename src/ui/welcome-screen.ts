@@ -4,8 +4,13 @@
  */
 
 import chalk from 'chalk';
+import {
+  execFileSync,
+  type ExecFileSyncOptionsWithStringEncoding,
+} from 'node:child_process';
 import { UI_MESSAGES } from '../messages/index.js';
 import { WELCOME_ANIMATION } from './ascii-patterns.js';
+import { getOnboardingCommands } from '../core/onboarding-commands.js';
 
 // Minimum terminal width for side-by-side layout
 const MIN_WIDTH = 60;
@@ -16,7 +21,25 @@ const ART_COLUMN_WIDTH = 24;
 /**
  * Welcome text content (right column)
  */
-function getWelcomeText(): string[] {
+function getWelcomeText(workflows: readonly string[]): string[] {
+  const onboardingCommands = getOnboardingCommands(workflows);
+  const quickStart: string[] = [];
+
+  if (onboardingCommands.length > 0) {
+    const commandWidth = Math.max(...onboardingCommands.map((c) => c.command.length));
+    quickStart.push(chalk.white(UI_MESSAGES.quickStart));
+    for (const { command, description } of onboardingCommands) {
+      quickStart.push(`  ${chalk.yellow(command.padEnd(commandWidth + 1))} ${chalk.dim(description)}`);
+    }
+    // These are the canonical names. How each tool spells them differs
+    // (/opsx-propose, @opsx-propose, $openspec-propose ...) and cannot be known
+    // until tools are picked, one prompt later — so flag it rather than let the
+    // canonical form read as the literal thing to type. "Getting started"
+    // prints the real spelling once the selection is known.
+    quickStart.push(chalk.dim(UI_MESSAGES.spellingVaries));
+    quickStart.push('');
+  }
+
   return [
     chalk.white.bold(UI_MESSAGES.welcomeTitle),
     chalk.dim(UI_MESSAGES.welcomeSubtitle),
@@ -25,11 +48,7 @@ function getWelcomeText(): string[] {
     chalk.dim(UI_MESSAGES.agentSkills),
     chalk.dim(UI_MESSAGES.slashCommands),
     '',
-    chalk.white(UI_MESSAGES.quickStart),
-    `  ${chalk.yellow('/opsx:new')}      ${chalk.dim(UI_MESSAGES.cmdNewChange)}`,
-    `  ${chalk.yellow('/opsx:continue')} ${chalk.dim(UI_MESSAGES.cmdContinue)}`,
-    `  ${chalk.yellow('/opsx:apply')}    ${chalk.dim(UI_MESSAGES.cmdApply)}`,
-    '',
+    ...quickStart,
     chalk.cyan(UI_MESSAGES.pressEnter),
   ];
 }
@@ -58,6 +77,47 @@ function renderFrame(artLines: string[], textLines: string[]): string {
   return lines.join('\n');
 }
 
+const REDUCED_MOTION_EXEC_OPTIONS: ExecFileSyncOptionsWithStringEncoding = {
+  encoding: 'utf8',
+  timeout: 500,
+  // SIGKILL so a wedged lookup can never outlive the timeout and stall init.
+  killSignal: 'SIGKILL',
+  stdio: ['ignore', 'pipe', 'ignore'],
+};
+
+/**
+ * Best-effort check of the OS-level reduced-motion preference (#722).
+ * Any lookup failure (missing binary, unset key, timeout) means
+ * "no preference detected" and animation stays enabled.
+ */
+export function prefersReducedMotion(
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  try {
+    if (platform === 'darwin') {
+      // The key only exists once the user has toggled Reduce Motion; when it
+      // is unset `defaults` exits non-zero and lands in the catch below.
+      const out = execFileSync(
+        'defaults',
+        ['read', 'com.apple.universalaccess', 'reduceMotion'],
+        REDUCED_MOTION_EXEC_OPTIONS
+      );
+      return out.trim() === '1';
+    }
+    if (platform === 'linux') {
+      const out = execFileSync(
+        'gsettings',
+        ['get', 'org.gnome.desktop.interface', 'enable-animations'],
+        REDUCED_MOTION_EXEC_OPTIONS
+      );
+      return out.trim() === 'false';
+    }
+  } catch {
+    // Detection is best-effort only.
+  }
+  return false;
+}
+
 /**
  * Checks if the terminal supports animation
  */
@@ -68,9 +128,16 @@ function canAnimate(): boolean {
   // Respect NO_COLOR
   if (process.env.NO_COLOR) return false;
 
+  // Manual override for users who need reduced motion (#722). Presence is
+  // what counts: even an empty value disables the animation.
+  if (process.env.OPENSPEC_NO_ANIMATION !== undefined) return false;
+
   // Check terminal width
   const columns = process.stdout.columns || 80;
   if (columns < MIN_WIDTH) return false;
+
+  // Last so only interactive terminals pay for the OS lookup
+  if (prefersReducedMotion()) return false;
 
   return true;
 }
@@ -108,13 +175,23 @@ async function waitForEnter(): Promise<void> {
  * Shows the animated welcome screen.
  * Returns when user presses Enter.
  */
-export async function showWelcomeScreen(): Promise<void> {
-  const textLines = getWelcomeText();
+export async function showWelcomeScreen(
+  workflows: readonly string[],
+  options: { animate?: boolean } = {}
+): Promise<void> {
+  const textLines = getWelcomeText(workflows);
 
-  if (!canAnimate()) {
-    // Fallback: show static welcome
+  if (options.animate === false || !canAnimate()) {
+    // Fallback: show static welcome. The "Pressione Enter" line is only honest
+    // when we actually wait; in a TTY, returning immediately would let the
+    // Enter it asks for fall through into the tool picker and submit the
+    // pre-selected tools sight-unseen. Without a TTY, drop the line instead.
+    const staticLines = process.stdin.isTTY
+      ? textLines
+      : textLines.filter((line) => !line.includes(UI_MESSAGES.pressEnter));
     const frame = WELCOME_ANIMATION.frames[3]; // Peak frame
-    process.stdout.write('\n' + renderFrame(frame, textLines) + '\n\n');
+    process.stdout.write('\n' + renderFrame(frame, staticLines) + '\n\n');
+    await waitForEnter();
     return;
   }
 

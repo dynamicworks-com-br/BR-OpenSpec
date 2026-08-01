@@ -13,6 +13,15 @@ describe('validateChangeName', () => {
       expect(result).toEqual({ valid: true });
     });
 
+    it('should accept a long-but-bounded name and reject one past the cap', () => {
+      // Past the cap the failure must be a validation message, not a raw
+      // ENAMETOOLONG once mkdir hits the 255-byte component limit.
+      expect(validateChangeName('a'.repeat(200))).toEqual({ valid: true });
+      const result = validateChangeName('a'.repeat(201));
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('muito longo');
+    });
+
     it('should accept name with multiple segments', () => {
       const result = validateChangeName('add-user-auth');
       expect(result).toEqual({ valid: true });
@@ -30,6 +39,26 @@ describe('validateChangeName', () => {
 
     it('should accept name with numbers in segments', () => {
       const result = validateChangeName('upgrade-to-v2');
+      expect(result).toEqual({ valid: true });
+    });
+
+    it('should accept a numeric-prefixed name for ordering (#850, #1169)', () => {
+      const result = validateChangeName('100-add-feature');
+      expect(result).toEqual({ valid: true });
+    });
+
+    it('should accept a zero-padded numeric-prefixed name', () => {
+      const result = validateChangeName('00001-add-auth');
+      expect(result).toEqual({ valid: true });
+    });
+
+    it('should accept a tiered numeric prefix with alphanumeric segments (#850)', () => {
+      const result = validateChangeName('101-01-fix-auth');
+      expect(result).toEqual({ valid: true });
+    });
+
+    it('should accept an all-numeric name', () => {
+      const result = validateChangeName('100');
       expect(result).toEqual({ valid: true });
     });
   });
@@ -133,6 +162,14 @@ describe('createChange', () => {
       await createChange(testDir, 'add-auth');
 
       const changeDir = path.join(testDir, 'openspec', 'changes', 'add-auth');
+      const stats = await fs.stat(changeDir);
+      expect(stats.isDirectory()).toBe(true);
+    });
+
+    it('should create a numeric-prefixed change directory (#850, #1169)', async () => {
+      await createChange(testDir, '100-add-feature');
+
+      const changeDir = path.join(testDir, 'openspec', 'changes', '100-add-feature');
       const stats = await fs.stat(changeDir);
       expect(stats.isDirectory()).toBe(true);
     });

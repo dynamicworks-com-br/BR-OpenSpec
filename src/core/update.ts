@@ -11,7 +11,16 @@ import ora from 'ora';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { getTransformerForTool } from '../utils/command-references.js';
+import {
+  getSkillReferenceTransformer,
+  getTransformerForTool,
+  transformToSkillReferences,
+} from '../utils/command-references.js';
+import {
+  resolveCommandSurfaceCapability,
+  resolveCommandInvocation,
+  shouldGenerateCommandsForTool,
+} from './command-surface.js';
 import { AI_TOOLS, OPENSPEC_DIR_NAME } from './config.js';
 import {
   generateCommands,
@@ -35,19 +44,25 @@ import {
 } from './legacy-cleanup.js';
 import { isInteractive } from '../utils/interactive.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
-import { UPDATE_MESSAGES } from '../messages/index.js';
+import { MIGRATION_MESSAGES, ONBOARDING_MESSAGES, UPDATE_MESSAGES } from '../messages/index.js';
 import { getProfileWorkflows, ALL_WORKFLOWS, CORE_WORKFLOWS } from './profiles.js';
+import { getOnboardingCommands } from './onboarding-commands.js';
 import { getAvailableTools } from './available-tools.js';
 import {
   WORKFLOW_TO_SKILL_DIR,
-  getCommandConfiguredTools,
   getConfiguredToolsForProfileSync,
   getToolsNeedingProfileSync,
 } from './profile-sync-drift.js';
 import {
   scanInstalledWorkflows as scanInstalledWorkflowsShared,
   migrateIfNeeded as migrateIfNeededShared,
-  migrateLegacySkillDirs,
+  findLegacyToolMigrations,
+  migrateLegacyToolDirs,
+  describeLegacyMigration,
+  legacyMigrationNotice,
+  keptInPlaceNotice,
+  hasMovableContent,
+  type LegacyToolMigration,
 } from './migration.js';
 
 const require = createRequire(import.meta.url);
@@ -94,9 +109,13 @@ export class UpdateCommand {
     // (e.g. .kimi -> .kimi-code) so they stay detected and get refreshed,
     // then perform the one-time profile migration if needed before any
     // legacy upgrade generation.
-    for (const migration of migrateLegacySkillDirs(resolvedProjectPath)) {
-      console.log(chalk.dim(UPDATE_MESSAGES.migratedSkillDirs(migration.movedSkillDirs, migration.from, migration.to)));
+    for (const migration of migrateLegacyToolDirs(resolvedProjectPath)) {
+      if (hasMovableContent(migration)) {
+        console.log(chalk.dim(MIGRATION_MESSAGES.migratedToolContent(describeLegacyMigration(migration), migration.from, migration.to)));
+      }
+      this.reportKeptInPlace(migration);
     }
+    const declinedMigrations = await this.offerConsentedLegacyMigrations(resolvedProjectPath);
 
     // Use detected tool directories to preserve existing opsx skills/commands.
     const detectedTools = getAvailableTools(resolvedProjectPath);
@@ -124,21 +143,28 @@ export class UpdateCommand {
     const configuredTools = getConfiguredToolsForProfileSync(resolvedProjectPath);
 
     if (configuredTools.length === 0 && newlyConfiguredTools.length === 0) {
+      if (declinedMigrations.length > 0) {
+        // Not an unconfigured project — a configured one the user chose to
+        // leave in its former directory. Saying "run init" would be wrong.
+        for (const migration of declinedMigrations) {
+          console.log(chalk.yellow(UPDATE_MESSAGES.nothingToUpdateLegacyOnly(migration.from)));
+          console.log(chalk.dim(UPDATE_MESSAGES.rerunUpdateAcceptMove(migration.to)));
+        }
+        return;
+      }
       console.log(chalk.yellow(UPDATE_MESSAGES.noConfiguredTools));
       console.log(chalk.dim(UPDATE_MESSAGES.runInitHint));
       return;
     }
 
-    // 6. Check version status for all configured tools
-    const commandConfiguredTools = getCommandConfiguredTools(resolvedProjectPath);
-    const commandConfiguredSet = new Set(commandConfiguredTools);
-    const toolStatuses = configuredTools.map((toolId) => {
-      const status = getToolVersionStatus(resolvedProjectPath, toolId, OPENSPEC_VERSION);
-      if (!status.configured && commandConfiguredSet.has(toolId)) {
-        return { ...status, configured: true };
-      }
-      return status;
-    });
+    // 6. Check version status for all configured tools, against the same workflow set
+    //    the generation loop below writes — otherwise a legacy-upgraded tool would be
+    //    fingerprinted against commands it was never given.
+    const toolStatuses = configuredTools.map((toolId) =>
+      getToolVersionStatus(resolvedProjectPath, toolId, OPENSPEC_VERSION, {
+        workflows: desiredWorkflows,
+      })
+    );
     const statusByTool = new Map(toolStatuses.map((status) => [status.toolId, status] as const));
 
     // 7. Smart update detection
@@ -184,6 +210,7 @@ export class UpdateCommand {
     const toolsToUpdate = this.force ? configuredTools : [...toolsToUpdateSet];
     const updatedTools: string[] = [];
     const failedTools: Array<{ name: string; error: string }> = [];
+    const zeroArtifactTools: string[] = [];
     let removedCommandCount = 0;
     let removedSkillCount = 0;
     let removedDeselectedCommandCount = 0;
@@ -204,7 +231,12 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            const transformer = getTransformerForTool(tool.value, delivery);
+            const transformer = getTransformerForTool(
+              tool.value,
+              delivery,
+              resolveCommandSurfaceCapability(tool.value),
+              resolveCommandInvocation(tool.value)
+            );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
@@ -215,6 +247,13 @@ export class UpdateCommand {
         // Delete skill directories if delivery is commands-only
         if (!shouldGenerateSkills) {
           removedSkillCount += await this.removeSkillDirs(skillsDir);
+          // A tool with no command adapter now has zero OpenSpec artifacts;
+          // say so, rather than deleting its skills silently and letting
+          // tool detection re-suggest an init that would also generate
+          // nothing under this delivery setting.
+          if (!CommandAdapterRegistry.get(tool.value)) {
+            zeroArtifactTools.push(tool.name);
+          }
         }
 
         // Generate commands if delivery includes commands
@@ -266,6 +305,16 @@ export class UpdateCommand {
     if (removedSkillCount > 0) {
       console.log(chalk.dim(UPDATE_MESSAGES.removedSkills(removedSkillCount)));
     }
+    if (zeroArtifactTools.length > 0) {
+      console.log(
+        chalk.yellow(
+          UPDATE_MESSAGES.noSkillsOrCommandsRemain(
+            zeroArtifactTools.join(', '),
+            zeroArtifactTools.length === 1
+          )
+        )
+      );
+    }
     if (removedDeselectedCommandCount > 0) {
       console.log(chalk.dim(UPDATE_MESSAGES.removedDeselectedCommands(removedDeselectedCommandCount)));
     }
@@ -273,14 +322,44 @@ export class UpdateCommand {
       console.log(chalk.dim(UPDATE_MESSAGES.removedDeselectedSkills(removedDeselectedSkillCount)));
     }
 
-    // 12. Show onboarding message for newly configured tools from legacy upgrade
+    // 12. Show onboarding message for newly configured tools from legacy upgrade.
+    // Command tools get the command name their files answer to, skill-only
+    // tools their documented skill invocation, and disagreements fall back to
+    // naming the skill. Only workflows these tools actually received are
+    // hinted (the effective profile).
     if (newlyConfiguredTools.length > 0) {
+      const referenceFor = (command: string): string => {
+        const neutralForm = ONBOARDING_MESSAGES.skillReference(transformToSkillReferences(command).slice(1));
+        const forms = new Set(
+          newlyConfiguredTools.map((toolId) => {
+            if (shouldGenerateCommandsForTool(toolId, delivery)) {
+              // Name the command the tool's files actually answer to:
+              // /opsx-<id> where the filename is the command name.
+              const transformer = getTransformerForTool(
+                toolId,
+                delivery,
+                resolveCommandSurfaceCapability(toolId),
+                resolveCommandInvocation(toolId)
+              );
+              return transformer ? transformer(command) : command;
+            }
+            return getSkillReferenceTransformer(toolId)(command);
+          })
+        );
+        return forms.size === 1 ? [...forms][0] : neutralForm;
+      };
+      const entries: Array<[string, string]> = getOnboardingCommands(desiredWorkflows).map(
+        ({ command, description }) => [referenceFor(command), description]
+      );
       console.log();
-      console.log(chalk.bold(UPDATE_MESSAGES.gettingStarted));
-      console.log(UPDATE_MESSAGES.cmdNew);
-      console.log(UPDATE_MESSAGES.cmdContinue);
-      console.log(UPDATE_MESSAGES.cmdApply);
-      console.log();
+      if (entries.length > 0) {
+        const width = Math.max(...entries.map(([reference]) => reference.length));
+        console.log(chalk.bold(UPDATE_MESSAGES.gettingStarted));
+        for (const [reference, description] of entries) {
+          console.log(`  ${reference.padEnd(width)}  ${description}`);
+        }
+        console.log();
+      }
       console.log(UPDATE_MESSAGES.learnMore(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec')));
     }
 
@@ -521,6 +600,80 @@ export class UpdateCommand {
   }
 
   /**
+   * Offers to move OpenSpec content out of a renamed tool's former directory
+   * when the old location might still be the live one — today, Windsurf's
+   * `.windsurf/` after the Devin Desktop rebrand.
+   *
+   * Interactive runs are asked, because nothing on disk distinguishes a user
+   * who took the rebrand from one still on a pre-rebrand Windsurf build that
+   * reads only `.windsurf/`. `--force` and non-interactive runs migrate, which
+   * is what an unattended upgrade wants.
+   */
+  /** Surfaces files the move left behind rather than overwriting. */
+  private reportKeptInPlace(migration: LegacyToolMigration): void {
+    const notice = keptInPlaceNotice(migration);
+    if (notice) console.log(chalk.dim(notice));
+  }
+
+  private async offerConsentedLegacyMigrations(
+    projectPath: string
+  ): Promise<LegacyToolMigration[]> {
+    const pending = findLegacyToolMigrations(projectPath).filter((m) => m.needsConsent);
+    const declined: LegacyToolMigration[] = [];
+    if (pending.length === 0) return declined;
+
+    for (const migration of pending) {
+      // Nothing movable: every legacy file differs from its counterpart, so
+      // there is no move to offer. Still say so — silence would leave two
+      // divergent copies the user never hears about.
+      if (!hasMovableContent(migration)) {
+        this.reportKeptInPlace(migration);
+        console.log();
+        continue;
+      }
+
+      console.log(chalk.yellow(legacyMigrationNotice(migration)));
+
+      if (!this.force && isInteractive()) {
+        const { confirm } = await import('@inquirer/prompts');
+        let shouldMigrate: boolean;
+        try {
+          shouldMigrate = await confirm({
+            message: UPDATE_MESSAGES.confirmLegacyMove(
+              describeLegacyMigration(migration),
+              migration.from,
+              migration.to
+            ),
+            default: true,
+          });
+        } catch {
+          // Closed stdin is not consent, and it must not abort the update.
+          shouldMigrate = false;
+        }
+        if (!shouldMigrate) {
+          // Say what declining costs. OpenSpec writes the current root now, so
+          // the files keep working where they are, but OpenSpec stops managing
+          // them — it no longer looks in the former directory.
+          console.log(chalk.dim(UPDATE_MESSAGES.legacyMoveDeclined(migration.from, migration.to)));
+          console.log();
+          declined.push(migration);
+          continue;
+        }
+      }
+
+      for (const applied of migrateLegacyToolDirs(projectPath, [migration.toolId])) {
+        if (hasMovableContent(applied)) {
+          console.log(chalk.dim(MIGRATION_MESSAGES.migratedToolContent(describeLegacyMigration(applied), applied.from, applied.to)));
+        }
+        this.reportKeptInPlace(applied);
+      }
+      console.log();
+    }
+
+    return declined;
+  }
+
+  /**
    * Detect and handle legacy BR-OpenSpec artifacts.
    * Unlike init, update warns but continues if legacy files found in non-interactive mode.
    * Returns array of tool IDs that were newly configured during legacy upgrade.
@@ -697,7 +850,12 @@ export class UpdateCommand {
             const skillDir = path.join(skillsDir, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
-            const transformer = getTransformerForTool(tool.value, delivery);
+            const transformer = getTransformerForTool(
+              tool.value,
+              delivery,
+              resolveCommandSurfaceCapability(tool.value),
+              resolveCommandInvocation(tool.value)
+            );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }

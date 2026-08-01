@@ -87,17 +87,26 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
 export function printStatusText(status: ChangeStatus): void {
   const doneCount = status.artifacts.filter((a) => a.status === 'done').length;
-  const total = status.artifacts.length;
+  const skippedCount = status.artifacts.filter((a) => a.status === 'skipped').length;
+  const total = status.artifacts.length - skippedCount;
 
   console.log(WORKFLOW_MESSAGES.changeLabel(status.changeName));
   console.log(WORKFLOW_MESSAGES.schemaLabel2(status.schemaName));
-  console.log(WORKFLOW_MESSAGES.progressArtifacts(doneCount, total));
+  if (skippedCount > 0) {
+    console.log(WORKFLOW_MESSAGES.progressArtifactsSkipped(doneCount, total, skippedCount));
+  } else {
+    console.log(WORKFLOW_MESSAGES.progressArtifacts(doneCount, total));
+  }
   console.log();
 
   for (const artifact of status.artifacts) {
     const indicator = getStatusIndicator(artifact.status);
     const color = getStatusColor(artifact.status);
     let line = `${indicator} ${artifact.id}`;
+
+    if (artifact.status === 'skipped') {
+      line += color(WORKFLOW_MESSAGES.skippedDeclaresSkipSpecs);
+    }
 
     if (artifact.status === 'blocked' && artifact.missingDeps && artifact.missingDeps.length > 0) {
       line += color(WORKFLOW_MESSAGES.blockedBy(artifact.missingDeps.join(', ')));

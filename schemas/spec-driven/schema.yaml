@@ -21,6 +21,14 @@ artifacts:
       as fases de proposta e specs. Pesquise as specs existentes antes de preenchê-la.
       Cada capability listada aqui precisará de um arquivo de spec correspondente.
 
+      Toda change deve declarar pelo menos uma capability (nova ou
+      modificada) ou optar explicitamente por não ter specs: `openspec validate` rejeita uma
+      change com zero deltas, a menos que o `.openspec.yaml` da change defina
+      `skip_specs: true`. Use `skip_specs: true` somente quando não houver mudança de
+      comportamento no nível de spec (refatoração pura, ferramental, docs) - specs descrevem
+      comportamento, então se o comportamento não muda, nenhuma spec deve mudar também.
+      Não invente um requirement só para satisfazer a validação.
+
       Mantenha conciso (1-2 páginas). Foque no "porquê", não no "como" -
       detalhes de implementação pertencem ao design.md.
 
@@ -55,6 +63,11 @@ artifacts:
       - Novas capabilities: use o nome exato em kebab-case da proposta (specs/<capability>/spec.md).
       - Capabilities modificadas: use o nome da pasta de spec existente em openspec/specs/<capability>/ ao criar a spec delta em specs/<capability>/spec.md.
 
+      Deve haver pelo menos um arquivo de spec, a menos que o `.openspec.yaml` da change
+      defina `skip_specs: true` (sem mudança de comportamento no nível de spec) - `openspec validate`
+      rejeita uma change com zero deltas sem esse marcador. Se a proposta não lista
+      capabilities e `skip_specs` não está definido, revise a proposta primeiro.
+
       Operações de delta (use cabeçalhos ##):
       - **ADDED Requirements**: Novas capabilities
       - **MODIFIED Requirements**: Comportamento alterado - MUST incluir o conteúdo atualizado completo
@@ -68,6 +81,16 @@ artifacts:
       - **CRITICAL**: Os cenários MUST usar exatamente 4 cerquilhas (`####`). Usar 3 cerquilhas ou marcadores falha silenciosamente.
       - Todo requirement MUST ter pelo menos um cenário.
 
+      Somente capabilities novas: comece a spec delta com uma seção `## Purpose` -
+      uma ou duas frases (50+ caracteres, ou `openspec validate --strict`
+      a reporta como muito breve) descrevendo para que serve a capability. O archive
+      a copia para o spec principal que ele cria; sem ela, o novo spec principal
+      fica com um placeholder `A definir - criado ao arquivar alteração ...` para
+      preencher à mão. NÃO adicione `## Purpose` a um delta de uma capability existente -
+      esse spec já tem um e o do delta é ignorado. Para alterar o Purpose de uma
+      capability existente - incluindo um placeholder `A definir` que sobrou -
+      edite `openspec/specs/<capability>/spec.md` diretamente.
+
       Fluxo de trabalho de requirements MODIFIED:
       1. Localize o requirement existente em openspec/specs/<capability>/spec.md
       2. Copie o bloco INTEIRO do requirement (de `### Requirement:` até todos os cenários)
@@ -77,8 +100,12 @@ artifacts:
       Armadilha comum: Usar MODIFIED com conteúdo parcial perde detalhe no momento do arquivamento.
       Se estiver adicionando novas preocupações sem alterar o comportamento existente, use ADDED.
 
-      Example:
+      Example (capability nova, então abre com `## Purpose`):
       ```
+      ## Purpose
+
+      Lets users take their data out of the product in a portable format.
+
       ## ADDED Requirements
 
       ### Requirement: User can export data
@@ -113,8 +140,8 @@ artifacts:
       - Ambiguidade que se beneficia de decisões técnicas antes de codificar
 
       Seções:
-      - **Context**: Histórico, estado atual, restrições, partes interessadas
-      - **Goals / Non-Goals**: O que este design alcança e o que explicitamente exclui
+      - **Context**: Apenas o estado atual e as restrições necessários para explicar a abordagem. Referencie a proposta para a motivação em vez de repeti-la (por exemplo, "Veja proposal.md - Why").
+      - **Goals / Non-Goals**: O que este design alcança e o que explicitamente exclui. Não repita o escopo da proposta - adicione apenas limites no nível do design.
       - **Decisions**: Principais escolhas técnicas com justificativa (por que X em vez de Y?). Inclua as alternativas consideradas para cada decisão.
       - **Risks / Trade-offs**: Limitações conhecidas, coisas que podem dar errado. Formato: [Risco] → Mitigação
       - **Migration Plan**: Passos para implantar, estratégia de rollback (se aplicável)
@@ -126,7 +153,9 @@ artifacts:
       em vez de presumir.
 
       Foque na arquitetura e na abordagem, não na implementação linha a linha.
-      Referencie a proposta para a motivação e as specs para os requirements.
+      A proposta cobre o porquê e o quê; o design cobre o como. Referencie a
+      proposta para a motivação e, uma vez escritas, as specs para os
+      requirements - se uma seção apenas as repetir, aponte para elas.
 
       Bons documentos de design explicam o "porquê" por trás das decisões técnicas.
     requires:

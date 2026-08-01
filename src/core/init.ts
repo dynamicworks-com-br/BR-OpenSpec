@@ -11,15 +11,25 @@ import ora from 'ora';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
-import { getTransformerForTool } from '../utils/command-references.js';
+import {
+  getSkillReferenceTransformer,
+  getTransformerForTool,
+} from '../utils/command-references.js';
+import {
+  resolveCommandSurfaceCapability,
+  resolveCommandInvocation,
+  shouldGenerateCommandsForTool,
+  shouldGenerateSkillsForTool,
+} from './command-surface.js';
 import {
   AI_TOOLS,
   OPENSPEC_DIR_NAME,
   AIToolOption,
+  resolveToolIdAlias,
 } from './config.js';
 import { PALETTE } from './styles/palette.js';
 import { isInteractive } from '../utils/interactive.js';
-import { INIT_MESSAGES } from '../messages/index.js';
+import { INIT_MESSAGES, MIGRATION_MESSAGES, ONBOARDING_MESSAGES } from '../messages/index.js';
 import { serializeConfig } from './config-prompts.js';
 import {
   generateCommands,
@@ -49,7 +59,7 @@ import {
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { getProfileWorkflows, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
-import { migrateIfNeeded, migrateLegacySkillDirs } from './migration.js';
+import { migrateIfNeeded, migrateLegacyToolDirs, describeLegacyMigration, keptInPlaceNotice, hasMovableContent } from './migration.js';
 
 const require = createRequire(import.meta.url);
 const { version: OPENSPEC_VERSION } = require('../../package.json');
@@ -75,6 +85,8 @@ type InitCommandOptions = {
   force?: boolean;
   interactive?: boolean;
   profile?: string;
+  /** Commander's --no-animation flag: false disables the welcome animation. */
+  animation?: boolean;
 };
 
 // -----------------------------------------------------------------------------
@@ -86,12 +98,14 @@ export class InitCommand {
   private readonly force: boolean;
   private readonly interactiveOption?: boolean;
   private readonly profileOverride?: string;
+  private readonly animation: boolean;
 
   constructor(options: InitCommandOptions = {}) {
     this.toolsArg = options.tools;
     this.force = options.force ?? false;
     this.interactiveOption = options.interactive;
     this.profileOverride = options.profile;
+    this.animation = options.animation ?? true;
   }
 
   async execute(targetPath: string): Promise<void> {
@@ -107,7 +121,7 @@ export class InitCommand {
 
     // Migrate OpenSpec-managed skills left in renamed tool directories
     // (e.g. .kimi -> .kimi-code) before detection so they stay recognized.
-    migrateLegacySkillDirs(projectPath);
+    migrateLegacyToolDirs(projectPath);
 
     // Detect available tools in the project (task 7.1)
     const detectedTools = getAvailableTools(projectPath);
@@ -117,16 +131,18 @@ export class InitCommand {
       migrateIfNeeded(projectPath, detectedTools);
     }
 
+    // Validate profile override early so invalid values fail before tool setup.
+    // The resolved value is consumed later when generation reads effective config.
+    // This runs ahead of the welcome screen so an invalid --profile does not make
+    // the user press Enter before seeing the error.
+    this.resolveProfileOverride();
+
     // Show animated welcome screen (interactive mode only)
     const canPrompt = this.canPromptInteractively();
     if (canPrompt) {
       const { showWelcomeScreen } = await import('../ui/welcome-screen.js');
-      await showWelcomeScreen();
+      await showWelcomeScreen(this.getActiveWorkflows(), { animate: this.animation });
     }
-
-    // Validate profile override early so invalid values fail before tool setup.
-    // The resolved value is consumed later when generation reads effective config.
-    this.resolveProfileOverride();
 
     // Get tool states before processing
     const toolStates = getToolStates(projectPath);
@@ -136,6 +152,20 @@ export class InitCommand {
 
     // Validate selected tools
     const validatedTools = this.validateTools(selectedToolIds, toolStates);
+
+    // Selecting a renamed tool is consent to leave its former directory:
+    // init is about to write the current one, and leaving OpenSpec content
+    // behind would give the user two installs of the same tool.
+    for (const migration of migrateLegacyToolDirs(
+      projectPath,
+      validatedTools.map((tool) => tool.value)
+    )) {
+      if (hasMovableContent(migration)) {
+        console.log(chalk.dim(MIGRATION_MESSAGES.migratedToolContent(describeLegacyMigration(migration), migration.from, migration.to)));
+      }
+      const kept = keptInPlaceNotice(migration);
+      if (kept) console.log(chalk.dim(kept));
+    }
 
     // Create directory structure and config
     await this.createDirectoryStructure(openspecPath, extendMode);
@@ -183,6 +213,16 @@ export class InitCommand {
     }
 
     throw new Error(INIT_MESSAGES.invalidProfile(this.profileOverride));
+  }
+
+  /**
+   * Resolves the workflows the effective profile installs, so onboarding output
+   * only mentions commands that will actually exist.
+   */
+  private getActiveWorkflows(): string[] {
+    const globalCfg = getGlobalConfig();
+    const activeProfile: Profile = this.resolveProfileOverride() ?? globalCfg.profile ?? 'core';
+    return [...getProfileWorkflows(activeProfile, globalCfg.workflows)];
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -383,7 +423,9 @@ export class InitCommand {
       );
     }
 
-    const normalizedTokens = tokens.map((token) => token.toLowerCase());
+    // Retired ids resolve to their current tool, so a rebrand does not break
+    // an existing `--tools windsurf` in someone's setup script.
+    const normalizedTokens = tokens.map((token) => resolveToolIdAlias(token.toLowerCase()));
 
     if (normalizedTokens.some((token) => token === 'all' || token === 'none')) {
       throw new Error(INIT_MESSAGES.cannotCombineReservedValues);
@@ -533,7 +575,12 @@ export class InitCommand {
             const skillFile = path.join(skillDir, 'SKILL.md');
 
             // Generate SKILL.md content with YAML frontmatter including generatedBy
-            const transformer = getTransformerForTool(tool.value, delivery);
+            const transformer = getTransformerForTool(
+              tool.value,
+              delivery,
+              resolveCommandSurfaceCapability(tool.value),
+              resolveCommandInvocation(tool.value)
+            );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
 
             // Write the skill file
@@ -692,16 +739,80 @@ export class InitCommand {
     }
 
     // Getting started (task 7.6: show propose if in profile)
-    const globalCfg = getGlobalConfig();
-    const activeProfile: Profile = (this.profileOverride as Profile) ?? globalCfg.profile ?? 'core';
-    const activeWorkflows = [...getProfileWorkflows(activeProfile, globalCfg.workflows)];
+    const activeWorkflows = this.getActiveWorkflows();
+    // When no tool got /opsx:* commands, point at the skill instead of a
+    // command that does not exist.
+    const activeDelivery: Delivery = getGlobalConfig().delivery ?? 'both';
+    const commandsGenerated = successfulTools.some((tool) => shouldGenerateCommandsForTool(tool.value, activeDelivery));
+    const skillsGenerated = successfulTools.some((tool) => shouldGenerateSkillsForTool(tool.value, activeDelivery));
+    // Each hint line must be a usable instruction for the tool it serves.
+    // Tools that generated commands are told the command name their files
+    // answer to (/opsx:* when namespaced under opsx/, /opsx-* when the
+    // filename is the command); tools that only got skills are told their
+    // documented skill invocation (Kimi Code: /skill:openspec-*; Codex CLI:
+    // $openspec-*; others: /openspec-*). Tools that got no artifacts are
+    // covered by the configuration correction instead. When the selection
+    // disagrees, print one line per distinct instruction, labeled with the
+    // tools it applies to.
+    const startHintLines = (command: string): string[] => {
+      const hintToTools = new Map<string, string[]>();
+      for (const tool of successfulTools) {
+        let hint: string;
+        if (shouldGenerateCommandsForTool(tool.value, activeDelivery)) {
+          const transformer = getTransformerForTool(
+            tool.value,
+            activeDelivery,
+            resolveCommandSurfaceCapability(tool.value),
+            resolveCommandInvocation(tool.value)
+          );
+          hint = INIT_MESSAGES.startFirstChange(`${transformer ? transformer(command) : command} "sua ideia"`);
+        } else if (shouldGenerateSkillsForTool(tool.value, activeDelivery)) {
+          hint = INIT_MESSAGES.startFirstChange(`${getSkillReferenceTransformer(tool.value)(command)} "sua ideia"`);
+        } else {
+          continue;
+        }
+        hintToTools.set(hint, [...(hintToTools.get(hint) ?? []), tool.name]);
+      }
+      if (hintToTools.size === 0) {
+        // No successful tools: keep the generic command hint
+        return [INIT_MESSAGES.startFirstChange(`${command} "sua ideia"`)];
+      }
+      if (hintToTools.size === 1) {
+        return [[...hintToTools.keys()][0]];
+      }
+      return [...hintToTools.entries()].map(([hint, toolNames]) => `${hint} (${toolNames.join(', ')})`);
+    };
+    const startCommand = activeWorkflows.includes('propose')
+      ? '/opsx:propose'
+      : activeWorkflows.includes('new')
+        ? '/opsx:new'
+        : null;
     console.log();
-    if (activeWorkflows.includes('propose')) {
+    // delivery=commands with tools that only support skills: those tools get
+    // no artifacts at all, so print a per-tool configuration correction
+    // rather than leave them with a dead (or missing) instruction — even
+    // when other selected tools did get commands or skills.
+    const zeroArtifactTools = successfulTools.filter(
+      (tool) =>
+        !shouldGenerateSkillsForTool(tool.value, activeDelivery) &&
+        !shouldGenerateCommandsForTool(tool.value, activeDelivery)
+    );
+    if (zeroArtifactTools.length > 0) {
+      const names = zeroArtifactTools.map((tool) => tool.name).join(', ');
+      console.log(
+        chalk.yellow(
+          INIT_MESSAGES.noSkillsOrCommandsGenerated(names, zeroArtifactTools.length === 1)
+        )
+      );
+    }
+    if (successfulTools.length > 0 && !commandsGenerated && !skillsGenerated) {
+      // Nothing was generated for any tool: the correction above is the
+      // whole story, so don't advertise an invocation that doesn't exist.
+    } else if (startCommand) {
       console.log(chalk.bold(INIT_MESSAGES.gettingStarted));
-      console.log(INIT_MESSAGES.startFirstChangePropose('/opsx:propose "sua ideia"'));
-    } else if (activeWorkflows.includes('new')) {
-      console.log(chalk.bold(INIT_MESSAGES.gettingStarted));
-      console.log(INIT_MESSAGES.startFirstChangeNew('/opsx:new "sua ideia"'));
+      for (const line of startHintLines(startCommand)) {
+        console.log(`  ${line}`);
+      }
     } else {
       console.log(INIT_MESSAGES.configureWorkflowsHint);
     }
@@ -711,10 +822,16 @@ export class InitCommand {
     console.log(INIT_MESSAGES.learnMore(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec')));
     console.log(INIT_MESSAGES.feedback(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec/issues')));
 
-    // Restart instruction if any tools were configured
-    if (results.createdTools.length > 0 || results.refreshedTools.length > 0) {
+    // Restart instruction if any tools were configured and got a surface
+    // (when nothing was generated there is nothing a restart would pick up);
+    // only mention commands when commands were actually generated. Not "slash
+    // commands": Amazon Q's generated files are prompt-library entries invoked
+    // with @, so a restart line promising slash commands would be wrong for it.
+    if ((results.createdTools.length > 0 || results.refreshedTools.length > 0) && (commandsGenerated || skillsGenerated)) {
       console.log();
-      console.log(chalk.white(INIT_MESSAGES.restartIDE));
+      console.log(
+        chalk.white(commandsGenerated ? INIT_MESSAGES.restartIDE : INIT_MESSAGES.restartIDESkills)
+      );
     }
 
     console.log();

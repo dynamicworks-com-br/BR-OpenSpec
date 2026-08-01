@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { JsonConverter } from '../core/converters/json-converter.js';
 import { Validator } from '../core/validation/validator.js';
+import { VALIDATION_MESSAGES } from '../core/validation/constants.js';
 import { ChangeParser } from '../core/parsers/change-parser.js';
 import { Change } from '../core/schemas/index.js';
 import { isInteractive } from '../utils/interactive.js';
@@ -9,8 +10,26 @@ import { getActiveChangeIds } from '../utils/item-discovery.js';
 import { getTaskProgressForChange } from '../utils/task-progress.js';
 import { CHANGE_MESSAGES } from '../messages/index.js';
 
-// Constants for better maintainability
-const ARCHIVE_DIR = 'archive';
+/**
+ * True only when `target` is definitively absent. An EACCES or I/O failure
+ * means existence cannot be determined, so callers fall through to their
+ * read-error path rather than claim the file was never written.
+ */
+async function isDefinitelyMissing(target: string): Promise<boolean> {
+  return fs
+    .access(target)
+    .then(() => false)
+    .catch((error: NodeJS.ErrnoException) => error?.code === 'ENOENT');
+}
+
+/**
+ * A change is a directory directly under changes/. Rejecting anything else up
+ * front keeps a traversing name (`../..`) from reading a proposal outside the
+ * changes directory, and keeps the missing-proposal message honest.
+ */
+function isChangeDirectoryName(changesPath: string, changeDir: string): boolean {
+  return path.dirname(path.resolve(changeDir)) === path.resolve(changesPath);
+}
 
 export class ChangeCommand {
   private converter: JsonConverter;
@@ -30,7 +49,8 @@ export class ChangeCommand {
 
     if (!changeName) {
       const canPrompt = isInteractive(options);
-      const changes = await this.getActiveChanges(changesPath);
+      // Offer exactly the changes `show <name>` can resolve.
+      const changes = await getActiveChangeIds();
       if (canPrompt && changes.length > 0) {
         const { select } = await import('@inquirer/prompts');
         const selected = await select({
@@ -50,11 +70,29 @@ export class ChangeCommand {
       }
     }
 
-    const proposalPath = path.join(changesPath, changeName, 'proposal.md');
+    const changeDir = path.join(changesPath, changeName);
+    const proposalPath = path.join(changeDir, 'proposal.md');
+
+    if (!isChangeDirectoryName(changesPath, changeDir)) {
+      throw new Error(CHANGE_MESSAGES.changeNotFound(changeName, proposalPath));
+    }
 
     try {
       await fs.access(proposalPath);
     } catch {
+      // A change can exist without a proposal: `openspec new change` scaffolds
+      // only .openspec.yaml, and a custom schema need not define a proposal
+      // artifact. Say which of the two cases this is instead of reporting a
+      // change that does exist as missing. A stray file under changes/ is not a
+      // change, and naming it one would point the user at a `status --change`
+      // call that cannot work.
+      const isChangeDirectory = await fs
+        .stat(changeDir)
+        .then((stats) => stats.isDirectory())
+        .catch(() => false);
+      if (isChangeDirectory) {
+        throw new Error(CHANGE_MESSAGES.changeNoProposalYet(changeName));
+      }
       throw new Error(CHANGE_MESSAGES.changeNotFound(changeName, proposalPath));
     }
 
@@ -97,20 +135,35 @@ export class ChangeCommand {
   async list(options?: { json?: boolean; long?: boolean }): Promise<void> {
     const changesPath = path.join(process.cwd(), 'openspec', 'changes');
     
-    const changes = await this.getActiveChanges(changesPath);
-    
+    // Same directory-based resolution as `openspec list`, the command this
+    // deprecated alias points users at. Every output path below already
+    // tolerates a change whose proposal.md is missing or unreadable.
+    const changes = await getActiveChangeIds();
+
     if (options?.json) {
       const changeDetails = await Promise.all(
         changes.map(async (changeName) => {
-          const proposalPath = path.join(changesPath, changeName, 'proposal.md');
+          const changeDir = path.join(changesPath, changeName);
+          const proposalPath = path.join(changeDir, 'proposal.md');
+
+          // Resolve task progress through the shared tracked-tasks helper so
+          // this deprecated noun-form list cannot re-fork the resolution
+          // (#1202). Tasks are independent of the proposal: a change can carry
+          // tasks before, or without, a proposal.md.
+          const taskStatus = await getTaskProgressForChange(changesPath, changeName, process.cwd());
+
+          // No proposal yet is an ordinary state (scaffolded change, or a
+          // schema with no proposal artifact), so name the change rather than
+          // labelling it Unknown. Unknown stays for a proposal that exists but
+          // cannot be read or parsed.
+          if (await isDefinitelyMissing(proposalPath)) {
+            return { id: changeName, title: changeName, deltaCount: 0, taskStatus };
+          }
 
           try {
             const content = await fs.readFile(proposalPath, 'utf-8');
-            const changeDir = path.join(changesPath, changeName);
             const parser = new ChangeParser(content, changeDir);
             const change = await parser.parseChangeWithDeltas(changeName);
-
-            const taskStatus = await getTaskProgressForChange(changesPath, changeName, process.cwd());
 
             return {
               id: changeName,
@@ -118,13 +171,8 @@ export class ChangeCommand {
               deltaCount: change.deltas.length,
               taskStatus,
             };
-          } catch (error) {
-            return {
-              id: changeName,
-              title: 'Unknown',
-              deltaCount: 0,
-              taskStatus: { total: 0, completed: 0 },
-            };
+          } catch {
+            return { id: changeName, title: 'Unknown', deltaCount: 0, taskStatus };
           }
         })
       );
@@ -145,19 +193,23 @@ export class ChangeCommand {
 
       // Long format: id: title and minimal counts
       for (const changeName of sorted) {
-        const proposalPath = path.join(changesPath, changeName, 'proposal.md');
+        const changeDir = path.join(changesPath, changeName);
+        const proposalPath = path.join(changeDir, 'proposal.md');
+        const { total, completed } = await getTaskProgressForChange(changesPath, changeName, process.cwd());
+        const taskStatusText = total > 0 ? ` ${CHANGE_MESSAGES.tasks(completed, total)}` : '';
+        if (await isDefinitelyMissing(proposalPath)) {
+          console.log(`${changeName}: ${CHANGE_MESSAGES.noProposalYet}${taskStatusText}`);
+          continue;
+        }
         try {
           const content = await fs.readFile(proposalPath, 'utf-8');
           const title = this.extractTitle(content, changeName);
-          const { total, completed } = await getTaskProgressForChange(changesPath, changeName, process.cwd());
-          const taskStatusText = total > 0 ? ` ${CHANGE_MESSAGES.tasks(completed, total)}` : '';
-          const changeDir = path.join(changesPath, changeName);
-          const parser = new ChangeParser(await fs.readFile(proposalPath, 'utf-8'), changeDir);
+          const parser = new ChangeParser(content, changeDir);
           const change = await parser.parseChangeWithDeltas(changeName);
           const deltaCountText = CHANGE_MESSAGES.deltas(change.deltas.length);
           console.log(`${changeName}: ${title}${deltaCountText}${taskStatusText}`);
         } catch {
-          console.log(`${changeName}: ${CHANGE_MESSAGES.unableToRead}`);
+          console.log(`${changeName}: ${CHANGE_MESSAGES.unableToRead}${taskStatusText}`);
         }
       }
     }
@@ -197,7 +249,11 @@ export class ChangeCommand {
     }
     
     const validator = new Validator(options?.strict || false);
-    const report = await validator.validateChangeDeltaSpecs(changeDir);
+    const report = await validator.validateChangeDeltaSpecs(changeDir, {
+      // Derived from changesPath so the main specs come from the same root the
+      // change itself was resolved against.
+      mainSpecsDir: path.join(path.dirname(changesPath), 'specs'),
+    });
     
     if (options?.json) {
       console.log(JSON.stringify(report, null, 2));
@@ -212,31 +268,11 @@ export class ChangeCommand {
           console.error(`${prefix} [${label}] ${issue.path}: ${issue.message}`);
         });
         // Next steps footer to guide fixing issues
-        this.printNextSteps();
+        this.printNextSteps(report.issues);
         if (!options?.json) {
           process.exitCode = 1;
         }
       }
-    }
-  }
-
-  private async getActiveChanges(changesPath: string): Promise<string[]> {
-    try {
-      const entries = await fs.readdir(changesPath, { withFileTypes: true });
-      const result: string[] = [];
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === ARCHIVE_DIR) continue;
-        const proposalPath = path.join(changesPath, entry.name, 'proposal.md');
-        try {
-          await fs.access(proposalPath);
-          result.push(entry.name);
-        } catch {
-          // skip directories without proposal.md
-        }
-      }
-      return result.sort();
-    } catch {
-      return [];
     }
   }
 
@@ -245,11 +281,27 @@ export class ChangeCommand {
     return match ? match[1].trim() : changeName;
   }
 
-  private printNextSteps(): void {
+  private printNextSteps(issues: Array<{ message: string }> = []): void {
     const bullets: string[] = [];
-    bullets.push(CHANGE_MESSAGES.ensureDeltasInSpecs);
-    bullets.push(CHANGE_MESSAGES.eachRequirementNeedsScenario);
-    bullets.push(CHANGE_MESSAGES.debugParsedDeltas);
+    // Branch on the exact marker messages: the generic no-deltas guidance
+    // also mentions skip_specs and must not trigger the marker bullets.
+    const conflictIssue = issues.some(i =>
+      i.message.includes(VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_CONFLICT)
+    );
+    const invalidMarkerIssue = issues.some(i =>
+      i.message.includes(VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_INVALID_METADATA)
+    );
+    if (conflictIssue) {
+      bullets.push(CHANGE_MESSAGES.skipSpecsConflictRemoveFiles);
+      bullets.push(CHANGE_MESSAGES.skipSpecsConflictValidMetadata);
+    } else if (invalidMarkerIssue) {
+      bullets.push(CHANGE_MESSAGES.skipSpecsInvalidFixMetadata);
+      bullets.push(CHANGE_MESSAGES.skipSpecsInvalidOrRemove);
+    } else {
+      bullets.push(CHANGE_MESSAGES.ensureDeltasInSpecs);
+      bullets.push(CHANGE_MESSAGES.eachRequirementNeedsScenario);
+      bullets.push(CHANGE_MESSAGES.debugParsedDeltas);
+    }
     console.error(CHANGE_MESSAGES.nextSteps);
     bullets.forEach(b => console.error(`  ${b}`));
   }

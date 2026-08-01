@@ -164,6 +164,19 @@ describe('openspec CLI e2e basics', () => {
       expect(await fileExists(cursorSkillPath)).toBe(false); // Not selected
     });
 
+    it('initializes with --tools agents option', async () => {
+      const projectDir = await prepareFixture('tmp-init');
+      const emptyProjectDir = path.join(projectDir, '..', 'empty-project');
+      await fs.mkdir(emptyProjectDir, { recursive: true });
+
+      const result = await runCLI(['init', '--tools', 'agents'], { cwd: emptyProjectDir });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Configuração do BR-OpenSpec Concluída');
+
+      const skillPath = path.join(emptyProjectDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillPath)).toBe(true);
+    });
+
     it('initializes with --tools none option', async () => {
       const projectDir = await prepareFixture('tmp-init');
       const emptyProjectDir = path.join(projectDir, '..', 'empty-project');
@@ -200,6 +213,97 @@ describe('openspec CLI e2e basics', () => {
       const result = await runCLI(['init', '--tools', 'all,claude'], { cwd: emptyProjectDir });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('Não é possível combinar valores reservados "all" ou "none"');
+    });
+  });
+
+  describe('archive with no terminal to answer its prompts (#1479)', () => {
+    // runCLI fecha o stdin do filho, que é exatamente como um agente de IA ou
+    // um script de CI invoca o CLI.
+    async function prepareChange(options: { tasksComplete?: boolean } = {}): Promise<string> {
+      const base = await fs.mkdtemp(path.join(tmpdir(), 'openspec-archive-e2e-'));
+      tempRoots.push(base);
+      const changeDir = path.join(base, 'openspec', 'changes', 'add-greeting');
+      await fs.mkdir(path.join(changeDir, 'specs', 'greeting'), { recursive: true });
+      await fs.mkdir(path.join(base, 'openspec', 'specs'), { recursive: true });
+      await fs.writeFile(
+        path.join(changeDir, 'proposal.md'),
+        '## Why\nThis change exists to document greeting behavior for the team, which is long enough.\n\n## What Changes\n- Add a greeting requirement.\n'
+      );
+      await fs.writeFile(
+        path.join(changeDir, 'tasks.md'),
+        options.tasksComplete === false ? '- [ ] Task 1\n' : '- [x] Task 1\n'
+      );
+      await fs.writeFile(
+        path.join(changeDir, 'specs', 'greeting', 'spec.md'),
+        '## ADDED Requirements\n\n### Requirement: Greeting\nThe system SHALL greet the user.\n\n#### Scenario: Greets on request\n- **WHEN** the user says hello\n- **THEN** the system greets back\n'
+      );
+      return base;
+    }
+
+    it('reports the flag to pass instead of a closed-prompt error', async () => {
+      const projectDir = await prepareChange();
+      const result = await runCLI(['archive', 'add-greeting'], { cwd: projectDir });
+
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.exitCode).toBe(1);
+      expect(output).not.toContain('force closed the prompt');
+      expect(output).toContain('não foi possível ler uma resposta do stdin');
+      expect(output).toContain('openspec archive add-greeting --yes');
+
+      // A change está intacta: nada foi arquivado ou mesclado.
+      expect(await fileExists(path.join(projectDir, 'openspec', 'changes', 'add-greeting', 'proposal.md'))).toBe(true);
+      expect(await fileExists(path.join(projectDir, 'openspec', 'specs', 'greeting', 'spec.md'))).toBe(false);
+    });
+
+    it('reports the incomplete-task prompt the same way', async () => {
+      const projectDir = await prepareChange({ tasksComplete: false });
+      const result = await runCLI(['archive', 'add-greeting'], { cwd: projectDir });
+
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.exitCode).toBe(1);
+      expect(output).not.toContain('force closed the prompt');
+      expect(output).toContain('1 tarefa(s) incompleta(s) encontrada(s)');
+      expect(output).toContain('openspec archive add-greeting --yes');
+    });
+
+    it('keeps the caller\'s own flags in the suggested rerun', async () => {
+      // Sugerir uma reexecução com --yes puro aqui mesclaria os deltas que o
+      // --skip-specs foi passado para deixar intocados.
+      const projectDir = await prepareChange({ tasksComplete: false });
+      const result = await runCLI(['archive', 'add-greeting', '--skip-specs'], { cwd: projectDir });
+
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.exitCode).toBe(1);
+      expect(output).toContain('openspec archive add-greeting --skip-specs --yes');
+    });
+
+    it('reports the skip-validation prompt the same way', async () => {
+      const projectDir = await prepareChange();
+      const result = await runCLI(['archive', 'add-greeting', '--no-validate'], { cwd: projectDir });
+
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.exitCode).toBe(1);
+      expect(output).not.toContain('force closed the prompt');
+      expect(output).toContain('Pular a validação requer confirmação');
+      expect(output).toContain('openspec archive add-greeting --no-validate --yes');
+    });
+
+    it('archives normally once that flag is passed', async () => {
+      const projectDir = await prepareChange();
+      const result = await runCLI(['archive', 'add-greeting', '--yes'], { cwd: projectDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(await fileExists(path.join(projectDir, 'openspec', 'specs', 'greeting', 'spec.md'))).toBe(true);
+    });
+
+    it('asks for a change name instead of exiting 0 without archiving', async () => {
+      const projectDir = await prepareChange();
+      const result = await runCLI(['archive'], { cwd: projectDir });
+
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.exitCode).toBe(1);
+      expect(output).toContain('Um nome de alteração é obrigatório');
+      expect(await fileExists(path.join(projectDir, 'openspec', 'changes', 'add-greeting', 'proposal.md'))).toBe(true);
     });
   });
 });

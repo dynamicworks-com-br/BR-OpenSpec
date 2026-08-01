@@ -10,11 +10,17 @@ describe('ZshInstaller', () => {
   let testHomeDir: string;
   let installer: ZshInstaller;
   let originalZshEnv: string | undefined;
+  let originalZshCustomEnv: string | undefined;
 
   beforeEach(async () => {
-    // Save and clear ZSH env var to avoid detecting host Oh My Zsh
+    // Save and clear ZSH and ZSH_CUSTOM env vars (set by a real Oh My Zsh
+    // install) so the installer resolves against the isolated test home
+    // directory instead of reading — or writing into — the developer's real
+    // OMZ tree
     originalZshEnv = process.env.ZSH;
     delete process.env.ZSH;
+    originalZshCustomEnv = process.env.ZSH_CUSTOM;
+    delete process.env.ZSH_CUSTOM;
 
     // Create a temporary home directory for testing
     testHomeDir = path.join(os.tmpdir(), `openspec-zsh-test-${randomUUID()}`);
@@ -26,11 +32,16 @@ describe('ZshInstaller', () => {
     // Clean up test directory
     await fs.rm(testHomeDir, { recursive: true, force: true });
 
-    // Restore ZSH env var
+    // Restore ZSH and ZSH_CUSTOM env vars
     if (originalZshEnv === undefined) {
       delete process.env.ZSH;
     } else {
       process.env.ZSH = originalZshEnv;
+    }
+    if (originalZshCustomEnv === undefined) {
+      delete process.env.ZSH_CUSTOM;
+    } else {
+      process.env.ZSH_CUSTOM = originalZshCustomEnv;
     }
   });
 
@@ -38,6 +49,14 @@ describe('ZshInstaller', () => {
     it('should return false when Oh My Zsh is not installed', async () => {
       const isInstalled = await installer.isOhMyZshInstalled();
       expect(isInstalled).toBe(false);
+    });
+
+    it('should return true when $ZSH environment variable is set', async () => {
+      // No .oh-my-zsh directory in testHomeDir; detection relies on $ZSH alone
+      process.env.ZSH = path.join(testHomeDir, '.oh-my-zsh');
+
+      const isInstalled = await installer.isOhMyZshInstalled();
+      expect(isInstalled).toBe(true);
     });
 
     it('should return true when Oh My Zsh directory exists', async () => {
@@ -76,6 +95,30 @@ describe('ZshInstaller', () => {
 
       expect(result.isOhMyZsh).toBe(false);
       expect(result.path).toBe(path.join(testHomeDir, '.zsh', 'completions', '_openspec'));
+    });
+
+    it('should honor $ZSH for an Oh My Zsh install at a custom location', async () => {
+      // A relocated OMZ exports $ZSH; writing under ~/.oh-my-zsh instead
+      // would create a tree that no shell ever loads.
+      const customRoot = path.join(testHomeDir, 'dotfiles', 'omz');
+      process.env.ZSH = customRoot;
+
+      const result = await installer.getInstallationPath();
+
+      expect(result.isOhMyZsh).toBe(true);
+      expect(result.path).toBe(path.join(customRoot, 'custom', 'completions', '_openspec'));
+    });
+
+    it('should honor $ZSH_CUSTOM over the derived custom dir', async () => {
+      process.env.ZSH = path.join(testHomeDir, 'dotfiles', 'omz');
+      process.env.ZSH_CUSTOM = path.join(testHomeDir, 'dotfiles', 'omz-custom');
+
+      const result = await installer.getInstallationPath();
+
+      expect(result.isOhMyZsh).toBe(true);
+      expect(result.path).toBe(
+        path.join(testHomeDir, 'dotfiles', 'omz-custom', 'completions', '_openspec')
+      );
     });
   });
 

@@ -15,6 +15,8 @@ openspec --version
 
 Se instalou mas ainda não é encontrado, seu prefixo global do npm provavelmente não está no seu `PATH`. Rode `npm config get prefix` para ver o diretório de prefixo. Em Unix/macOS/Linux, os executáveis globais ficam em `<prefix>/bin`; no Windows, ficam diretamente em `<prefix>`. Adicione o diretório aplicável ao perfil do seu shell ou ao `PATH`.
 
+Se você usou a [instalação assistida por IA](installation.md#instale-com-seu-assistente-de-ia), este é o ponto de passagem esperado: aquele prompt manda seu assistente mostrar a mudança de `PATH` em vez de editar seus arquivos de inicialização do shell por conta própria.
+
 ### "Requires Node.js 20.19.0 or higher"
 
 O BR-OpenSpec roda em Node 20.19.0+. Verifique sua versão e atualize se necessário:
@@ -49,13 +51,15 @@ Se `/opsx:propose` (ou o equivalente da sua ferramenta) não aparece ou não faz
 
    Isso reescreve os arquivos de skill e comando para cada ferramenta que você configurou.
 
+   Os arquivos de instrução vêm da CLI *instalada*, então uma CLI desatualizada reporta tudo como atualizado sem jamais escrever os fluxos de trabalho mais novos. O `openspec update` agora verifica isso e oferece a atualização — aceite a oferta se a vir.
+
 3. **Reinicie seu assistente.** A maioria das ferramentas varre skills e comandos na inicialização. Uma janela nova geralmente resolve.
 
 4. **Confirme que os arquivos existem.** Para o Claude Code, verifique que `.claude/skills/` contém pastas `openspec-*`. Outras ferramentas usam seus próprios diretórios, todos listados em [Ferramentas Suportadas](supported-tools.md).
 
 5. **Verifique que você inicializou este projeto.** Skills são escritas por projeto. Se você clonou um repo ou trocou de pasta, rode `openspec init` (ou `openspec update`) lá.
 
-6. **Confirme que sua ferramenta suporta arquivos de comando.** O Codex e algumas outras ferramentas (Kimi Code, ForgeCode, Mistral Vibe) não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills. Para o Codex, verifique `.codex/skills/openspec-*`. As formas diferem por ferramenta: veja [Ferramentas Suportadas](supported-tools.md) e [Como os Comandos Funcionam](how-commands-work.md#sintaxe-de-slash-command-por-ferramenta).
+6. **Confirme que sua ferramenta suporta arquivos de comando.** Kimi Code, ForgeCode, Mistral Vibe, Trae e o alvo `.agents` compartilhado não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills, então `/opsx` nunca vai autocompletar para elas. Digite `/skill:openspec-propose` no Kimi Code e `/openspec-propose` nas demais. O alvo `.agents` compartilhado é neutro em relação a fornecedores, então `/openspec-propose` é a forma comum, não uma garantida — se o seu assistente não responder a ela, consulte a documentação dele sobre como invocar uma skill. Os arquivos de comando do Codex ficam no diretório global do Codex (`$CODEX_HOME/prompts/opsx-*.md`), e suas skills são invocadas como `$openspec-propose`. O Amazon Q recebe arquivos de comando, mas os carrega na sua biblioteca de prompts em vez do menu de barra — digite `@opsx-propose` lá, não `/opsx`. A forma de cada ferramenta está listada em [Como Invocar](supported-tools.md#como-invocar).
 
 ## Trabalhando com mudanças
 
@@ -92,6 +96,14 @@ openspec validate --all --strict   # verificações mais estritas, boas para CI
 
 Causas comuns são uma seção obrigatória faltando (como uma spec sem cenários) ou um cabeçalho de delta malformado. Corrija o arquivo e rode de novo. A [referência da CLI](cli.md#openspec-validate) documenta o formato da saída.
 
+Uma mensagem merece uma nota própria:
+
+```text
+MODIFIED "<requisito>" omite cenário(s) que o spec atual ainda tem: "<cenário>"
+```
+
+Um requisito `MODIFIED` substitui o bloco inteiro do requisito, então ele precisa carregar todos os cenários que sobrevivem à mudança, não apenas os que você editou. Copie os cenários nomeados de `openspec/specs/<capability>/spec.md` de volta para o delta. Isso costuma aparecer em uma mudança antiga depois que a mudança de outra pessoa adicionou um cenário ao mesmo requisito — o archive recusa essa mudança de qualquer forma, e a validação agora avisa antes de você implementá-la.
+
 ### A IA criou artefatos incompletos ou errados
 
 A IA não tinha contexto suficiente. Algumas alavancas ajudam:
@@ -104,6 +116,18 @@ A IA não tinha contexto suficiente. Algumas alavancas ajudam:
 ### O arquivamento não termina, ou avisa sobre tarefas incompletas
 
 O arquivamento não *bloqueia* por tarefas incompletas, mas avisa você, porque arquivar normalmente significa que o trabalho está concluído. Se restam tarefas de propósito (você está arquivando uma mudança parcial), prossiga. Caso contrário, termine as tarefas primeiro. O arquivamento também se oferece para mesclar suas delta specs nas specs principais se você ainda não sincronizou; diga sim, a menos que tenha um motivo para não o fazer.
+
+### "User force closed the prompt with 0 null"
+
+Algo executou `openspec archive` onde nada consegue responder a uma pergunta — um agente de IA chamando-o a partir de uma ferramenta, um job de CI, ou qualquer shell com stdin fechado. O arquivamento faz até três confirmações, e uma que não pode ser respondida costumava falhar com essa mensagem crua.
+
+Passe `--yes` para respondê-las de antemão:
+
+```bash
+openspec archive <nome-da-alteração> --yes
+```
+
+Mantenha quaisquer flags que você já estava passando — `--skip-specs` e `--no-validate` mudam o que o arquivamento faz, então uma reexecução com `--yes` puro não é o mesmo comando. As versões atuais nomeiam a flag para você e imprimem uma linha `Correção:` que você pode colar. Se você pretendia escolher de uma lista, passe o nome da mudança explicitamente: o seletor também precisa de uma resposta.
 
 ## Configuração
 

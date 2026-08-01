@@ -126,6 +126,24 @@ describe('artifact-workflow CLI commands', () => {
       expect(proposalArtifact.status).toBe('done');
     });
 
+    it('recommends specs before design for a proposal-only change', async () => {
+      await createTestChange('order-change');
+
+      const result = await runCLI(['status', '--change', 'order-change', '--json'], {
+        cwd: tempDir,
+      });
+      expect(result.exitCode).toBe(0);
+
+      const json = JSON.parse(result.stdout);
+      expect(json.artifacts.map((a: any) => a.id)).toEqual(['proposal', 'specs', 'design', 'tasks']);
+      // The fork has no nextSteps field (upstream's change-status-policy); the
+      // recommendation surfaces as the declaration-ordered list of ready artifacts.
+      const readyIds = json.artifacts
+        .filter((a: any) => a.status === 'ready')
+        .map((a: any) => a.id);
+      expect(readyIds).toEqual(['specs', 'design']);
+    });
+
     it('shows complete status when all artifacts are done', async () => {
       await createTestChange('complete-change', ['proposal', 'design', 'specs', 'tasks']);
 
@@ -439,6 +457,16 @@ describe('artifact-workflow CLI commands', () => {
     });
 
     it('shows blocked state when required artifacts are missing', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+context: Required blocked-state context
+operations:
+  apply:
+    guidance:
+      - Advisory blocked-state guidance
+`
+      );
       // Only create proposal - missing tasks (required by spec-driven apply block)
       await createTestChange('blocked-apply', ['proposal']);
 
@@ -448,6 +476,8 @@ describe('artifact-workflow CLI commands', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Bloqueado');
       expect(result.stdout).toContain('Artefatos ausentes: tasks');
+      expect(result.stdout).toContain('### Contexto do Projeto (entrada de instrução obrigatória)');
+      expect(result.stdout).toContain('### Orientação da Operação (consultiva)');
     });
 
     it('outputs JSON for apply instructions', async () => {
@@ -470,6 +500,161 @@ describe('artifact-workflow CLI commands', () => {
       expect(typeof json.contextFiles).toBe('object');
       expect(json.contextFiles.proposal).toEqual([expectedProposalPath]);
       expect(json.contextFiles.specs).toEqual([expectedSpecPath]);
+    });
+
+    it('returns current context and matching apply guidance as separate JSON fields', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+context: |
+  Current project context
+rules:
+  specs:
+    - Artifact-only rule
+operations:
+  apply:
+    guidance:
+      - Apply guidance
+  archive:
+    guidance:
+      - Archive guidance
+`
+      );
+      await createTestChange('apply-inputs', ['proposal', 'design', 'specs', 'tasks']);
+
+      const result = await runCLI(
+        ['instructions', 'apply', '--change', 'apply-inputs', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(result.exitCode).toBe(0);
+      const json = JSON.parse(result.stdout);
+      expect(json.context).toBe('Current project context\n');
+      expect(json.operationGuidance).toEqual(['Apply guidance']);
+      expect(JSON.stringify(json)).not.toContain('Archive guidance');
+      expect(JSON.stringify(json)).not.toContain('Artifact-only rule');
+      expect(json.state).toBe('ready');
+      expect(json.progress).toEqual({ total: 1, complete: 0, remaining: 1 });
+      expect(json.tasks).toEqual([{ id: '1', description: 'Task 1', done: false }]);
+      expect(json.contextFiles).toBeDefined();
+    });
+
+    it('renders required context and advisory apply guidance as distinct text sections', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+context: Project background
+operations:
+  apply:
+    guidance:
+      - Keep summaries concise
+`
+      );
+      await createTestChange('apply-text-inputs', ['proposal', 'design', 'specs', 'tasks']);
+
+      const result = await runCLI(
+        ['instructions', 'apply', '--change', 'apply-text-inputs'],
+        { cwd: tempDir }
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('### Instrução');
+      expect(result.stdout).toContain('### Contexto do Projeto (entrada de instrução obrigatória)');
+      expect(result.stdout).toContain('Project background');
+      expect(result.stdout).toContain('### Orientação da Operação (consultiva)');
+      expect(result.stdout).toContain('- Keep summaries concise');
+      expect(result.stdout).not.toContain('### Contexto do Projeto (consultiva)');
+    });
+
+    it('omits absent operation inputs without changing apply state behavior', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+rules:
+  specs:
+    - Artifact-only rule
+`
+      );
+      await createTestChange('apply-no-inputs', ['proposal', 'design', 'specs', 'tasks']);
+
+      const result = await runCLI(
+        ['instructions', 'apply', '--change', 'apply-no-inputs', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(result.exitCode).toBe(0);
+      const json = JSON.parse(result.stdout);
+      expect(json.context).toBeUndefined();
+      expect(json.operationGuidance).toBeUndefined();
+      expect(json.state).toBe('ready');
+      expect(JSON.stringify(json)).not.toContain('Artifact-only rule');
+    });
+
+    it('reads a fresh apply config snapshot on every command invocation', async () => {
+      const configPath = path.join(tempDir, 'openspec', 'config.yaml');
+      await createTestChange('apply-fresh-inputs', ['proposal', 'design', 'specs', 'tasks']);
+      await fs.writeFile(
+        configPath,
+        `schema: spec-driven
+context: Initial context
+operations:
+  apply:
+    guidance:
+      - Initial guidance
+`
+      );
+
+      const first = await runCLI(
+        ['instructions', 'apply', '--change', 'apply-fresh-inputs', '--json'],
+        { cwd: tempDir }
+      );
+      await fs.writeFile(
+        configPath,
+        `schema: spec-driven
+context: Updated context
+operations:
+  apply:
+    guidance:
+      - Updated guidance
+`
+      );
+      const second = await runCLI(
+        ['instructions', 'apply', '--change', 'apply-fresh-inputs', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(JSON.parse(first.stdout)).toMatchObject({
+        context: 'Initial context',
+        operationGuidance: ['Initial guidance'],
+      });
+      expect(JSON.parse(second.stdout)).toMatchObject({
+        context: 'Updated context',
+        operationGuidance: ['Updated guidance'],
+      });
+    });
+
+    it('reads malformed operation config once and emits one warning per command', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+operations:
+  apply:
+    guidance: invalid
+`
+      );
+      await createTestChange('apply-one-warning', ['proposal', 'design', 'specs', 'tasks']);
+
+      const result = await runCLI(
+        ['instructions', 'apply', '--change', 'apply-one-warning', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(result.exitCode).toBe(0);
+      const matches = result.stderr.match(
+        /A orientação da operação 'apply' deve ser um array de strings/g
+      );
+      expect(matches).toHaveLength(1);
+      expect(JSON.parse(result.stdout).operationGuidance).toBeUndefined();
     });
 
     it('resolves single-star glob artifacts consistently between status and apply', async () => {
@@ -511,6 +696,7 @@ apply:
           id: 'specs',
           outputPath: 'specs/*/spec.md',
           status: 'done',
+          requires: [],
         },
       ]);
 
@@ -540,6 +726,16 @@ apply:
     });
 
     it('shows all_done state when all tasks are complete', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+context: Required all-done context
+operations:
+  apply:
+    guidance:
+      - Advisory all-done guidance
+`
+      );
       const changeDir = await createTestChange('done-apply', [
         'proposal',
         'design',
@@ -558,6 +754,8 @@ apply:
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('concluído ✓');
       expect(result.stdout).toContain('pronta para ser arquivada');
+      expect(result.stdout).toContain('### Contexto do Projeto (entrada de instrução obrigatória)');
+      expect(result.stdout).toContain('### Orientação da Operação (consultiva)');
     });
 
     it('uses spec-driven schema apply configuration', async () => {
@@ -681,6 +879,175 @@ artifacts:
     });
   });
 
+  describe('instructions archive command', () => {
+    it('returns current archive context and guidance as JSON fields', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+context: Archive project context
+rules:
+  specs:
+    - Artifact-only rule
+operations:
+  apply:
+    guidance:
+      - Apply guidance
+  archive:
+    guidance:
+      - Archive guidance
+`
+      );
+      await createTestChange('archive-inputs', ['proposal', 'design', 'specs', 'tasks']);
+
+      const result = await runCLI(
+        ['instructions', 'archive', '--change', 'archive-inputs', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(JSON.parse(result.stdout)).toEqual({
+        changeName: 'archive-inputs',
+        context: 'Archive project context',
+        operationGuidance: ['Archive guidance'],
+      });
+      expect(result.stdout).not.toContain('Apply guidance');
+      expect(result.stdout).not.toContain('Artifact-only rule');
+      expect(result.stdout).not.toContain('Realize o arquivamento');
+    });
+
+    it('renders required context and advisory archive guidance as separate text sections', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        `schema: spec-driven
+context: Archive background
+operations:
+  archive:
+    guidance:
+      - Summarize the outcome
+`
+      );
+      await createTestChange('archive-text-inputs');
+
+      const result = await runCLI(
+        ['instructions', 'archive', '--change', 'archive-text-inputs'],
+        { cwd: tempDir }
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('## Entradas de Arquivamento: archive-text-inputs');
+      expect(result.stdout).toContain('### Contexto do Projeto (entrada de instrução obrigatória)');
+      expect(result.stdout).toContain('Archive background');
+      expect(result.stdout).toContain('### Orientação da Operação (consultiva)');
+      expect(result.stdout).toContain('- Summarize the outcome');
+      expect(result.stdout).not.toContain('### Contexto do Projeto (consultiva)');
+    });
+
+    it('succeeds with valid empty inputs and omits optional JSON fields', async () => {
+      await fs.writeFile(
+        path.join(tempDir, 'openspec', 'config.yaml'),
+        'schema: spec-driven\n'
+      );
+      await createTestChange('archive-no-inputs');
+
+      const jsonResult = await runCLI(
+        ['instructions', 'archive', '--change', 'archive-no-inputs', '--json'],
+        { cwd: tempDir }
+      );
+      const textResult = await runCLI(
+        ['instructions', 'archive', '--change', 'archive-no-inputs'],
+        { cwd: tempDir }
+      );
+
+      expect(jsonResult.exitCode).toBe(0);
+      const json = JSON.parse(jsonResult.stdout);
+      expect(json.changeName).toBe('archive-no-inputs');
+      expect(json.context).toBeUndefined();
+      expect(json.operationGuidance).toBeUndefined();
+      expect(textResult.stdout).toContain(
+        'Nenhum contexto de projeto ou orientação de operação configurado.'
+      );
+    });
+
+    it('requires a change and rejects unknown changes', async () => {
+      await createTestChange('available-change');
+
+      const missing = await runCLI(['instructions', 'archive', '--json'], {
+        cwd: tempDir,
+      });
+      const invalid = await runCLI(
+        ['instructions', 'archive', '--change', 'missing-change', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(missing.exitCode).toBe(1);
+      expect(getOutput(missing)).toContain('Opção obrigatória --change ausente');
+      expect(invalid.exitCode).toBe(1);
+      expect(getOutput(invalid)).toContain("Alteração 'missing-change' não encontrada");
+    });
+
+    it('reads fresh archive inputs without mutating specs or the change', async () => {
+      const configPath = path.join(tempDir, 'openspec', 'config.yaml');
+      const changeDir = await createTestChange('archive-read-only', [
+        'proposal',
+        'design',
+        'specs',
+        'tasks',
+      ]);
+      const proposalPath = path.join(changeDir, 'proposal.md');
+      const proposalBefore = await fs.readFile(proposalPath, 'utf-8');
+      await fs.writeFile(
+        configPath,
+        `schema: spec-driven
+context: First archive context
+operations:
+  archive:
+    guidance:
+      - First archive guidance
+`
+      );
+
+      const first = await runCLI(
+        ['instructions', 'archive', '--change', 'archive-read-only', '--json'],
+        { cwd: tempDir }
+      );
+      await fs.writeFile(
+        configPath,
+        `schema: spec-driven
+context: Second archive context
+operations:
+  archive:
+    guidance:
+      - Second archive guidance
+`
+      );
+      const second = await runCLI(
+        ['instructions', 'archive', '--change', 'archive-read-only', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(JSON.parse(first.stdout)).toMatchObject({
+        context: 'First archive context',
+        operationGuidance: ['First archive guidance'],
+      });
+      expect(JSON.parse(second.stdout)).toMatchObject({
+        context: 'Second archive context',
+        operationGuidance: ['Second archive guidance'],
+      });
+      expect(await fs.readFile(proposalPath, 'utf-8')).toBe(proposalBefore);
+      expect(await fs.readdir(path.join(changeDir, 'specs'))).toEqual(['test-spec.md']);
+      expect(
+        await fs.readdir(path.join(tempDir, 'openspec', 'changes'))
+      ).toContain('archive-read-only');
+      expect(
+        await fs
+          .stat(path.join(tempDir, 'openspec', 'specs'))
+          .then(() => true)
+          .catch(() => false)
+      ).toBe(false);
+    });
+  });
+
   describe('help text', () => {
     it('status command help shows description', async () => {
       const result = await runCLI(['status', '--help']);
@@ -691,7 +1058,7 @@ artifacts:
     it('instructions command help shows description', async () => {
       const result = await runCLI(['instructions', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Exibe instruções enriquecidas para criar um artefato ou aplicar tarefas');
+      expect(result.stdout).toContain('Exibe instruções enriquecidas para artefatos, apply ou archive');
     });
 
     it('templates command help shows description', async () => {
@@ -724,14 +1091,15 @@ artifacts:
       expect(output).toContain('Ferramenta(s) inválida(s): unknown-tool');
     });
 
-    it('errors for tool without skillsDir', async () => {
-      // Using 'agents' which doesn't have skillsDir configured
+    it('creates skills for the shared agents target', async () => {
       const result = await runCLI(['experimental', '--tool', 'agents'], {
         cwd: tempDir,
       });
-      expect(result.exitCode).toBe(1);
-      const output = getOutput(result);
-      expect(output).toContain('Ferramenta(s) inválida(s): agents');
+      expect(result.exitCode).toBe(0);
+
+      const skillFile = path.join(tempDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      const stat = await fs.stat(skillFile);
+      expect(stat.isFile()).toBe(true);
     });
 
     it('creates skills for Claude tool', async () => {
@@ -766,20 +1134,20 @@ artifacts:
       // Verify commands were created with Cursor format
       const commandFile = path.join(tempDir, '.cursor', 'commands', 'opsx-explore.md');
       const content = await fs.readFile(commandFile, 'utf-8');
-      expect(content).toContain('name: /opsx-explore');
+      expect(content).toContain('name: "/opsx-explore"');
     });
 
-    it('creates skills for Windsurf tool', async () => {
+    it('creates skills for the retired windsurf id, under Devin Desktop', async () => {
       const result = await runCLI(['experimental', '--tool', 'windsurf'], {
         cwd: tempDir,
       });
       expect(result.exitCode).toBe(0);
       const output = normalizePaths(getOutput(result));
-      expect(output).toContain('Windsurf');
-      expect(output).toContain('.windsurf/');
+      expect(output).toContain('Devin Desktop');
+      expect(output).toContain('.devin/');
 
       // Verify skill files were created
-      const skillFile = path.join(tempDir, '.windsurf', 'skills', 'openspec-explore', 'SKILL.md');
+      const skillFile = path.join(tempDir, '.devin', 'skills', 'openspec-explore', 'SKILL.md');
       const stat = await fs.stat(skillFile);
       expect(stat.isFile()).toBe(true);
     });

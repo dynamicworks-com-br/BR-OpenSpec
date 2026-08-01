@@ -63,7 +63,7 @@ openspec init
 
 This creates skills in `.claude/skills/` (or equivalent) that AI coding assistants auto-detect.
 
-By default, BR-OpenSpec uses the `core` workflow profile (`propose`, `explore`, `apply`, `sync`, `archive`). If you want the expanded workflow commands (`new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`), configure them with `openspec config profile` and apply with `openspec update`.
+By default, BR-OpenSpec uses the `core` workflow profile (`propose`, `explore`, `apply`, `update`, `sync`, `archive`). If you want the expanded workflow commands (`new`, `continue`, `ff`, `verify`, `code-review`, `bulk-archive`, `onboard`), configure them with `openspec config profile` and apply with `openspec update`.
 
 During setup, you'll be prompted to create a **project config** (`openspec/config.yaml`). This is optional but recommended.
 
@@ -418,7 +418,7 @@ Examples in this section use the expanded command set (`new`, `continue`, etc.);
 │                    ▼                                                        │
 │   Skill Files (.claude/skills/openspec-*/SKILL.md)                          │
 │                                                                             │
-│   • Cross-editor compatible (Claude Code, Cursor, Windsurf)                 │
+│   • Cross-editor compatible (Claude Code, Cursor, Devin)                    │
 │   • Skills query CLI for structured data                                    │
 │   • Fully customizable via schema files                                     │
 │                                                                             │
@@ -503,7 +503,8 @@ Artifacts form a directed acyclic graph (DAG). Dependencies are **enablers**, no
   │  │      {"id": "proposal", "status": "done"},                         │  │
   │  │      {"id": "specs", "status": "ready"},      ◄── First ready      │  │
   │  │      {"id": "design", "status": "ready"},                          │  │
-  │  │      {"id": "tasks", "status": "blocked", "missingDeps": ["specs"]}│  │
+  │  │      {"id": "tasks", "status": "blocked",                          │  │
+  │  │       "missingDeps": ["specs", "design"]}                          │  │
   │  │    ]                                                               │  │
   │  │  }                                                                 │  │
   │  └────────────────────────────────────────────────────────────────────┘  │

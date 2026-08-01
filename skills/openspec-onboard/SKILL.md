@@ -28,7 +28,7 @@ if (Get-Command openspec -ErrorAction SilentlyContinue) { openspec --version } e
 ```
 
 **Se o CLI não estiver instalado:**
-> O CLI do BR-OpenSpec não está instalado. Instale-o primeiro, depois volte para `/opsx:onboard`.
+> O CLI do BR-OpenSpec não está instalado. Instale-o primeiro, depois volte para `/openspec-onboard`.
 
 Pare aqui se não estiver instalado.
 
@@ -155,7 +155,7 @@ Gaste 1-2 minutos investigando o código relevante:
 │   [Opcional: diagrama ASCII se útil]    │
 └─────────────────────────────────────────┘
 
-O modo explore (`/opsx:explore`) é para esse tipo de pensamento - investigar antes de implementar. Você pode usá-lo a qualquer momento que precisar pensar sobre um problema.
+O modo explore (`/openspec-explore`) é para esse tipo de pensamento - investigar antes de implementar. Você pode usá-lo a qualquer momento que precisar pensar sobre um problema.
 
 Agora vamos criar uma change para conter nosso trabalho.
 ```
@@ -433,14 +433,14 @@ Quando uma change está completa, nós a arquivamos. Isso a move de `openspec/ch
 As changes arquivadas se tornam o histórico de decisões do seu projeto - você sempre pode encontrá-las depois para entender por que algo foi construído de certa forma.
 ```
 
-**FAÇA:**
+**FAÇA:** Arquive a change (`--yes` responde às perguntas de confirmação, que você não consegue responder a partir de uma chamada de ferramenta):
 ```bash
-openspec archive "<nome>"
+openspec archive "<nome>" --yes
 ```
 
 **MOSTRE:**
 ```
-Arquivado em: `openspec/changes/archive/YYYY-MM-DD-<nome>/`
+Arquivado em: `openspec/changes/archive/<target-name>/` (o nome de destino prefixa a data de hoje, a menos que o nome já comece com um prefixo `YYYY-MM-DD-` — nesse caso ele é mantido como está, sem segunda data)
 
 A change agora faz parte do histórico do seu projeto. O código está na sua codebase, o registro de decisão está preservado.
 ```
@@ -473,25 +473,25 @@ Este mesmo ritmo funciona para qualquer tamanho de change - uma pequena correç�
 
  | Comando           | O que faz                                   |
  |-------------------|---------------------------------------------|
- | `/opsx:propose` | Cria uma change e gera todos os artifacts   |
- | `/opsx:explore` | Pensa sobre problemas antes/durante o trabalho |
- | `/opsx:apply`   | Implementa tarefas de uma change            |
- | `/opsx:archive` | Arquiva uma change concluída                |
+ | `/openspec-propose` | Cria uma change e gera todos os artifacts   |
+ | `/openspec-explore` | Pensa sobre problemas antes/durante o trabalho |
+ | `/openspec-apply-change`   | Implementa tarefas de uma change            |
+ | `/openspec-archive-change` | Arquiva uma change concluída                |
 
-**Comandos adicionais:**
+**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
 
  | Comando            | O que faz                                              |
  |--------------------|--------------------------------------------------------|
- | `/opsx:new`      | Inicia uma nova change, passo a passo pelos artifacts  |
- | `/opsx:continue` | Continua trabalhando em uma change existente           |
- | `/opsx:ff`       | Fast-forward: cria todos os artifacts de uma vez       |
- | `/opsx:verify`   | Verifica se implementação corresponde aos artifacts    |
+ | `/openspec-new-change`      | Inicia uma nova change, passo a passo pelos artifacts  |
+ | `/openspec-continue-change` | Continua trabalhando em uma change existente           |
+ | `/openspec-ff-change`       | Fast-forward: cria todos os artifacts de uma vez       |
+ | `/openspec-verify-change`   | Verifica se implementação corresponde aos artifacts    |
 
 ---
 
 ## E Agora?
 
-Experimente `/opsx:propose` em algo que você realmente quer construir. Você já pegou o ritmo!
+Experimente `/openspec-propose` em algo que você realmente quer construir. Você já pegou o ritmo!
 ```
 
 ---
@@ -506,8 +506,8 @@ Se o usuário disser que precisa parar, quer pausar, ou parecer desengajado:
 Sem problema! Sua change está salva em `openspec/changes/<nome>/`.
 
 Para retomar de onde paramos depois:
-- `/opsx:continue <nome>` - Retoma a criação de artifacts
-- `/opsx:apply <nome>` - Pula para implementação (se tasks existirem)
+- `/openspec-continue-change <nome>` - Retoma a criação de artifacts (se instalado; caso contrário `openspec status --change "<nome>" --json` mostra o próximo artifact)
+- `/openspec-apply-change <nome>` - Pula para implementação (se tasks existirem)
 
 O trabalho não será perdido. Volte quando estiver pronto.
 ```
@@ -525,21 +525,21 @@ Se o usuário disser que apenas quer ver os comandos ou pular o tutorial:
 
  | Comando                  | O que faz                                   |
  |--------------------------|---------------------------------------------|
- | `/opsx:propose <nome>` | Cria uma change e gera todos os artifacts   |
- | `/opsx:explore`        | Pensa sobre problemas (sem mudanças de código) |
- | `/opsx:apply <nome>`   | Implementa tarefas                          |
- | `/opsx:archive <nome>` | Arquiva quando concluído                    |
+ | `/openspec-propose <nome>` | Cria uma change e gera todos os artifacts   |
+ | `/openspec-explore`        | Pensa sobre problemas (sem mudanças de código) |
+ | `/openspec-apply-change <nome>`   | Implementa tarefas                          |
+ | `/openspec-archive-change <nome>` | Arquiva quando concluído                    |
 
-**Comandos adicionais:**
+**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
 
  | Comando                   | O que faz                        |
  |---------------------------|----------------------------------|
- | `/opsx:new <nome>`      | Inicia uma nova change, passo a passo |
- | `/opsx:continue <nome>` | Continua uma change existente    |
- | `/opsx:ff <nome>`       | Fast-forward: todos os artifacts de uma vez |
- | `/opsx:verify <nome>`   | Verifica implementação           |
+ | `/openspec-new-change <nome>`      | Inicia uma nova change, passo a passo |
+ | `/openspec-continue-change <nome>` | Continua uma change existente    |
+ | `/openspec-ff-change <nome>`       | Fast-forward: todos os artifacts de uma vez |
+ | `/openspec-verify-change <nome>`   | Verifica implementação           |
 
-Experimente `/opsx:propose` para iniciar sua primeira change.
+Experimente `/openspec-propose` para iniciar sua primeira change.
 ```
 
 Saia graciosamente.

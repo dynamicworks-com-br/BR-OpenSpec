@@ -45,10 +45,8 @@ describe('tools-manager', () => {
   let configTempDir: string;
 
   beforeEach(async () => {
-    testDir = path.join(os.tmpdir(), `openspec-tm-test-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-    configTempDir = path.join(os.tmpdir(), `openspec-config-tm-${Date.now()}`);
-    await fs.mkdir(configTempDir, { recursive: true });
+    testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tm-test-'));
+    configTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-config-tm-'));
     process.env.XDG_CONFIG_HOME = configTempDir;
 
     vi.spyOn(console, 'log').mockImplementation(() => {});

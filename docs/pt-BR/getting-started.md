@@ -24,6 +24,8 @@ CHAT DA IA   /opsx:archive                    (specs atualizadas, mudança arqui
 
 Dois passos no terminal para configurar, depois você vive no chat. O resto deste guia desempacota o que cada passo faz e o que você verá.
 
+**Não quer fazer a parte do terminal você mesmo?** Cole o [prompt de setup](installation.md#instale-com-seu-assistente-de-ia) no seu assistente e ele cuida das duas linhas, depois reporta o que criou.
+
 > **Ainda não sabe o que construir? Comece com `/opsx:explore`.** É um parceiro de raciocínio sem risco algum, que lê sua base de código, pesa opções e afia uma ideia difusa em um plano concreto, tudo antes que qualquer artefato ou código exista. Quando o quadro está claro, ele passa o bastão para `/opsx:propose`. Este é o melhor hábito para trabalhar com uma IA que, de outra forma, construiria confiantemente a coisa errada. Veja o [guia Explore](explore.md).
 
 ## Como Funciona
@@ -45,7 +47,7 @@ Comece com `/opsx:explore` quando você estiver descobrindo o que fazer, ou pule
 /opsx:new ──► /opsx:ff ou /opsx:continue ──► /opsx:apply ──► /opsx:verify ──► /opsx:archive
 ```
 
-O perfil global padrão é `core`, que inclui `propose`, `explore`, `apply`, `sync` e `archive`. Você pode habilitar os comandos de workflow expandido com `openspec config profile` e depois `openspec update`.
+O perfil global padrão é `core`, que inclui `propose`, `explore`, `apply`, `update`, `sync` e `archive`. Você pode habilitar os comandos de workflow expandido com `openspec config profile` e depois `openspec update`.
 
 ## O Que o BR-OpenSpec Cria
 

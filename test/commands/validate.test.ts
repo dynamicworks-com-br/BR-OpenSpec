@@ -69,6 +69,48 @@ describe('top-level validate command', () => {
     expect(result.stderr).toContain('Nada para validar. Tente um dos seguintes:');
   });
 
+  it('shows marker-specific next steps on a skip_specs conflict, not delta-authoring guidance', async () => {
+    const chDir = path.join(changesDir, 'marked-conflict');
+    const strayDir = path.join(chDir, 'specs', 'notes');
+    await fs.mkdir(strayDir, { recursive: true });
+    await fs.writeFile(path.join(strayDir, 'spec.md'), '# headerless notes\n', 'utf-8');
+    await fs.writeFile(
+      path.join(chDir, '.openspec.yaml'),
+      'schema: spec-driven\nskip_specs: true\n',
+      'utf-8'
+    );
+
+    const result = await runCLI(['validate', 'marked-conflict', '--type', 'change'], { cwd: testDir });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('exclua os arquivos em specs/');
+    expect(result.stderr).not.toContain('Certifique-se de que a alteração tenha deltas em specs/');
+  });
+
+  it('leads with the metadata fix when the marker is unhonorable and no spec files exist', async () => {
+    const chDir = path.join(changesDir, 'marked-invalid');
+    await fs.mkdir(chDir, { recursive: true });
+    // skip_specs without the required schema field, and nothing under specs/:
+    // "delete the files" would describe files that don't exist.
+    await fs.writeFile(path.join(chDir, '.openspec.yaml'), 'skip_specs: true\n', 'utf-8');
+
+    const result = await runCLI(['validate', 'marked-invalid', '--type', 'change'], { cwd: testDir });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Corrija o .openspec.yaml para que o marcador skip_specs possa ser honrado');
+    expect(result.stderr).not.toContain('exclua os arquivos em specs/');
+  });
+
+  it('keeps delta-authoring next steps for a plain zero-delta change', async () => {
+    // The generic no-deltas guidance itself mentions skip_specs; that string
+    // must not flip the footer into marker mode.
+    const chDir = path.join(changesDir, 'plain-empty');
+    await fs.mkdir(chDir, { recursive: true });
+
+    const result = await runCLI(['validate', 'plain-empty', '--type', 'change'], { cwd: testDir });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Certifique-se de que a alteração tenha deltas em specs/');
+    expect(result.stderr).not.toContain('exclua os arquivos em specs/');
+  });
+
   it('validates all with --all and outputs JSON summary', async () => {
     const result = await runCLI(['validate', '--all', '--json'], { cwd: testDir });
     expect(result.exitCode).toBe(0);

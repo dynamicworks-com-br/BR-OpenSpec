@@ -20,7 +20,14 @@ import {
   validateSchemaExists,
   type TaskItem,
   type ApplyInstructions,
+  type ArchiveInstructions,
 } from './shared.js';
+import {
+  loadOperationInputs,
+  readProjectConfig,
+  type ProjectConfig,
+} from '../../core/project-config.js';
+import { parseTaskLines, type ParsedTask } from '../../utils/task-progress.js';
 import { WORKFLOW_MESSAGES } from '../../messages/index.js';
 
 // -----------------------------------------------------------------------------
@@ -38,6 +45,8 @@ export interface ApplyInstructionsOptions {
   schema?: string;
   json?: boolean;
 }
+
+export type ArchiveInstructionsOptions = ApplyInstructionsOptions;
 
 // -----------------------------------------------------------------------------
 // Artifact Instructions Command
@@ -116,6 +125,18 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
   console.log(`<artifact id="${artifactId}" change="${changeName}" schema="${schemaName}">`);
   console.log();
 
+  // Artifacts skipped via skip_specs get no creation directive: emitting the
+  // task/template anyway would prompt an agent to write spec files that
+  // validate then rejects as conflicting with the marker.
+  if (instructions.skipped) {
+    console.log('<warning>');
+    console.log(instructions.warning ?? WORKFLOW_MESSAGES.artifactSkippedFallback);
+    console.log('</warning>');
+    console.log();
+    console.log('</artifact>');
+    return;
+  }
+
   // Warning for blocked artifacts
   if (isBlocked) {
     const missing = dependencies.filter((d) => !d.done).map((d) => d.id);
@@ -159,6 +180,15 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
     console.log(WORKFLOW_MESSAGES.readFilesForContext);
     console.log();
     for (const dep of dependencies) {
+      // A dependency satisfied via skip_specs has no files by design: telling
+      // the agent to read them (or calling them "done") would send it hunting
+      // for spec files that must not exist.
+      if (dep.skipped) {
+        console.log(`<dependency id="${dep.id}" status="skipped">`);
+        console.log(`  <description>${WORKFLOW_MESSAGES.skippedDependencyNoFiles}</description>`);
+        console.log('</dependency>');
+        continue;
+      }
       const status = dep.done ? 'done' : 'missing';
       const fullPath = path.join(changeDir, dep.path);
       console.log(`<dependency id="${dep.id}" status="${status}">`);
@@ -214,29 +244,33 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
 // -----------------------------------------------------------------------------
 
 /**
- * Parses tasks.md content and extracts task items with their completion status.
+ * Turns parsed task lines into the listed task items.
+ *
+ * A checkbox with no text after it is left out of the list: this is work for an
+ * agent to act on and tick off, and a bare `- [ ]` gives it nothing to match.
+ * It still counts toward progress, which is taken from every parsed line, so
+ * this list can be shorter than the totals beside it but never disagrees with
+ * `openspec list` or archive about how much work is left. An empty list is also
+ * what puts apply in its "nothing to work on" state, so a file of nothing but
+ * text-less checkboxes asks to be rewritten instead of being called done.
  */
-function parseTasksFile(content: string): TaskItem[] {
+function toTaskItems(parsed: ParsedTask[]): TaskItem[] {
   const tasks: TaskItem[] = [];
-  const lines = content.split('\n');
-  let taskIndex = 0;
 
-  for (const line of lines) {
-    // Match checkbox patterns: - [ ] or - [x] or - [X]
-    const checkboxMatch = line.match(/^[-*]\s*\[([ xX])\]\s*(.+)\s*$/);
-    if (checkboxMatch) {
-      taskIndex++;
-      const done = checkboxMatch[1].toLowerCase() === 'x';
-      const description = checkboxMatch[2].trim();
-      tasks.push({
-        id: `${taskIndex}`,
-        description,
-        done,
-      });
-    }
+  for (const task of parsed) {
+    if (task.description.length === 0) continue;
+    tasks.push({
+      id: `${tasks.length + 1}`,
+      description: task.description,
+      done: task.done,
+    });
   }
 
   return tasks;
+}
+
+export interface GenerateApplyInstructionsOptions {
+  projectConfig?: ProjectConfig | null;
 }
 
 /**
@@ -247,10 +281,13 @@ function parseTasksFile(content: string): TaskItem[] {
 export async function generateApplyInstructions(
   projectRoot: string,
   changeName: string,
-  schemaName?: string
+  schemaName?: string,
+  options: GenerateApplyInstructionsOptions = {}
 ): Promise<ApplyInstructions> {
   // loadChangeContext will auto-detect schema from metadata if not provided
-  const context = loadChangeContext(projectRoot, changeName, schemaName);
+  const context = loadChangeContext(projectRoot, changeName, schemaName, {
+    projectConfig: options.projectConfig,
+  });
   const changeDir = context.changeDir;
 
   // Get the full schema to access the apply phase configuration
@@ -262,10 +299,16 @@ export async function generateApplyInstructions(
   const requiredArtifactIds = applyConfig?.requires ?? schema.artifacts.map((a) => a.id);
   const tracksFile = applyConfig?.tracks ?? null;
   const schemaInstruction = applyConfig?.instruction ?? null;
+  const operationInputs = loadOperationInputs(options.projectConfig ?? null, 'apply');
 
-  // Check which required artifacts are missing
+  // Check which required artifacts are missing. Artifacts the change skips
+  // via skip_specs count as present - their files must not exist, and
+  // status already reports them complete, so apply cannot block on them.
   const missingArtifacts: string[] = [];
   for (const artifactId of requiredArtifactIds) {
+    if (context.skippedArtifacts?.has(artifactId)) {
+      continue;
+    }
     const artifact = schema.artifacts.find((a) => a.id === artifactId);
     if (artifact && resolveArtifactOutputs(changeDir, artifact.generates).length === 0) {
       missingArtifacts.push(artifactId);
@@ -282,20 +325,22 @@ export async function generateApplyInstructions(
   }
 
   // Parse tasks if tracking file exists
-  let tasks: TaskItem[] = [];
+  let parsedTasks: ParsedTask[] = [];
   let tracksFileExists = false;
   if (tracksFile) {
     const tracksPath = path.join(changeDir, tracksFile);
     tracksFileExists = fs.existsSync(tracksPath);
     if (tracksFileExists) {
       const tasksContent = await fs.promises.readFile(tracksPath, 'utf-8');
-      tasks = parseTasksFile(tasksContent);
+      parsedTasks = parseTaskLines(tasksContent);
     }
   }
+  const tasks = toTaskItems(parsedTasks);
 
-  // Calculate progress
-  const total = tasks.length;
-  const complete = tasks.filter((t) => t.done).length;
+  // Calculate progress over every checkbox in the file, listed or not, so these
+  // numbers match `openspec list` and archive's incomplete-task check.
+  const total = parsedTasks.length;
+  const complete = parsedTasks.filter((task) => task.done).length;
   const remaining = total - complete;
 
   // Determine state and instruction
@@ -310,8 +355,9 @@ export async function generateApplyInstructions(
     const tracksFilename = path.basename(tracksFile);
     state = 'blocked';
     instruction = WORKFLOW_MESSAGES.missingTrackingFile(tracksFilename);
-  } else if (tracksFile && tracksFileExists && total === 0) {
-    // Tracking file exists but contains no tasks
+  } else if (tracksFile && tracksFileExists && tasks.length === 0) {
+    // Tracking file exists but lists nothing an agent can work on: either no
+    // checkboxes at all, or only checkboxes with no text after them.
     const tracksFilename = path.basename(tracksFile);
     state = 'blocked';
     instruction = WORKFLOW_MESSAGES.trackingFileNoTasks(tracksFilename);
@@ -337,6 +383,7 @@ export async function generateApplyInstructions(
     state,
     missingArtifacts: missingArtifacts.length > 0 ? missingArtifacts : undefined,
     instruction,
+    ...operationInputs,
   };
 }
 
@@ -352,8 +399,14 @@ export async function applyInstructionsCommand(options: ApplyInstructionsOptions
       validateSchemaExists(options.schema, projectRoot);
     }
 
+    // One parsed config snapshot supplies schema fallback, context, and
+    // operation guidance for this command.
+    const projectConfig = readProjectConfig(projectRoot);
+
     // generateApplyInstructions uses loadChangeContext which auto-detects schema
-    const instructions = await generateApplyInstructions(projectRoot, changeName, options.schema);
+    const instructions = await generateApplyInstructions(projectRoot, changeName, options.schema, {
+      projectConfig,
+    });
 
     spinner?.stop();
 
@@ -421,4 +474,78 @@ export function printApplyInstructionsText(instructions: ApplyInstructions): voi
   // Instruction
   console.log(WORKFLOW_MESSAGES.instructionTitle);
   console.log(instruction);
+  console.log();
+
+  printOperationInputsText(instructions);
+}
+
+// -----------------------------------------------------------------------------
+// Archive Instructions Command
+// -----------------------------------------------------------------------------
+
+/**
+ * Builds the read-only runtime inputs for archiving a change: the project
+ * context and the archive operation guidance from an already-read config.
+ */
+export function generateArchiveInstructions(
+  changeName: string,
+  projectConfig: ProjectConfig | null
+): ArchiveInstructions {
+  return {
+    changeName,
+    ...loadOperationInputs(projectConfig, 'archive'),
+  };
+}
+
+export async function archiveInstructionsCommand(options: ArchiveInstructionsOptions): Promise<void> {
+  const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.generatingArchiveInputs).start();
+
+  try {
+    const projectRoot = process.cwd();
+    const changeName = await validateChangeExists(options.change, projectRoot);
+
+    const projectConfig = readProjectConfig(projectRoot);
+    const instructions = generateArchiveInstructions(changeName, projectConfig);
+
+    spinner?.stop();
+
+    if (options.json) {
+      console.log(JSON.stringify(instructions, null, 2));
+      return;
+    }
+
+    printArchiveInstructionsText(instructions);
+  } catch (error) {
+    spinner?.stop();
+    throw error;
+  }
+}
+
+export function printArchiveInstructionsText(instructions: ArchiveInstructions): void {
+  console.log(WORKFLOW_MESSAGES.archiveInputsTitle(instructions.changeName));
+  console.log();
+  printOperationInputsText(instructions);
+}
+
+function printOperationInputsText(inputs: {
+  context?: string;
+  operationGuidance?: string[];
+}): void {
+  if (inputs.context) {
+    console.log(WORKFLOW_MESSAGES.projectContextTitle);
+    console.log(inputs.context);
+    console.log();
+  }
+
+  if (inputs.operationGuidance && inputs.operationGuidance.length > 0) {
+    console.log(WORKFLOW_MESSAGES.operationGuidanceTitle);
+    for (const guidance of inputs.operationGuidance) {
+      console.log(`- ${guidance}`);
+    }
+    console.log();
+  }
+
+  if (!inputs.context && !inputs.operationGuidance) {
+    console.log(WORKFLOW_MESSAGES.noOperationInputs);
+  }
 }

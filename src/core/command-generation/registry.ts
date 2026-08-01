@@ -18,6 +18,7 @@ import { continueAdapter } from './adapters/continue.js';
 import { costrictAdapter } from './adapters/costrict.js';
 import { crushAdapter } from './adapters/crush.js';
 import { cursorAdapter } from './adapters/cursor.js';
+import { devinAdapter } from './adapters/devin.js';
 import { factoryAdapter } from './adapters/factory.js';
 import { geminiAdapter } from './adapters/gemini.js';
 import { githubCopilotAdapter } from './adapters/github-copilot.js';
@@ -31,7 +32,6 @@ import { qoderAdapter } from './adapters/qoder.js';
 import { lingmaAdapter } from './adapters/lingma.js';
 import { qwenAdapter } from './adapters/qwen.js';
 import { roocodeAdapter } from './adapters/roocode.js';
-import { windsurfAdapter } from './adapters/windsurf.js';
 
 /**
  * Registry for looking up tool command adapters.
@@ -53,6 +53,7 @@ export class CommandAdapterRegistry {
     CommandAdapterRegistry.register(costrictAdapter);
     CommandAdapterRegistry.register(crushAdapter);
     CommandAdapterRegistry.register(cursorAdapter);
+    CommandAdapterRegistry.register(devinAdapter);
     CommandAdapterRegistry.register(factoryAdapter);
     CommandAdapterRegistry.register(geminiAdapter);
     CommandAdapterRegistry.register(githubCopilotAdapter);
@@ -66,7 +67,6 @@ export class CommandAdapterRegistry {
     CommandAdapterRegistry.register(lingmaAdapter);
     CommandAdapterRegistry.register(qwenAdapter);
     CommandAdapterRegistry.register(roocodeAdapter);
-    CommandAdapterRegistry.register(windsurfAdapter);
   }
 
   /**

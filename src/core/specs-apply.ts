@@ -10,14 +10,18 @@ import path from 'path';
 import chalk from 'chalk';
 import {
   extractRequirementsSection,
+  findMissingCurrentScenarios,
+  foldRequirementName,
   parseDeltaSpec,
   normalizeRequirementName,
   type RequirementBlock,
 } from './parsers/requirement-blocks.js';
 import { findMainSpecStructureIssues } from './parsers/spec-structure.js';
-import { Validator } from './validation/validator.js';
+import { buildCodeFenceMask } from './parsers/code-fence.js';
+import { MarkdownParser } from './parsers/markdown-parser.js';
+import { MIN_PURPOSE_LENGTH } from './validation/constants.js';
 import { discoverSpecFiles } from '../utils/spec-discovery.js';
-import { ARCHIVE_MESSAGES, SPECS_APPLY_MESSAGES } from '../messages/index.js';
+import { SPECS_APPLY_MESSAGES } from '../messages/index.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -29,31 +33,6 @@ export interface SpecUpdate {
   source: string;
   target: string;
   exists: boolean;
-}
-
-export interface ApplyResult {
-  capability: string;
-  added: number;
-  modified: number;
-  removed: number;
-  renamed: number;
-}
-
-export interface SpecsApplyOutput {
-  changeName: string;
-  capabilities: ApplyResult[];
-  totals: {
-    added: number;
-    modified: number;
-    removed: number;
-    renamed: number;
-  };
-  noChanges: boolean;
-}
-
-interface ScenarioBlock {
-  name: string;
-  raw: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -101,8 +80,22 @@ export async function findSpecUpdates(changeDir: string, mainSpecsDir: string): 
  */
 export async function buildUpdatedSpec(
   update: SpecUpdate,
-  changeName: string
-): Promise<{ rebuilt: string; counts: { added: number; modified: number; removed: number; renamed: number } }> {
+  changeName: string,
+  options: { silent?: boolean } = {}
+): Promise<{
+  rebuilt: string;
+  counts: { added: number; modified: number; removed: number; renamed: number };
+  warnings: string[];
+}> {
+  // Coletados para que chamadores silent (JSON) possam exibi-los; impressos ao
+  // vivo para chamadores humanos no ponto em que ocorrem.
+  const warnings: string[] = [];
+  const warn = (message: string): void => {
+    warnings.push(message);
+    if (!options.silent) {
+      console.log(chalk.yellow(SPECS_APPLY_MESSAGES.warning(message)));
+    }
+  };
   // Read change spec content (delta-format expected)
   const changeContent = await fs.readFile(update.source, 'utf-8');
 
@@ -173,6 +166,24 @@ export async function buildUpdatedSpec(
   for (const { from, to } of plan.renamed) {
     const fromNorm = normalizeRequirementName(from);
     const toNorm = normalizeRequirementName(to);
+    // Um REMOVED nomeando o lado FROM contradiz o rename. Isso costumava
+    // falhar incidentalmente na aplicação (o rename consumia o cabeçalho
+    // antigo, então o REMOVED caía em "não encontrado"); agora que um alvo
+    // REMOVED ausente é no-op, o conflito precisa ser rejeitado
+    // explicitamente. Comparado com fold, para que uma variante de
+    // caixa/espaços não escape do guarda e degrade para um no-op avisado.
+    const removedFoldMatch = [...removedNamesSet].find(
+      (r) => foldRequirementName(r) === foldRequirementName(fromNorm)
+    );
+    if (removedFoldMatch !== undefined) {
+      throw new Error(
+        SPECS_APPLY_MESSAGES.renamedRemovedConflict(
+          specName,
+          from,
+          removedFoldMatch === fromNorm ? undefined : removedFoldMatch
+        )
+      );
+    }
     if (modifiedNames.has(fromNorm)) {
       throw new Error(
         SPECS_APPLY_MESSAGES.renamedModifiedMustReferenceNew(specName, to)
@@ -199,10 +210,23 @@ export async function buildUpdatedSpec(
   }
 
   // Load or create base target content
+  const deltaPurpose = extractPurposeSection(changeContent);
   let targetContent: string;
   let isNewSpec = false;
   try {
     targetContent = await fs.readFile(update.target, 'utf-8');
+    // Um Purpose do delta só semeia um spec que ainda não existe. Diga isso em
+    // vez de descartá-lo silenciosamente - a instrução de specs pede um para
+    // capabilities novas, e o arquivo de delta parece idêntico nos dois casos.
+    // Somente quando o spec realmente tem um Purpose diferente: dizer que ele
+    // "já possui um" seria falso quando não tem nenhum, e dizer qualquer coisa
+    // é ruído quando os dois corpos são iguais.
+    if (deltaPurpose) {
+      const existingPurpose = extractPurposeSection(targetContent);
+      if (existingPurpose && existingPurpose !== deltaPurpose) {
+        warn(SPECS_APPLY_MESSAGES.deltaPurposeIgnoredExisting(specName, update.target));
+      }
+    }
   } catch {
     // Target spec does not exist; MODIFIED and RENAMED are not allowed for new specs
     // REMOVED will be ignored with a warning since there's nothing to remove
@@ -213,14 +237,22 @@ export async function buildUpdatedSpec(
     }
     // Warn about REMOVED requirements being ignored for new specs
     if (plan.removed.length > 0) {
-      console.log(
-        chalk.yellow(
-          ARCHIVE_MESSAGES.removedRequirementsIgnored(specName, plan.removed.length)
-        )
-      );
+      warn(SPECS_APPLY_MESSAGES.removedRequirementsIgnoredNewSpec(specName, plan.removed.length));
     }
     isNewSpec = true;
-    targetContent = buildSpecSkeleton(specName, changeName);
+    targetContent = buildSpecSkeleton(specName, changeName, deltaPurpose);
+    const overview = deltaPurpose ? readableOverview(targetContent, specName) : null;
+    if (deltaPurpose && !overview) {
+      // Mantém o placeholder em vez de virar falha: esses deltas arquivavam
+      // sem erro antes de existir o carregamento do Purpose.
+      targetContent = buildSpecSkeleton(specName, changeName);
+      warn(SPECS_APPLY_MESSAGES.deltaPurposeIgnoredUnreadable(specName));
+    } else if (overview && overview.length < MIN_PURPOSE_LENGTH) {
+      // O placeholder sempre passava desse limite, então um Purpose carregado é
+      // a primeira forma de o archive deixar um spec que `validate --strict` falha.
+      // Medido no overview parseado, que é a mesma string que o validador lê.
+      warn(SPECS_APPLY_MESSAGES.carriedPurposeTooBrief(specName, MIN_PURPOSE_LENGTH));
+    }
   }
 
   const structureIssues = findMainSpecStructureIssues(targetContent);
@@ -243,6 +275,7 @@ export async function buildUpdatedSpec(
   // Apply operations in order: RENAMED → REMOVED → MODIFIED → ADDED
   // RENAMED
   let renamedApplied = 0;
+  const renamedTargets = new Map<string, string>();
   for (const r of plan.renamed) {
     const from = normalizeRequirementName(r.from);
     const to = normalizeRequirementName(r.to);
@@ -251,6 +284,17 @@ export async function buildUpdatedSpec(
       // to the baseline (early-sync pattern) — re-applying it is a no-op,
       // not a failure. Only a missing source AND target is a genuine error.
       if (nameToBlock.has(to)) {
+        // Unless a case/whitespace variant of the source still exists (and is
+        // not the target itself, as in a case-only rename): that is a typo'd
+        // header, not an early-synced rename — same guard REMOVED applies.
+        const nearMiss = [...nameToBlock.keys()].find(
+          (k) => k !== to && foldRequirementName(k) === foldRequirementName(from)
+        );
+        if (nearMiss !== undefined) {
+          throw new Error(
+            SPECS_APPLY_MESSAGES.renamedFailedSourceNotFoundNearMiss(specName, r.from, nameToBlock.get(nearMiss)!.name)
+          );
+        }
         continue;
       }
       throw new Error(SPECS_APPLY_MESSAGES.renamedFailedSourceNotFound(specName, r.from));
@@ -269,25 +313,38 @@ export async function buildUpdatedSpec(
     };
     nameToBlock.delete(from);
     nameToBlock.set(to, renamedBlock);
+    renamedTargets.set(from, to);
     renamedApplied++;
   }
 
   // REMOVED
+  let removedApplied = 0;
   for (const name of plan.removed) {
     const key = normalizeRequirementName(name);
     if (!nameToBlock.has(key)) {
-      // For new specs, REMOVED requirements are already warned about and ignored
-      // For existing specs, missing requirements are an error
+      // Um requirement ausente da base significa que a remoção já foi
+      // sincronizada (padrão early-sync) — reaplicá-la é no-op, não falha.
+      // Um sinal separa isso de um cabeçalho digitado errado: um requirement
+      // que difere só em caixa ou espaços internos ainda presente. Isso é um
+      // erro de digitação, e continua sendo aborto duro.
+      // Para specs novos, o pulo já foi avisado acima.
       if (!isNewSpec) {
-        throw new Error(SPECS_APPLY_MESSAGES.removedFailedNotFound(specName, name));
+        const nearMiss = [...nameToBlock.keys()].find((k) => foldRequirementName(k) === foldRequirementName(key));
+        if (nearMiss !== undefined) {
+          throw new Error(
+            SPECS_APPLY_MESSAGES.removedFailedNotFoundNearMiss(specName, name, nameToBlock.get(nearMiss)!.name)
+          );
+        }
+        warn(SPECS_APPLY_MESSAGES.removedAlreadySynced(specName, name));
       }
-      // Skip removal for new specs (already warned above)
       continue;
     }
     nameToBlock.delete(key);
+    removedApplied++;
   }
 
   // MODIFIED
+  let modifiedApplied = 0;
   for (const mod of plan.modified) {
     const key = normalizeRequirementName(mod.name);
     const currentBlock = nameToBlock.get(key);
@@ -306,6 +363,13 @@ export async function buildUpdatedSpec(
       throw new Error(
         SPECS_APPLY_MESSAGES.modifiedFailedMissingScenarios(specName, mod.name, missingScenarios)
       );
+    }
+    // Identical content means the modification was already synced to the
+    // baseline (early-sync pattern) — count only real replacements, so a
+    // fully synced change still takes the "already in sync" write skip
+    // instead of churning normalization differences into the file.
+    if (normalizeBlockRaw(currentBlock.raw) !== normalizeBlockRaw(mod.raw)) {
+      modifiedApplied++;
     }
     nameToBlock.set(key, mod);
   }
@@ -340,6 +404,28 @@ export async function buildUpdatedSpec(
       keptOrder.push(replacement);
       seen.add(key);
     }
+    // O raw de um bloco corre até o próximo cabeçalho que o parser RECONHECE,
+    // então uma nota sob um cabeçalho não reconhecido pode ser absorvida pelo
+    // requirement. Avisa apenas quando a substituição deste mesmo bloco
+    // original descarta o sufixo absorvido inteiro. RENAMED carrega o raw
+    // original sob uma nova chave, e MODIFIED pode repetir o sufixo
+    // deliberadamente; nenhum dos dois é perda de dados.
+    const renamedTarget = renamedTargets.get(key);
+    const replacementFromOriginal =
+      replacement ?? (renamedTarget ? nameToBlock.get(renamedTarget) : undefined);
+    if (replacementFromOriginal !== block) {
+      const foreign = firstForeignTail(block.raw);
+      const replacementRaw = replacementFromOriginal?.raw;
+      const normalizedForeign = foreign ? normalizeBlockRaw(foreign.raw) : '';
+      const keepsForeignTail =
+        foreign !== undefined &&
+        replacementRaw !== undefined &&
+        countOccurrences(normalizeBlockRaw(replacementRaw), normalizedForeign) >=
+          countOccurrences(normalizeBlockRaw(block.raw), normalizedForeign);
+      if (foreign && !keepsForeignTail) {
+        warn(SPECS_APPLY_MESSAGES.absorbedNoteGoesWithRequirement(specName, foreign.heading, block.name));
+      }
+    }
   }
   // Append any newly added that were not in original order
   for (const [key, block] of nameToBlock.entries()) {
@@ -363,15 +449,57 @@ export async function buildUpdatedSpec(
     rebuilt,
     counts: {
       added: addedApplied,
-      modified: plan.modified.length,
-      removed: plan.removed.length,
+      modified: modifiedApplied,
+      removed: removedApplied,
       renamed: renamedApplied,
     },
+    warnings,
   };
+}
+
+/**
+ * O sufixo de um bloco de requirement que começa com conteúdo que o parser de
+ * requirements não reconheceu como fronteira: um cabeçalho `#`, `##` ou `###`
+ * depois do cabeçalho do próprio bloco.
+ *
+ * `####` é excluído: os cabeçalhos `#### Scenario:` de um requirement são
+ * dele mesmo. Linhas cercadas são puladas, então um cabeçalho dentro de um
+ * exemplo não conta.
+ *
+ * Aproximado de propósito, e usado apenas para AVISAR. Uma linha `#` dentro de
+ * um cenário parece igual a uma nota escrita abaixo do requirement, e nenhuma
+ * regra baseada em linhas as separa; um aviso errado custa uma linha de saída,
+ * enquanto agir sobre uma resposta errada reescreveria o spec.
+ */
+function firstForeignTail(raw: string): { heading: string; raw: string } | undefined {
+  const lines = raw.replace(/\r\n?/g, '\n').split('\n');
+  const fenceMask = buildCodeFenceMask(lines);
+  for (let index = 1; index < lines.length; index++) {
+    if (fenceMask[index]) continue;
+    if (/^ {0,3}#{1,3}(?:[ \t]|$)/.test(lines[index])) {
+      return {
+        heading: lines[index].trim(),
+        raw: lines.slice(index).join('\n').trimEnd(),
+      };
+    }
+  }
+  return undefined;
 }
 
 function normalizeBlockRaw(raw: string): string {
   return raw.replace(/\r\n?/g, '\n').trim();
+}
+
+/** Conta cópias não sobrepostas para que uma duplicata retida não mascare a perda de outra cópia. */
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
+  let count = 0;
+  let start = 0;
+  while ((start = haystack.indexOf(needle, start)) !== -1) {
+    count++;
+    start += needle.length;
+  }
+  return count;
 }
 
 /**
@@ -395,162 +523,101 @@ export async function writeUpdatedSpec(
   if (counts.renamed) console.log(SPECS_APPLY_MESSAGES.countRenamed(counts.renamed));
 }
 
+/** Apaga os trechos `<!-- ... -->`, preservando a contagem de linhas para os índices permanecerem alinhados. */
+function maskHtmlComments(content: string): string {
+  const blank = (text: string) => text.replace(/[^\n]/g, ' ');
+  // `--!>` também é terminador de comentário, assim como `-->`.
+  const masked = content.replace(/<!--[\s\S]*?--!?>/g, blank);
+  // Um comentário nunca fechado corre até o fim do arquivo, então tudo depois
+  // dele também está comentado. Sem isso, um `<!--` não terminado acima de um
+  // `## Purpose` fazia o cabeçalho comentado parecer real (#1413).
+  const unterminated = masked.indexOf('<!--');
+  if (unterminated === -1) return masked;
+  return masked.slice(0, unterminated) + blank(masked.slice(unterminated));
+}
+
 /**
- * Build a skeleton spec for new capabilities.
+ * Lê o corpo de uma seção `## Purpose`, ignorando markdown que só aparece
+ * dentro de blocos de código cercados ou comentários HTML. Retorna undefined
+ * quando a seção está ausente ou seu corpo é vazio.
  */
-export function buildSpecSkeleton(specFolderName: string, changeName: string): string {
-  const titleBase = specFolderName;
-  return `# ${titleBase} Specification\n\n## Purpose\n${SPECS_APPLY_MESSAGES.skeletonPurpose(changeName)}\n\n## Requirements\n`;
-}
+function extractPurposeSection(content: string): string | undefined {
+  const normalized = content.replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n');
+  // A estrutura é lida da cópia mascarada para que um `## Purpose` comentado
+  // ou cercado não seja confundido com o real; o corpo é devolvido das linhas
+  // originais para que comentários e fences do próprio autor sobrevivam intactos.
+  const masked = maskHtmlComments(normalized).split('\n');
+  const fenceMask = buildCodeFenceMask(masked);
+  const isStructural = (i: number) => !fenceMask[i];
 
-function findMissingCurrentScenarios(current: RequirementBlock, incoming: RequirementBlock): string[] {
-  const incomingScenarioNames = new Set(parseScenarioBlocks(incoming.raw).map((scenario) => scenario.name));
-  return parseScenarioBlocks(current.raw)
-    .filter((scenario) => !incomingScenarioNames.has(scenario.name))
-    .map((scenario) => scenario.name);
-}
+  const start = masked.findIndex((line, i) => isStructural(i) && /^##\s+Purpose\s*$/i.test(line));
+  if (start === -1) return undefined;
 
-function parseScenarioBlocks(requirementRaw: string): ScenarioBlock[] {
-  const lines = requirementRaw.replace(/\r\n?/g, '\n').split('\n');
-  const scenarios: ScenarioBlock[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const headerMatch = lines[index].match(/^####\s*Scenario:\s*(.+)\s*$/);
-    if (!headerMatch) {
-      index++;
-      continue;
+  let end = masked.length;
+  for (let i = start + 1; i < masked.length; i++) {
+    if (isStructural(i) && /^##\s+/.test(masked[i])) {
+      end = i;
+      break;
     }
-
-    const start = index;
-    const name = headerMatch[1].trim();
-    index++;
-    while (index < lines.length && !/^####\s*Scenario:\s*(.+)\s*$/.test(lines[index])) {
-      index++;
-    }
-
-    scenarios.push({
-      name,
-      raw: lines.slice(start, index).join('\n').trimEnd(),
-    });
   }
 
-  return scenarios;
+  // O vazio é julgado com blocos cercados e comentários HTML apagados, então
+  // um Purpose que é só um exemplo de código ou só um comentário de template
+  // não preenchido conta como ausente e cai no placeholder TBD.
+  const hasProse = masked
+    .slice(start + 1, end)
+    .filter((_, offset) => isStructural(start + 1 + offset))
+    .join('\n')
+    .trim();
+  if (!hasProse) return undefined;
+
+  const body = lines.slice(start + 1, end).join('\n').trim();
+  return body || undefined;
 }
 
 /**
- * Apply all delta specs from a change to main specs.
+ * O Purpose com que um novo spec principal terminaria, ou null quando carregar
+ * o corpo do delta deixaria um spec que os leitores downstream não conseguem tratar.
  *
- * @param projectRoot - The project root directory
- * @param changeName - The name of the change to apply
- * @param options - Options for the operation
- * @returns Result of the operation with counts
+ * Retorna o overview parseado em vez de um booleano para que os chamadores meçam
+ * a mesma string que o `validate` mede, não o recorte bruto do delta.
  */
-export async function applySpecs(
-  projectRoot: string,
-  changeName: string,
-  options: {
-    dryRun?: boolean;
-    skipValidation?: boolean;
-    silent?: boolean;
-  } = {}
-): Promise<SpecsApplyOutput> {
-  const changeDir = path.join(projectRoot, 'openspec', 'changes', changeName);
-  const mainSpecsDir = path.join(projectRoot, 'openspec', 'specs');
-
-  // Verify change exists
+function readableOverview(skeleton: string, specName: string): string | null {
+  // Comentários HTML são invisíveis para os parsers de spec, mas não para o
+  // arquivo: markdown escondido em um deles é pulado pela varredura de limites
+  // e ainda assim vai parar no spec, onde pode esconder os cabeçalhos de que
+  // esses parsers dependem e esvaziar o documento em qualquer renderizador
+  // markdown. Recusar em vez de escrever um spec que lê diferente dependendo
+  // de quem lê (#1413).
+  //
+  // Só o abridor é desqualificante, e só porque `maskHtmlComments` cobre
+  // comentários não terminados também: um comentário que abre acima do
+  // cabeçalho da seção sempre mascara o próprio cabeçalho, não deixando corpo
+  // para carregar, então um corpo só pode esconder conteúdo atrás de um `<!--`
+  // próprio. Um `-->` solto não esconde nada e renderiza como texto - rejeitá-lo
+  // jogaria fora um Purpose sobre prosa como "ingest --> transform".
+  if (skeleton.includes('<!--')) return null;
+  if (findMainSpecStructureIssues(skeleton).length > 0) return null;
   try {
-    const stat = await fs.stat(changeDir);
-    if (!stat.isDirectory()) {
-      throw new Error(SPECS_APPLY_MESSAGES.changeNotFound(changeName));
-    }
+    // Um cabeçalho ou fence não terminado no corpo trunca ou engole as seções
+    // ao redor, então o archive abortaria ou escreveria um spec que seu próprio
+    // validador rejeita.
+    return new MarkdownParser(skeleton).parseSpec(specName).overview.trim() || null;
   } catch {
-    throw new Error(SPECS_APPLY_MESSAGES.changeNotFound(changeName));
+    return null;
   }
-
-  // Find specs to update
-  const specUpdates = await findSpecUpdates(changeDir, mainSpecsDir);
-
-  if (specUpdates.length === 0) {
-    return {
-      changeName,
-      capabilities: [],
-      totals: { added: 0, modified: 0, removed: 0, renamed: 0 },
-      noChanges: true,
-    };
-  }
-
-  // Prepare all updates first (validation pass, no writes)
-  const prepared: Array<{
-    update: SpecUpdate;
-    rebuilt: string;
-    counts: { added: number; modified: number; removed: number; renamed: number };
-  }> = [];
-
-  for (const update of specUpdates) {
-    const built = await buildUpdatedSpec(update, changeName);
-    prepared.push({ update, rebuilt: built.rebuilt, counts: built.counts });
-  }
-
-  // Validate rebuilt specs unless validation is skipped
-  if (!options.skipValidation) {
-    const validator = new Validator();
-    for (const p of prepared) {
-      const specName = p.update.id;
-      const report = await validator.validateSpecContent(specName, p.rebuilt);
-      if (!report.valid) {
-        const errors = report.issues
-          .filter((i) => i.level === 'ERROR')
-          .map((i) => `  ✗ ${i.message}`)
-          .join('\n');
-        throw new Error(SPECS_APPLY_MESSAGES.validationErrorsInRebuiltSpec(specName, errors));
-      }
-    }
-  }
-
-  // Build results
-  const capabilities: ApplyResult[] = [];
-  const totals = { added: 0, modified: 0, removed: 0, renamed: 0 };
-
-  for (const p of prepared) {
-    const capability = p.update.id;
-
-    if (!options.dryRun) {
-      // Write the updated spec
-      const targetDir = path.dirname(p.update.target);
-      await fs.mkdir(targetDir, { recursive: true });
-      await fs.writeFile(p.update.target, p.rebuilt);
-
-      if (!options.silent) {
-        console.log(SPECS_APPLY_MESSAGES.applyingChangesTo(capability));
-        if (p.counts.added) console.log(SPECS_APPLY_MESSAGES.countAdded(p.counts.added));
-        if (p.counts.modified) console.log(SPECS_APPLY_MESSAGES.countModified(p.counts.modified));
-        if (p.counts.removed) console.log(SPECS_APPLY_MESSAGES.countRemoved(p.counts.removed));
-        if (p.counts.renamed) console.log(SPECS_APPLY_MESSAGES.countRenamed(p.counts.renamed));
-      }
-    } else if (!options.silent) {
-      console.log(SPECS_APPLY_MESSAGES.wouldApplyChangesTo(capability));
-      if (p.counts.added) console.log(SPECS_APPLY_MESSAGES.countAdded(p.counts.added));
-      if (p.counts.modified) console.log(SPECS_APPLY_MESSAGES.countModified(p.counts.modified));
-      if (p.counts.removed) console.log(SPECS_APPLY_MESSAGES.countRemoved(p.counts.removed));
-      if (p.counts.renamed) console.log(SPECS_APPLY_MESSAGES.countRenamed(p.counts.renamed));
-    }
-
-    capabilities.push({
-      capability,
-      ...p.counts,
-    });
-
-    totals.added += p.counts.added;
-    totals.modified += p.counts.modified;
-    totals.removed += p.counts.removed;
-    totals.renamed += p.counts.renamed;
-  }
-
-  return {
-    changeName,
-    capabilities,
-    totals,
-    noChanges: false,
-  };
 }
+
+/**
+ * Build a skeleton spec for new capabilities. When the delta spec authored a
+ * `## Purpose`, carry it over instead of the TBD placeholder (#1413) - archive
+ * invents the Purpose for a brand-new main spec either way, and the author's
+ * own wording beats a placeholder they then have to hand-edit.
+ */
+export function buildSpecSkeleton(specFolderName: string, changeName: string, purpose?: string): string {
+  const titleBase = specFolderName;
+  const purposeBody = purpose?.trim() || SPECS_APPLY_MESSAGES.skeletonPurpose(changeName);
+  return `# ${titleBase} Specification\n\n## Purpose\n${purposeBody}\n\n## Requirements\n`;
+}
+

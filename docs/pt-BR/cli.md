@@ -67,7 +67,7 @@ Estas opções funcionam com todos os comandos:
 
 Inicializar o BR-OpenSpec no seu projeto. Cria a estrutura de pastas e configura as integrações com ferramentas de IA.
 
-O comportamento padrão usa os valores globais de configuração: perfil `core`, entrega `both`, fluxos de trabalho `propose, explore, apply, sync, archive`.
+O comportamento padrão usa os valores globais de configuração: perfil `core`, entrega `both`, fluxos de trabalho `propose, explore, apply, update, sync, archive`.
 
 ```
 openspec init [path] [options]
@@ -86,10 +86,13 @@ openspec init [path] [options]
 | `--tools <list>` | Configurar ferramentas de IA de forma não interativa. Use `all`, `none` ou lista separada por vírgulas |
 | `--force` | Limpar arquivos legados automaticamente sem solicitar confirmação |
 | `--profile <profile>` | Substituir o perfil global para esta execução do init (`core` ou `custom`) |
+| `--no-animation` | Exibir uma tela de boas-vindas estática em vez da animada |
 
 `--profile custom` usa os fluxos de trabalho atualmente selecionados na configuração global (`openspec config profile`).
 
-**IDs de ferramentas suportados (`--tools`):** `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `windsurf`
+A animação de boas-vindas também é ignorada quando a variável de ambiente `OPENSPEC_NO_ANIMATION` está definida (qualquer valor, inclusive vazio), quando `NO_COLOR` está definida com um valor não vazio, ou quando a preferência de movimento reduzido do sistema operacional está ativada (Reduce Motion do macOS, animações desabilitadas do GNOME).
+
+**IDs de ferramentas suportados (`--tools`)** — `windsurf` também é aceito, como alias de `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `agents`
 
 > Esta lista espelha `AI_TOOLS` em `src/core/config.ts`. Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos de skill e comando de cada ferramenta.
 
@@ -126,6 +129,7 @@ openspec/
 .claude/skills/         # Skills do Claude Code (se claude selecionado)
 .cursor/skills/         # Skills do Cursor (se cursor selecionado)
 .cursor/commands/       # Comandos OPSX do Cursor (se entrega incluir commands)
+.agents/skills/         # Skills compartilhadas para ferramentas compatíveis com AGENTS.md (se agents selecionado)
 ... (outras configurações de ferramentas)
 ```
 
@@ -155,9 +159,37 @@ openspec update [path] [options]
 
 ```bash
 # Atualizar arquivos de instrução após atualização via npm
-npm update @dynamicworks/br-openspec
+npm install -g @dynamicworks/br-openspec@latest
 openspec update
 ```
+
+Atualize o pacote primeiro. Os arquivos de instrução são gerados pela CLI instalada, então rodar `openspec update` com uma instalação desatualizada reporta tudo como atualizado sem adicionar os fluxos de trabalho que as versões mais novas trazem.
+
+Para tornar isso visível, o `openspec update` consulta o registry do npm para saber se uma CLI mais nova foi publicada. Quando a sua está atrás, ele oferece a atualização:
+
+```text
+Uma nova versão da CLI do BR-OpenSpec está disponível (v2.2.0 → v2.3.0).
+  Executando a partir de: /usr/local/lib/node_modules/@dynamicworks/br-openspec
+? Atualizar para v2.3.0 agora? (Y/n)
+```
+
+Respondendo sim, ele executa `npm install -g @dynamicworks/br-openspec@latest` e depois roda a atualização novamente com a nova CLI, para que os novos fluxos de trabalho cheguem no mesmo comando. Ele confirma a atualização perguntando a versão ao binário instalado em vez de confiar no código de saída do npm, então se outra instalação anterior no seu `PATH` ainda estiver respondendo, ele avisa em vez de declarar sucesso. Respondendo não, ele imprime o comando e atualiza com a CLI que você tem. Ctrl-C interrompe o comando.
+
+A oferta aparece apenas em um terminal interativo, e apenas quando o npm é o dono da instalação — o único caso que `npm install -g` realmente resolve. Todas as outras recebem o comando correspondente à forma como foram instaladas:
+
+| Como o BR-OpenSpec está instalado | O que você recebe |
+|-----------------------------------|-------------------|
+| Instalação global via npm | O prompt, com a atualização executada para você — em um terminal interativo; saída redirecionada recebe o comando impresso |
+| Instalação global via pnpm, bun, yarn ou volta | O comando do próprio gerenciador: `pnpm add -g …@latest`, `bun add -g …@latest`, `yarn global add …@latest` ou `volta install …@latest` |
+| Dependência do projeto | Um aviso para atualizar a dependência, já que o gerenciador de pacotes do projeto é dono do lockfile |
+| Cache de `npx` / `dlx` | `npx @dynamicworks/br-openspec@latest update` — esse comando já é a atualização, então não há segundo passo |
+| Clone do git | Nada — sua versão é o que o branch disser |
+
+Sempre que algo é impresso, ele informa o diretório de onde a CLI em execução foi carregada — o lugar a verificar quando você já atualizou, mas um shim desatualizado ainda é dono do seu `PATH`.
+
+Ele consulta o registry em `npm_config_registry` quando o npm a exporta, e `https://registry.npmjs.org` caso contrário. Nenhum `.npmrc` é lido: deixar o conteúdo de um arquivo escolher o destino de uma requisição externa é um fluxo que vale evitar, e o `.npmrc` de um projeto viaja com o repositório clonado. Em um mirror privado, exporte `npm_config_registry` — ou defina `OPENSPEC_NO_UPDATE_CHECK` para pular a verificação por completo. A verificação é pulada quando `CI` está definida com qualquer valor que não seja um valor de desligamento explícito (`false`, `0`, `no`, `off` ou vazio), sob `NODE_ENV=test`, e sempre que `OPENSPEC_NO_UPDATE_CHECK` (qualquer valor), `DO_NOT_TRACK=1` ou `OPENSPEC_TELEMETRY=0` estiver definida. Ela roda antes da atualização e pode atrasá-la em no máximo 1,5 segundo — desiste depois disso mesmo quando a rede descarta pacotes silenciosamente, e fica em silêncio quando o registry está inalcançável.
+
+**Como "está atualizado" é decidido:** os arquivos de skill registram a versão que os gerou, então o BR-OpenSpec compara essa versão com a CLI instalada. Arquivos de comando não carregam registro de versão, então para uma ferramenta que tem comandos mas não tem skills (entrega `commands`), o BR-OpenSpec compara o conteúdo dos arquivos com o que seria gerado agora — edições nesses arquivos contam como divergência e são sobrescritas. Com entrega `skills` ou `both`, apenas a versão registrada é verificada, então um arquivo editado manualmente cuja versão ainda confere é deixado como está; use `--force` para reescrevê-lo. De qualquer forma, os arquivos gerados pertencem ao BR-OpenSpec — mantenha suas próprias instruções em outro lugar.
 
 ---
 
@@ -273,11 +305,13 @@ openspec show add-dark-mode --json
 
 ### `openspec validate`
 
-Validar mudanças e specs em busca de problemas estruturais.
+Validar mudanças e specs em busca de problemas estruturais, e verificar os requisitos MODIFIED de uma mudança contra as specs principais que eles substituiriam.
 
 ```
 openspec validate [item-name] [options]
 ```
+
+Uma mudança com zero deltas de spec falha na validação, a menos que seu `.openspec.yaml` declare `skip_specs: true` (para refatorações puras, tooling ou trabalho de docs — veja a [Receita 5](examples.md#receita-5-uma-refatoração-sem-mudança-de-comportamento)).
 
 **Argumentos:**
 
@@ -366,26 +400,26 @@ openspec archive [change-name] [options]
 
 | Argumento | Obrigatório | Descrição |
 |-----------|-------------|-----------|
-| `change-name` | Não | Mudança a arquivar (solicita se omitido) |
+| `change-name` | Não | Mudança a arquivar (solicita se omitido; obrigatório quando nada pode responder à solicitação) |
 
 **Opções:**
 
 | Opção | Descrição |
 |-------|-----------|
-| `-y, --yes` | Ignorar prompts de confirmação |
-| `--skip-specs` | Ignorar atualizações de specs (para mudanças de infraestrutura/ferramental/apenas documentação) |
+| `-y, --yes` | Ignorar prompts de confirmação. Obrigatório quando nada pode respondê-los — um agente de IA, um job de CI, ou qualquer execução com stdin fechado |
+| `--skip-specs` | Ignorar atualizações de specs em uma execução de archive. Uma mudança que permanentemente não tem deltas de spec deve declarar `skip_specs: true` em seu `.openspec.yaml` — ela é arquivada sem nenhuma flag |
 | `--no-validate` | Ignorar validação (requer confirmação) |
 
 **Exemplos:**
 
 ```bash
-# Arquivamento interativo
+# Arquivamento interativo (pergunta qual mudança, depois confirma)
 openspec archive
 
 # Arquivar mudança específica
 openspec archive add-dark-mode
 
-# Arquivar sem prompts (CI/scripts)
+# Arquivar sem prompts (agentes, CI, scripts)
 openspec archive add-dark-mode --yes
 
 # Arquivar uma mudança de ferramental que não afeta specs
@@ -398,6 +432,12 @@ openspec archive update-ci-config --skip-specs
 2. Solicita confirmação (a menos que `--yes` seja informado)
 3. Mescla as specs delta em `openspec/specs/`
 4. Move a pasta da mudança para `openspec/changes/archive/YYYY-MM-DD-<name>/`
+
+**Sem um terminal:** um agente de IA, um job de CI, ou qualquer execução com stdin
+fechado não consegue responder ao passo 2, então o arquivamento para antes de tocar
+em qualquer coisa, sai com código 1 e nomeia o comando para executar novamente —
+`openspec archive <name> --yes`, carregando quaisquer outras flags que você passou.
+Passe `--yes` (e o nome da mudança) de antemão para pular a ida e volta.
 
 ---
 
@@ -413,12 +453,11 @@ Cria um diretório de mudança na pasta `openspec/changes/` do projeto.
 openspec new change <nome> [opções]
 ```
 
-Nomes de mudança devem usar kebab-case em minúsculas. Começam com uma letra
-minúscula, seguida de letras minúsculas, números e hífens simples. Não podem
-começar com número, nem conter espaços, underscores, letras maiúsculas,
-hífens consecutivos ou hífens no início/fim. Ao incluir um ID de ticket
-externo, prefixe-o com uma palavra, por exemplo
-`ticket-123-add-notifications` em vez de `123-add-notifications`.
+Nomes de mudança devem usar kebab-case em minúsculas: letras minúsculas,
+números e hífens simples. Não podem conter espaços, underscores, letras
+maiúsculas, hífens consecutivos ou hífens no início/fim. É permitido começar
+com número, então você pode prefixar nomes para ordenar ou organizar mudanças
+em camadas, por exemplo `100-add-feature` ou `00001-add-auth`.
 
 **Opções:**
 
@@ -473,10 +512,12 @@ Schema: spec-driven
 Progresso: 2/4 artefatos concluídos
 
 [x] proposal
-[ ] design
 [x] specs
+[ ] design
 [-] tasks (bloqueado por: design)
 ```
+
+Uma mudança que declara `skip_specs: true` mostra seu estágio de specs como `[~] specs (ignorado: a alteração declara skip_specs)` e o exclui da contagem de progresso.
 
 **Saída (JSON):**
 
@@ -487,13 +528,19 @@ Progresso: 2/4 artefatos concluídos
   "isComplete": false,
   "applyRequires": ["tasks"],
   "artifacts": [
-    {"id": "proposal", "outputPath": "proposal.md", "status": "done"},
-    {"id": "design", "outputPath": "design.md", "status": "ready"},
-    {"id": "specs", "outputPath": "specs/**/*.md", "status": "done"},
-    {"id": "tasks", "outputPath": "tasks.md", "status": "blocked", "missingDeps": ["design"]}
+    {"id": "proposal", "outputPath": "proposal.md", "status": "done", "requires": []},
+    {"id": "specs", "outputPath": "specs/**/*.md", "status": "done", "requires": ["proposal"]},
+    {"id": "design", "outputPath": "design.md", "status": "ready", "requires": ["proposal"]},
+    {"id": "tasks", "outputPath": "tasks.md", "status": "blocked", "requires": ["specs", "design"], "missingDeps": ["design"]}
   ]
 }
 ```
+
+Os artefatos são listados em ordem de dependência — uma dependência nunca aparece
+depois de algo que a requer — e artefatos que ficam prontos ao mesmo tempo
+(os `specs` e `design` do spec-driven precisam apenas de `proposal`) mantêm a
+ordem em que o schema os declara, em vez de ordem alfabética. Assim, a primeira
+entrada `ready` é o artefato a ser escrito em seguida.
 
 ---
 
@@ -509,7 +556,7 @@ openspec instructions [artifact] [options]
 
 | Argumento | Obrigatório | Descrição |
 |-----------|-------------|-----------|
-| `artifact` | Não | ID do artefato: `proposal`, `specs`, `design`, `tasks` ou `apply` |
+| `artifact` | Não | ID do artefato, ou superfície de entrada do workflow: `apply` ou `archive` |
 
 **Opções:**
 
@@ -519,7 +566,10 @@ openspec instructions [artifact] [options]
 | `--schema <name>` | Substituição de schema |
 | `--json` | Saída em formato JSON |
 
-**Caso especial:** Use `apply` como artefato para obter instruções de implementação de tarefas.
+**Casos especiais:** Use `apply` para obter instruções de implementação de
+tarefas. Use `archive` para obter as entradas atuais de arquivamento, somente
+leitura (`context` e `operationGuidance`) de uma mudança válida; ele não
+arquiva nem modifica nada.
 
 **Exemplos:**
 
@@ -533,6 +583,9 @@ openspec instructions design --change add-dark-mode
 # Obter instruções de aplicação/implementação
 openspec instructions apply --change add-dark-mode
 
+# Obter as entradas atuais da operação de arquivamento sem arquivar
+openspec instructions archive --change add-dark-mode --json
+
 # JSON para consumo pelo agente
 openspec instructions design --change add-dark-mode --json
 ```
@@ -543,6 +596,22 @@ openspec instructions design --change add-dark-mode --json
 - Contexto do projeto a partir da configuração
 - Conteúdo dos artefatos de dependência
 - Regras por artefato definidas na configuração
+- Contexto atual do projeto e orientação da operação correspondente para `apply`/`archive`
+
+As entradas da operação são lidas do projeto atual a cada invocação. O
+contexto do projeto é uma entrada obrigatória em nível de prompt: os agentes o
+leem e aplicam fatos, convenções e restrições relevantes do projeto. A
+orientação da operação é um conselho aditivo opcional: os agentes consideram
+cada entrada e seguem apenas as que forem aplicáveis e compatíveis com o
+workflow embutido. Ambos os campos permanecem separados de escolhas explícitas
+do usuário, do estado controlado pelo CLI, das instruções embutidas e das
+regras de artefato. Contexto conflitante é reportado; orientação conflitante
+ou inaplicável não é seguida e o motivo é explicado. Estes são contratos de
+comportamento para os agentes gerados, não verificações impostas pelo CLI. O
+`instructions archive` retorna apenas a mudança selecionada e as entradas
+opcionais; ele não inclui o workflow estático de arquivamento.
+
+Para um artefato ignorado via `skip_specs: true`, a saída é apenas um aviso (o JSON adiciona os campos `skipped`/`warning`) — o artefato não deve ser criado.
 
 ---
 
@@ -953,11 +1022,14 @@ openspec completion uninstall
 
 | Variável | Descrição |
 |----------|-----------|
-| `OPENSPEC_TELEMETRY` | Definir como `0` para desabilitar telemetria |
-| `DO_NOT_TRACK` | Definir como `1` para desabilitar telemetria (sinal DNT padrão) |
+| `OPENSPEC_TELEMETRY` | Definir como `0` para desabilitar telemetria e a verificação de versão do `openspec update` |
+| `DO_NOT_TRACK` | Definir como `1` para desabilitar telemetria e a verificação de versão do `openspec update` (sinal DNT padrão) |
 | `OPENSPEC_CONCURRENCY` | Concorrência padrão para validação em massa (padrão: 6) |
 | `EDITOR` ou `VISUAL` | Editor para `openspec config edit` |
 | `NO_COLOR` | Desabilitar saída colorida quando definido |
+| `OPENSPEC_NO_ANIMATION` | Desabilitar a animação de boas-vindas do `openspec init` quando definido |
+| `OPENSPEC_NO_UPDATE_CHECK` | Desabilitar a verificação de CLI mais nova publicada do `openspec update` quando definido (qualquer valor, inclusive vazio). Também é pulada quando `CI` está definida (exceto `false`/`0`/`no`/`off`) ou `NODE_ENV=test` |
+| `npm_config_registry` | Registry que a verificação de versão do `openspec update` consulta. Precisa ser uma URL `http(s)` ou volta para `https://registry.npmjs.org`. Nenhum arquivo `.npmrc` é lido |
 
 ---
 

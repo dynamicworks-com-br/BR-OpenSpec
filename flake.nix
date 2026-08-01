@@ -51,11 +51,11 @@
               inherit (finalAttrs) pname version src;
               pnpm = pkgs.pnpm_9;
               fetcherVersion = 3;
-              hash = "sha256-CRduBCTyhvOyluDme/kel8YhXEHyWWsiMK4mqndnHPU=";
+              hash = "sha256-4828DWBXLORtkgaOXSUq+NWQEGBOys/4EXMjjcP5CUg=";
             };
 
             nativeBuildInputs = with pkgs; [
-              nodejs_20
+              nodejs_22
               npmHooks.npmInstallHook
               pnpmConfigHook
               pnpm_9
@@ -97,7 +97,7 @@
         {
           default = pkgs.mkShell {
             buildInputs = with pkgs; [
-              nodejs_20
+              nodejs_22
               pnpm_9
             ];
 

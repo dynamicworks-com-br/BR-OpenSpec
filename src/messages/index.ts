@@ -56,16 +56,18 @@ export const CLI_DESCRIPTIONS = {
   completionUninstall: 'Remove script de autocomplete de um shell',
   __complete: 'Saída de dados de autocomplete em formato legível por máquinas (uso interno)',
   status: 'Exibe o status de conclusão dos artefatos de uma alteração',
-  instructions: 'Exibe instruções enriquecidas para criar um artefato ou aplicar tarefas',
+  instructions: 'Exibe instruções enriquecidas para artefatos, apply ou archive',
   templates: 'Mostra os caminhos dos templates resolvidos para todos os artefatos de um esquema',
   schemas: 'Lista os esquemas de fluxo de trabalho disponíveis com descrições',
   new: 'Cria novos itens',
   newChange: 'Cria um novo diretório de alteração',
   // Opções globais
   noColor: 'Desativa cores na saída',
-  tools: (availableToolIds: string) => `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${availableToolIds}`,
+  tools: (availableToolIds: string, toolAliasNote: string) => `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${availableToolIds}. Também aceito: ${toolAliasNote}`,
+  toolAlias: (retired: string, current: string) => `${retired} (agora ${current})`,
   force: 'Limpa arquivos legados automaticamente sem perguntar',
   profile: 'Sobrescreve o perfil da configuração global (core ou custom)',
+  noAnimation: 'Exibe uma tela de boas-vindas estática em vez da animada',
 
   // Opções — init / experimental
   experimentalTool: 'Ferramenta de IA alvo (mapeia para --tools)',
@@ -194,6 +196,7 @@ export const CHANGE_MESSAGES = {
   noChangeSpecifiedAvailable: (ids: string) => `Nenhuma alteração especificada. IDs disponíveis: ${ids}`,
   hintViewChanges: 'Dica: use "openspec change list" para ver as alterações disponíveis.',
   changeNotFound: (name: string, path: string) => `Alteração "${name}" não encontrada em ${path}`,
+  changeNoProposalYet: (name: string) => `Alteração "${name}" ainda não tem proposal.md. Execute "openspec status --change ${name}" para ver qual artefato vem a seguir.`,
   requirementsOnlyDeprecated: 'A flag --requirements-only está descontinuada; use --deltas-only em vez disso.',
   noItemsFound: 'Nenhum item encontrado.',
   selectChangeToValidate: 'Selecione uma alteração para validar',
@@ -203,7 +206,12 @@ export const CHANGE_MESSAGES = {
   ensureDeltasInSpecs: 'Certifique-se de que a alteração tenha deltas em specs/: use os cabeçalhos ## ADDED/MODIFIED/REMOVED/RENAMED Requirements',
   eachRequirementNeedsScenario: 'Cada requisito DEVE incluir pelo menos um bloco #### Scenario:',
   debugParsedDeltas: 'Depure os deltas analisados: openspec change show <id> --json --deltas-only',
+  skipSpecsConflictRemoveFiles: 'Esta alteração declara skip_specs (sem deltas de spec): exclua os arquivos em specs/, ou remova skip_specs do .openspec.yaml se os requisitos de fato mudam',
+  skipSpecsConflictValidMetadata: 'skip_specs só é honrado quando .openspec.yaml é um metadado de alteração válido (schema: <nome> é obrigatório)',
+  skipSpecsInvalidFixMetadata: 'Corrija o .openspec.yaml para que o marcador skip_specs possa ser honrado (schema: <nome> é obrigatório)',
+  skipSpecsInvalidOrRemove: 'Ou remova skip_specs do .openspec.yaml e adicione specs de delta em vez disso',
   unableToRead: '(não foi possível ler)',
+  noProposalYet: '(ainda sem proposal.md)',
   tasks: (completed: number, total: number) => `[tarefas ${completed}/${total}]`,
   deltas: (count: number) => `[deltas ${count}]`,
 };
@@ -281,6 +289,10 @@ export const VALIDATE_MESSAGES = {
   ensureDeltasInSpecs: 'Certifique-se de que a alteração tenha deltas em specs/: use os cabeçalhos ## ADDED/MODIFIED/REMOVED/RENAMED Requirements',
   eachRequirementNeedsScenario: 'Cada requisito DEVE incluir pelo menos um bloco #### Scenario:',
   debugParsedDeltas: 'Depure os deltas analisados: openspec change show <id> --json --deltas-only',
+  skipSpecsConflictRemoveFiles: 'Esta alteração declara skip_specs (sem deltas de spec): exclua os arquivos em specs/, ou remova skip_specs do .openspec.yaml se os requisitos de fato mudam',
+  skipSpecsConflictValidMetadata: 'skip_specs só é honrado quando .openspec.yaml é um metadado de alteração válido (schema: <nome> nomeando um esquema conhecido é obrigatório)',
+  skipSpecsInvalidFixMetadata: 'Corrija o .openspec.yaml para que o marcador skip_specs possa ser honrado (schema: <nome> nomeando um esquema conhecido é obrigatório)',
+  skipSpecsInvalidOrRemove: 'Ou remova skip_specs do .openspec.yaml e adicione specs de delta em vez disso',
   nextStepsSpec: 'Próximos passos:',
   ensurePurposeAndRequirements: 'Certifique-se de que a especificação inclua as seções ## Purpose e ## Requirements',
   requirementScenarioBullet: '- Cada requisito DEVE incluir pelo menos um bloco #### Scenario:',
@@ -375,7 +387,15 @@ export const ARCHIVE_MESSAGES = {
   specsUpdatedSuccessfully: 'Especificações atualizadas com sucesso.',
   archiveAlreadyExists: (name: string) => `O arquivamento '${name}' já existe.`,
   changeArchived: (changeName: string, archiveName: string) => `Alteração '${changeName}' arquivada como '${archiveName}'.`,
-  removedRequirementsIgnored: (specName: string, count: number) => `⚠️  Aviso: ${specName} - ${count} requisito(s) REMOVED ignorado(s) para nova spec (nada a remover).`,
+  specsAlreadyInSync: 'Especificações já estão sincronizadas; nenhum arquivo alterado.',
+  blockedSkipValidation: (rerun: string) =>
+    `Pular a validação requer confirmação, e não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
+  blockedIncompleteTasks: (count: number, changeName: string, rerun: string) =>
+    `${count} tarefa(s) incompleta(s) encontrada(s) na alteração '${changeName}', e não foi possível ler uma resposta do stdin.\nCorreção: conclua as tarefas ou execute novamente com ${rerun}`,
+  blockedSpecUpdatesConfirmation: (count: number, rerun: string) =>
+    `Atualizar ${count} especificação(ões) requer confirmação, e não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
+  blockedChangeNameRequired: (rerun: string) =>
+    `Um nome de alteração é obrigatório: não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -384,15 +404,12 @@ export const ARCHIVE_MESSAGES = {
 
 export const INIT_MESSAGES = {
   welcomeTitle: 'Bem-vindo ao BR-OpenSpec',
-  welcomeSubtitle: 'Um framework leve orientado a especificações',
+  welcomeSubtitle: 'Leve e orientado a especificações',
   setupWillConfigure: 'Esta configuração irá configurar:',
-  agentSkills: '  • Agent Skills para ferramentas de IA',
+  agentSkills: '  • Agent Skills para sua IA',
   slashCommands: '  • Comandos /opsx:*',
   quickStart: 'Início rápido após a configuração:',
-  cmdNewChange: 'Criar uma alteração',
-  cmdContinue: 'Próximo artefato',
-  cmdApply: 'Implementar tarefas',
-  pressEnter: 'Pressione Enter para selecionar ferramentas...',
+  pressEnter: 'Pressione Enter para continuar...',
   insufficientPermissions: (path: string) => `Permissões insuficientes para escrever em ${path}`,
   invalidProfile: (profile: string) => `Perfil inválido "${profile}". Perfis disponíveis: core, custom`,
   upgradeLegacyPrompt: 'Atualizar e limpar arquivos legados?',
@@ -430,12 +447,16 @@ export const INIT_MESSAGES = {
   configExists: (name: string) => `Config: openspec/${name} (existe)`,
   configSkipped: 'Config: ignorado (modo não interativo)',
   gettingStarted: 'Início rápido:',
-  startFirstChangePropose: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
-  startFirstChangeNew: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
+  startFirstChange: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
+  startFirstChangeWithSkill: (skillRef: string) => `Inicie sua primeira alteração com ${skillRef}`,
+  noSkillsOrCommandsGenerated: (names: string, singular: boolean) =>
+    `Nenhuma skill nem comando foi gerado para ${names}: a entrega está definida como 'commands', mas ${singular ? 'ela suporta' : 'elas suportam'} apenas skills. ` +
+    `Execute 'openspec config set delivery both' para gerar skills.`,
   configureWorkflowsHint: "Execute 'openspec config profile' para configurar seus fluxos de trabalho.",
   learnMore: (url: string) => `Saiba mais: ${url}`,
   feedback: (url: string) => `Feedback:   ${url}`,
-  restartIDE: 'Reinicie sua IDE para que os comandos de barra tenham efeito.',
+  restartIDE: 'Reinicie sua IDE para que os novos comandos tenham efeito.',
+  restartIDESkills: 'Reinicie sua IDE para que as novas skills tenham efeito.',
   configuredPreselected: (names: string) => `BR-OpenSpec configurado: ${names} (pré-selecionado)`,
   detectedToolsLabel: (names: string, label: string) => `Diretórios de ferramentas detectados: ${names} (${label})`,
   preselectedFirstTime: 'pré-selecionado para configuração inicial',
@@ -501,6 +522,7 @@ export const CONFIG_MESSAGES = {
   invalidConfigKey: (key: string, reason: string) => `Chave de configuração inválida "${key}".${reason}`,
   useConfigList: 'Use "openspec config list" para ver as chaves disponíveis.',
   passAllowUnknown: 'Passe --allow-unknown para ignorar esta verificação.',
+  configKeySegmentNotAllowed: (segment: string) => `O segmento de chave "${segment}" não é permitido`,
   invalidConfiguration: (error: string) => `Configuração inválida - ${error}`,
   setKeyValue: (key: string, value: string) => `Definido ${key} = ${value}`,
   unsetKey: (key: string) => `Removido ${key} (revertido para o padrão)`,
@@ -720,6 +742,10 @@ export const COMPLETION_MESSAGES = {
   zshFailedToInstall: (error: string) => `Falha ao instalar script de autocomplete: ${error}`,
   zshOhMyZshFpathNote: 'Nota: Oh My Zsh normalmente carrega automaticamente os scripts de autocomplete do diretório custom/completions.',
   zshOhMyZshFpathVerify: (dir: string) => `Verifique se ${dir} está no seu fpath executando:`,
+  // Uma entrada de fpath por linha, casada como literal: um $ZSH_CUSTOM
+  // relocado não precisa conter "custom/completions", e o caminho pode ter
+  // caracteres que o grep leria como padrão. quotedDir já vem entre aspas.
+  zshOhMyZshFpathGrepCommand: (quotedDir: string) => `  printf '%s\\n' $fpath | grep -F ${quotedDir}`,
   zshOhMyZshFpathRestart: 'Se não for encontrado, o autocomplete pode não funcionar. Reinicie o shell para garantir que as alterações tenham efeito.',
   zshOhMyZshInstalledDir: 'Script de autocomplete instalado no diretório de completions do Oh My Zsh.',
   zshOhMyZshAutoActivate: 'O autocomplete deve ativar automaticamente.',
@@ -798,6 +824,7 @@ export const FEEDBACK_MESSAGES = {
   autoSubmitHint: '\nPara envio automático no futuro: gh auth login',
   feedbackSubmitted: '\n✓ Feedback enviado com sucesso!',
   issueUrl: (url: string) => `URL da Issue: ${url}\n`,
+  labelNotApplied: 'Nota: issue criada sem o rótulo \'feedback\' porque o repositório não o define.\n',
   feedbackTitle: (message: string) => `Feedback: ${message}`,
   submittedVia: 'Enviado via BR-OpenSpec CLI',
   versionLabel: (version: string) => `- Versão: ${version}`,
@@ -811,15 +838,38 @@ export const FEEDBACK_MESSAGES = {
 
 export const UI_MESSAGES = {
   welcomeTitle: 'Bem-vindo ao BR-OpenSpec',
-  welcomeSubtitle: 'Um framework leve orientado a especificações',
+  // As linhas desta tela precisam caber em 35 colunas de texto (59 - coluna de
+  // arte de 24) para não quebrar e dessincronizar a animação em 60 colunas.
+  welcomeSubtitle: 'Leve e orientado a especificações',
   setupWillConfigure: 'Esta configuração irá configurar:',
-  agentSkills: '  • Agent Skills para ferramentas de IA',
-  slashCommands: '  • Comandos /opsx:*',
+  agentSkills: '  • Agent Skills para sua IA',
+  // Não "comandos /opsx:*": esta tela roda antes da seleção de ferramentas, e
+  // ferramentas só-de-skills (Kimi Code, Mistral Vibe, ...) corretamente não
+  // recebem arquivos de comando. A grafia exata por ferramenta aparece no
+  // "Início rápido" pós-configuração.
+  slashCommands: '  • Comandos, se suportados',
   quickStart: 'Início rápido após a configuração:',
-  cmdNewChange: 'Criar uma alteração',
-  cmdContinue: 'Próximo artefato',
-  cmdApply: 'Implementar tarefas',
-  pressEnter: 'Pressione Enter para selecionar ferramentas...',
+  // Os nomes exibidos são os canônicos; cada ferramenta os escreve de um jeito
+  // (/opsx-propose, @opsx-propose, $openspec-propose ...) e isso só é conhecido
+  // depois da seleção de ferramentas, um prompt adiante.
+  spellingVaries: '  (a grafia varia por ferramenta)',
+  pressEnter: 'Pressione Enter para continuar...',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Comandos de onboarding (src/core/onboarding-commands.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const ONBOARDING_MESSAGES = {
+  // Descrições curtas do menu de início rápido; precisam caber em
+  // DESCRIPTION_BUDGET (17) para não quebrar a animação da tela de boas-vindas.
+  describePropose: 'Iniciar alteração',
+  describeNew: 'Criar alteração',
+  describeContinue: 'Próximo artefato',
+  describeApply: 'Executar tarefas',
+  // Forma neutra que nomeia a skill quando não há uma invocação de comando
+  // utilizável (ou quando as ferramentas divergem na sintaxe).
+  skillReference: (skillName: string) => `a skill ${skillName}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -860,7 +910,19 @@ export const UPDATE_MESSAGES = {
   noOpenspecDir: "Diretório do BR-OpenSpec não encontrado. Execute 'openspec init' primeiro.",
   noConfiguredTools: 'Nenhuma ferramenta configurada encontrada.',
   runInitHint: 'Execute "openspec init" para configurar ferramentas.',
-  migratedSkillDirs: (count: number, from: string, to: string) => `Migrada(s) ${count} pasta(s) de skill: ${from}/skills → ${to}/skills`,
+  // O usuário recusou a migração de um diretório renomeado: não é um projeto
+  // desconfigurado — é um configurado que ele optou por deixar no diretório
+  // antigo. Dizer "execute init" seria errado.
+  nothingToUpdateLegacyOnly: (from: string) =>
+    `Nada para atualizar: os arquivos do BR-OpenSpec deste projeto ainda estão em ${from}/, que o BR-OpenSpec não escreve mais.`,
+  rerunUpdateAcceptMove: (to: string) =>
+    `Execute "openspec update" novamente e aceite a mudança para ${to}/ para retomar as atualizações.`,
+  confirmLegacyMove: (description: string, from: string, to: string) =>
+    `Mover ${description} de ${from}/ para ${to}/?`,
+  // Diz o custo de recusar: o BR-OpenSpec escreve no diretório atual agora, e
+  // os arquivos deixados no diretório antigo deixam de ser gerenciados.
+  legacyMoveDeclined: (from: string, to: string) =>
+    `Mantido no lugar. O BR-OpenSpec agora escreve em ${to}/ e não gerenciará mais ${from}/, então esses arquivos permanecem como estão até que você os mova. Você será perguntado novamente na próxima execução.`,
   forceUpdating: (count: number, tools: string) => `Forçando atualização de ${count} ferramenta(s): ${tools}`,
   updatingTool: (name: string) => `Atualizando ${name}...`,
   updatedTool: (name: string) => `Atualizado ${name}`,
@@ -869,12 +931,12 @@ export const UPDATE_MESSAGES = {
   failed: (errors: string) => `✗ Falhas: ${errors}`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
   removedSkills: (count: number) => `Removidos: ${count} diretórios de skill (entrega: commands)`,
+  noSkillsOrCommandsRemain: (names: string, singular: boolean) =>
+    `Não restam skills nem comandos para ${names}: a entrega está definida como 'commands', mas ${singular ? 'ela suporta' : 'elas suportam'} apenas skills. ` +
+    `Execute 'openspec config set delivery both' para gerar skills.`,
   removedDeselectedCommands: (count: number) => `Removidos: ${count} arquivos de comando (fluxos de trabalho desselecionados)`,
   removedDeselectedSkills: (count: number) => `Removidos: ${count} diretórios de skill (fluxos de trabalho desselecionados)`,
   gettingStarted: 'Início rápido:',
-  cmdNew: '  /opsx:new       Iniciar uma nova alteração',
-  cmdContinue: '  /opsx:continue  Criar o próximo artefato',
-  cmdApply: '  /opsx:apply     Implementar tarefas',
   learnMore: (url: string) => `Saiba mais: ${url}`,
   restartIDE: 'Reinicie sua IDE para que as alterações tenham efeito.',
   allUpToDate: (count: number, version: string) => `✓ Todas as ${count} ferramenta(s) estão atualizadas (v${version})`,
@@ -902,6 +964,29 @@ export const UPDATE_MESSAGES = {
   settingUp: (name: string) => `Configurando ${name}...`,
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   failedToSetup: (name: string) => `Falha ao configurar ${name}`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Verificação de versão da CLI (src/core/version-check.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const VERSION_CHECK_MESSAGES = {
+  newerCliAvailable: (current: string, latest: string) =>
+    `Uma nova versão da CLI do BR-OpenSpec está disponível (v${current} → v${latest}).`,
+  runningFrom: (installDir: string) => `  Executando a partir de: ${installDir}`,
+  updateProjectDependency: (packageName: string) =>
+    `  Atualize a dependência ${packageName} neste projeto.`,
+  rerunUpdateHint: '  Depois execute "openspec update" novamente para aplicar os novos fluxos de trabalho.',
+  upgradePrompt: (latest: string) => `Atualizar para v${latest} agora?`,
+  upgradeIncompleteLine1: 'A atualização não foi concluída. Uma instalação global pode precisar de',
+  upgradeIncompleteLine2: 'permissões elevadas ou de um gerenciador de pacotes diferente.',
+  upgradeUnconfirmed: 'A atualização terminou, mas nenhum "openspec" pôde ser executado para confirmá-la.',
+  upgradeStillReportsOld: (version: string) => `A atualização terminou, mas "openspec" ainda reporta v${version}.`,
+  binUnchanged: (binPath: string) => `  O npm reportou sucesso, mas ${binPath} não mudou.`,
+  stalePathInstallAnswering: '  Outra instalação anterior no seu PATH está respondendo primeiro.',
+  upgradedTo: (version: string) => `✓ Atualizado para v${version}.`,
+  filesNotRegenerated: 'Os arquivos de instrução não foram regenerados.',
+  runUpdateToRegenerate: '  Execute "openspec update" para aplicar os novos fluxos de trabalho.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -970,8 +1055,16 @@ export const VALIDATOR_MESSAGES = {
   requirementInAddedAndRemoved: (name: string) => `Requisito presente em ADDED e REMOVED: "${name}"`,
   modifiedReferencesOldRenamed: (to: string) => `MODIFIED referencia nome antigo de RENAMED. Use o novo cabeçalho para "${to}"`,
   renamedToCollidesAdded: (to: string) => `RENAMED TO colide com ADDED para "${to}"`,
+  requirementInRenamedAndRemoved: (from: string, removedSpelling?: string) =>
+    `Requisito presente em RENAMED e REMOVED: "${from}"` +
+    (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
   deltaSectionsEmpty: (sections: string) => `Seções de delta ${sections} foram encontradas, mas nenhuma entrada de requisito foi analisada. Certifique-se de que cada seção inclua pelo menos um bloco "### Requirement:" (REMOVED pode usar sintaxe de lista com marcadores).`,
   noDeltaSectionsFound: 'Nenhuma seção de delta encontrada. Adicione cabeçalhos como "## ADDED Requirements" ou mova notas que não sejam deltas para fora de specs/.',
+  rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar em uma pasta de capability (ex.: specs/<capability>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
+  modifiedOmitsCurrentScenarios: (reqName: string, scenarioNames: string) =>
+    `MODIFIED "${reqName}" omite cenário(s) que o spec atual ainda tem: ${scenarioNames}. Copie-os para o bloco MODIFIED (um requisito MODIFIED substitui o bloco inteiro, então o archive se recusa a descartá-los).`,
+  couldNotReadMainSpec: (specPath: string, code: string) =>
+    `Não foi possível ler ${specPath} para verificar os requisitos MODIFIED contra ele (${code}). O archive lê o mesmo arquivo, então corrija o arquivo antes de arquivar.`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -984,6 +1077,8 @@ export const WORKFLOW_MESSAGES = {
   missingArtifactArgument: (artifacts: string) => `Argumento obrigatório <artifact> ausente. Artefatos válidos:\n  ${artifacts}`,
   artifactNotFound: (artifactId: string, schemaName: string, artifacts: string) => `Artefato '${artifactId}' não encontrado no esquema '${schemaName}'. Artefatos válidos:\n  ${artifacts}`,
   unmetDependenciesWarning: 'Este artefato possui dependências não satisfeitas. Complete-as primeiro ou prossiga com cautela.',
+  artifactSkippedFallback: 'Este artefato está ignorado (skip_specs está definido em .openspec.yaml).',
+  skippedDependencyNoFiles: 'Ignorado: a alteração declara skip_specs, então este artefato não tem arquivos para ler.',
   missingDependencies: (deps: string) => `Pendentes: ${deps}`,
   createArtifactTask: (artifactId: string, changeName: string) => `Crie o artefato ${artifactId} para a alteração "${changeName}".`,
   readFilesForContext: 'Leia o conteúdo atual destes arquivos antes de criar este artefato (releia-os do disco mesmo que já os tenha visto antes - podem ter sido editados):',
@@ -992,7 +1087,7 @@ export const WORKFLOW_MESSAGES = {
   generatingApplyInstructions: 'Gerando instruções de aplicação...',
   cannotApplyMissingArtifacts: (artifacts: string) => `Não é possível aplicar esta alteração ainda. Artefatos ausentes: ${artifacts}.\nUse a skill openspec-continue-change para criar os artefatos ausentes primeiro.`,
   missingTrackingFile: (filename: string) => `O arquivo ${filename} está ausente e deve ser criado.\nUse openspec-continue-change para gerar o arquivo de rastreamento.`,
-  trackingFileNoTasks: (filename: string) => `O arquivo ${filename} existe mas não contém tarefas.\nAdicione tarefas a ${filename} ou regenere-o com openspec-continue-change.`,
+  trackingFileNoTasks: (filename: string) => `O arquivo ${filename} existe mas não contém tarefas a executar.\nAdicione tarefas a ${filename} ou regenere-o com openspec-continue-change.`,
   allTasksComplete: 'Todas as tarefas estão concluídas! Esta alteração está pronta para ser arquivada.\nConsidere executar testes e revisar as alterações antes de arquivar.',
   allArtifactsCompleteProceed: 'Todos os artefatos necessários estão completos. Prossiga com a implementação.',
   readContextAndWorkTasks: 'Leia os arquivos de contexto, trabalhe nas tarefas pendentes, marque como concluído conforme avança.\nPare se encontrar bloqueios ou precisar de esclarecimentos.',
@@ -1007,6 +1102,11 @@ export const WORKFLOW_MESSAGES = {
   progressCompleteWithCheck: (complete: number, total: number) => `${complete}/${total} concluído ✓`,
   tasksTitle: '### Tarefas',
   instructionTitle: '### Instrução',
+  generatingArchiveInputs: 'Carregando entradas de arquivamento...',
+  archiveInputsTitle: (changeName: string) => `## Entradas de Arquivamento: ${changeName}`,
+  projectContextTitle: '### Contexto do Projeto (entrada de instrução obrigatória)',
+  operationGuidanceTitle: '### Orientação da Operação (consultiva)',
+  noOperationInputs: 'Nenhum contexto de projeto ou orientação de operação configurado.',
   // new-change.ts
   missingNameArgument: 'Argumento obrigatório <name> ausente',
   creatingChange: (name: string, schema?: string) => `Criando alteração '${name}'${schema ? ` com esquema '${schema}'` : ''}...`,
@@ -1038,8 +1138,10 @@ export const WORKFLOW_MESSAGES = {
   changeLabel: (name: string) => `Alteração: ${name}`,
   schemaLabel2: (name: string) => `Esquema: ${name}`,
   progressArtifacts: (done: number, total: number) => `Progresso: ${done}/${total} artefatos concluídos`,
+  progressArtifactsSkipped: (done: number, total: number, skipped: number) => `Progresso: ${done}/${total} artefatos concluídos (${skipped} ignorado(s))`,
   allArtifactsComplete: 'Todos os artefatos concluídos!',
   blockedBy: (deps: string) => ` (bloqueado por: ${deps})`,
+  skippedDeclaresSkipSpecs: ' (ignorado: a alteração declara skip_specs)',
   // templates.ts
   loadingTemplates: 'Carregando templates...',
   schemaLabel3: (name: string) => `Esquema: ${name}`,
@@ -1053,7 +1155,22 @@ export const WORKFLOW_MESSAGES = {
 
 export const MIGRATION_MESSAGES = {
   migrated: (count: number) => `Migrado: perfil customizado com ${count} fluxos de trabalho`,
-  newInThisVersion: "Novo nesta versão: /opsx:propose. Experimente 'openspec config profile core' para a experiência simplificada.",
+  newInThisVersion: (reference: string) => `Novo nesta versão: ${reference}. Experimente 'openspec config profile core' para a experiência simplificada.`,
+  // Resumo do que uma migração de diretório legado moveu, ex.: "6 skills e 6 comandos".
+  skillCount: (count: number) => `${count} skill${count === 1 ? '' : 's'}`,
+  commandCount: (count: number) => `${count} comando${count === 1 ? '' : 's'}`,
+  migratedToolContent: (description: string, from: string, to: string) => `Migrado(s) ${description}: ${from} → ${to}`,
+  // Nomeia arquivos gerenciados que a migração deliberadamente deixou para trás,
+  // sem afirmar que a diferença veio de uma edição: a saída de uma versão mais
+  // antiga do BR-OpenSpec também diverge. Nada foi sobrescrito; o usuário decide
+  // qual cópia manter.
+  keptInPlaceNotice: (count: number, from: string, to: string) =>
+    `${count === 1 ? 'Mantido' : 'Mantidos'} ${count} ${count === 1 ? 'arquivo' : 'arquivos'} em ${from}/ que ${count === 1 ? 'difere' : 'diferem'} da cópia em ${to}/. ` +
+    `Nada foi sobrescrito — compare as duas e exclua a cópia de ${from}/ depois de preservar o que você personalizou.`,
+  legacyMigrationNoticeDevin: (from: string, to: string) =>
+    `O Windsurf agora é Devin Desktop, e seu diretório de configuração mudou de ${from}/ para ${to}/. ` +
+    `O Devin Desktop lê ${from}/ apenas como fallback, e o Devin Local não o lê.`,
+  legacyMigrationNoticeGeneric: (from: string, to: string) => `${from}/ é o local anterior desta ferramenta; ${to}/ é o atual.`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1067,7 +1184,7 @@ export const LEGACY_CLEANUP_MESSAGES = {
   failedToDeleteOpenspecAgents: (error: string) => `Falha ao excluir openspec/AGENTS.md: ${error}`,
   cleanedUpHeader: 'Arquivos legados limpos:',
   removedFile: (file: string) => `  ✓ Removido ${file}`,
-  removedDir: (dir: string) => `  ✓ Removido ${dir}/ (substituído por /opsx:*)`,
+  removedDir: (dir: string) => `  ✓ Removido ${dir}/ (substituído por skills e comandos do BR-OpenSpec)`,
   removedMarkers: (file: string) => `  ✓ Marcadores BR-OpenSpec removidos de ${file}`,
   errorsHeader: 'Erros durante a limpeza:',
   errorItem: (error: string) => `  ⚠ ${error}`,
@@ -1105,6 +1222,12 @@ export const PROJECT_CONFIG_MESSAGES = {
   emptyRulesForArtifact: (artifactId: string) => `Algumas regras para '${artifactId}' são strings vazias, ignorando-as`,
   rulesMustBeArrayOfStrings: (artifactId: string) => `Regras para '${artifactId}' devem ser um array de strings, ignorando as regras deste artefato`,
   invalidRulesField: "Campo 'rules' inválido na configuração (deve ser um objeto)",
+  invalidOperationsField: "Campo 'operations' inválido na configuração (deve ser um objeto)",
+  unknownOperationId: (operationId: string, supportedIds: string) => `ID de operação desconhecido '${operationId}' na configuração. IDs de operação suportados: ${supportedIds}`,
+  invalidOperationEntry: (operationId: string) => `Campo 'operations.${operationId}' inválido na configuração (deve ser um objeto), ignorando esta operação`,
+  unknownOperationFields: (operationId: string, fields: string) => `Campo(s) desconhecido(s) em 'operations.${operationId}': ${fields}. Campos suportados: guidance`,
+  operationGuidanceMustBeArray: (operationId: string) => `A orientação da operação '${operationId}' deve ser um array de strings, ignorando a orientação desta operação`,
+  emptyGuidanceForOperation: (operationId: string) => `Algumas orientações da operação '${operationId}' são strings vazias, ignorando-as`,
 };
 
 
@@ -1122,7 +1245,7 @@ export const NEW_CHANGE_TEMPLATE_MESSAGES = {
 
 1. **Se nenhuma entrada clara for fornecida, pergunte o que ele quer construir**
 
-   Use a ferramenta **AskUserQuestion** (aberta, sem opções pré-definidas) para perguntar:
+   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
    > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
 
    A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → \`add-user-auth\`).
@@ -1187,7 +1310,7 @@ Após completar os passos, resuma:
 
 1. **Se nenhuma entrada for fornecida, pergunte o que ele quer construir**
 
-   Use a ferramenta **AskUserQuestion** (aberta, sem opções pré-definidas) para perguntar:
+   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
    > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
 
    A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → \`add-user-auth\`).
@@ -1676,14 +1799,14 @@ Quando uma change está completa, nós a arquivamos. Isso a move de \`openspec/c
 As changes arquivadas se tornam o histórico de decisões do seu projeto - você sempre pode encontrá-las depois para entender por que algo foi construído de certa forma.
 \`\`\`
 
-**FAÇA:**
+**FAÇA:** Arquive a change (\`--yes\` responde às perguntas de confirmação, que você não consegue responder a partir de uma chamada de ferramenta):
 \`\`\`bash
-openspec archive "<nome>"
+openspec archive "<nome>" --yes
 \`\`\`
 
 **MOSTRE:**
 \`\`\`
-Arquivado em: \`openspec/changes/archive/YYYY-MM-DD-<nome>/\`
+Arquivado em: \`openspec/changes/archive/<target-name>/\` (o nome de destino prefixa a data de hoje, a menos que o nome já comece com um prefixo \`YYYY-MM-DD-\` — nesse caso ele é mantido como está, sem segunda data)
 
 A change agora faz parte do histórico do seu projeto. O código está na sua codebase, o registro de decisão está preservado.
 \`\`\`
@@ -1721,7 +1844,7 @@ Este mesmo ritmo funciona para qualquer tamanho de change - uma pequena correç�
  | \`/opsx:apply\`   | Implementa tarefas de uma change            |
  | \`/opsx:archive\` | Arquiva uma change concluída                |
 
-**Comandos adicionais:**
+**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
 
  | Comando            | O que faz                                              |
  |--------------------|--------------------------------------------------------|
@@ -1749,7 +1872,7 @@ Se o usuário disser que precisa parar, quer pausar, ou parecer desengajado:
 Sem problema! Sua change está salva em \`openspec/changes/<nome>/\`.
 
 Para retomar de onde paramos depois:
-- \`/opsx:continue <nome>\` - Retoma a criação de artifacts
+- \`/opsx:continue <nome>\` - Retoma a criação de artifacts (se instalado; caso contrário \`openspec status --change "<nome>" --json\` mostra o próximo artifact)
 - \`/opsx:apply <nome>\` - Pula para implementação (se tasks existirem)
 
 O trabalho não será perdido. Volte quando estiver pronto.
@@ -1773,7 +1896,7 @@ Se o usuário disser que apenas quer ver os comandos ou pular o tutorial:
  | \`/opsx:apply <nome>\`   | Implementa tarefas                          |
  | \`/opsx:archive <nome>\` | Arquiva quando concluído                    |
 
-**Comandos adicionais:**
+**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
 
  | Comando                   | O que faz                        |
  |---------------------------|----------------------------------|
@@ -1815,16 +1938,19 @@ export const VERIFY_CHANGE_TEMPLATE_MESSAGES = {
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+   Ao solicitar, mostre as changes que possuem artifact de implementação. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:verify <outra>\`).
 
 2. **Verifique o status para entender o schema**
    \`\`\`bash
@@ -1973,16 +2099,19 @@ Use markdown claro com:
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute \`openspec list --json\` para obter as changes disponíveis. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+   Ao solicitar, mostre as changes que possuem artifact de implementação. Para cada change, execute \`openspec status --change "<nome>" --json\` e use os IDs de artifacts e \`contextFiles\` (via \`openspec instructions apply --change "<nome>" --json\`) para identificar qual artifact rastreia a implementação — não fixe \`tasks\`.
 
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:verify <outra>\`).
 
 2. **Verifique o status para entender o schema**
    \`\`\`bash
@@ -2310,10 +2439,10 @@ export const SPECS_APPLY_MESSAGES = {
     `${specName}: spec alvo é estruturalmente inválido e não pode ser atualizado até ser corrigido:\n${details}`,
   renamedFailedSourceNotFound: (specName: string, reqName: string) =>
     `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - origem não encontrada`,
+  renamedFailedSourceNotFoundNearMiss: (specName: string, reqName: string, nearMissName: string) =>
+    `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - origem não encontrada, mas "### Requirement: ${nearMissName}" existe; corrija o cabeçalho para corresponder exatamente`,
   renamedFailedTargetExists: (specName: string, reqName: string) =>
     `${specName} RENAMED falhou para cabeçalho "### Requirement: ${reqName}" - destino já existe`,
-  removedFailedNotFound: (specName: string, reqName: string) =>
-    `${specName} REMOVED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
   modifiedFailedNotFound: (specName: string, reqName: string) =>
     `${specName} MODIFIED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado`,
   modifiedFailedHeaderMismatch: (specName: string, reqName: string) =>
@@ -2323,15 +2452,29 @@ export const SPECS_APPLY_MESSAGES = {
   addedFailedAlreadyExists: (specName: string, reqName: string) =>
     `${specName} ADDED falhou para cabeçalho "### Requirement: ${reqName}" - já existe`,
   applyingChangesTo: (specPath: string) => `Aplicando alterações em openspec/specs/${specPath}/spec.md:`,
-  wouldApplyChangesTo: (specPath: string) => `Aplicaria alterações em openspec/specs/${specPath}/spec.md:`,
   countAdded: (n: number) => `  + ${n} adicionado(s)`,
   countModified: (n: number) => `  ~ ${n} modificado(s)`,
   countRemoved: (n: number) => `  - ${n} removido(s)`,
   countRenamed: (n: number) => `  → ${n} renomeado(s)`,
   skeletonPurpose: (changeName: string) => `A definir - criado ao arquivar alteração ${changeName}. Atualize o Purpose após o arquivamento.`,
-  changeNotFound: (changeName: string) => `Alteração '${changeName}' não encontrada.`,
-  validationErrorsInRebuiltSpec: (specName: string, errors: string) =>
-    `Erros de validação na especificação reconstruída para ${specName}:\n${errors}`,
+  warning: (message: string) => `⚠️  Aviso: ${message}`,
+  deltaPurposeIgnoredExisting: (specName: string, targetPath: string) =>
+    `${specName} - Purpose do delta ignorado; ${specName} já possui um. Edite ${targetPath} diretamente para alterá-lo.`,
+  deltaPurposeIgnoredUnreadable: (specName: string) =>
+    `${specName} - Purpose do delta ignorado (deixaria o novo spec ilegível); o Purpose placeholder foi escrito em seu lugar.`,
+  carriedPurposeTooBrief: (specName: string, minLength: number) =>
+    `${specName} - Purpose carregado tem menos de ${minLength} caracteres; openspec validate --strict o reporta como muito breve.`,
+  removedRequirementsIgnoredNewSpec: (specName: string, count: number) =>
+    `${specName} - ${count} requisito(s) REMOVED ignorado(s) para nova spec (nada a remover).`,
+  removedAlreadySynced: (specName: string, reqName: string) =>
+    `${specName} - requisito REMOVED "${reqName}" não está no spec atual; tratando como já removido.`,
+  absorbedNoteGoesWithRequirement: (specName: string, heading: string, reqName: string) =>
+    `${specName} - "${heading}" está dentro do requisito "${reqName}" e vai com ele. Mova-o para sob seu próprio requisito, ou para acima de \`## Requirements\`, para mantê-lo.`,
+  removedFailedNotFoundNearMiss: (specName: string, reqName: string, nearMissName: string) =>
+    `${specName} REMOVED falhou para cabeçalho "### Requirement: ${reqName}" - não encontrado, mas "### Requirement: ${nearMissName}" existe; corrija o cabeçalho para corresponder exatamente`,
+  renamedRemovedConflict: (specName: string, fromName: string, removedSpelling?: string) =>
+    `${specName} validação falhou - requisito presente em múltiplas seções (RENAMED e REMOVED) para cabeçalho "### Requirement: ${fromName}"` +
+    (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2375,6 +2518,12 @@ export const ARTIFACT_GRAPH_MESSAGES = {
   failedToReadTemplate: (error: string) => `Falha ao ler template: ${error}`,
   artifactNotFound: (artifactId: string, schemaName: string) =>
     `Artefato '${artifactId}' não encontrado no schema '${schemaName}'`,
+  // Aviso anexado às instruções de um artefato ignorado via skip_specs.
+  // Também vai no payload JSON, para que agentes dirigindo a CLI com --json
+  // vejam o mesmo sinal de não-criar da saída de texto.
+  skipSpecsInstructionsWarning:
+    'Esta alteração declara skip_specs: true em .openspec.yaml (sem mudanças de comportamento no nível de spec), então este artefato está ignorado.\n' +
+    'Não crie arquivos de spec - eles conflitam com esse marcador. Se os requisitos agora mudam, remova skip_specs do .openspec.yaml e execute este comando novamente.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2388,6 +2537,11 @@ export const CHANGE_METADATA_MESSAGES = {
   invalidYaml: (error: string) => `YAML inválido no arquivo de metadados: ${error}`,
   unknownSchema: (schema: string, available: string) =>
     `Schema desconhecido '${schema}'. Disponíveis: ${available}`,
+  // Razões pelas quais o marcador skip_specs não pode ser honrado
+  // (readSkipSpecsMarker); embutidas na mensagem de validação correspondente.
+  markerMetadataUnreadable: (error: string) => `o arquivo de metadados não pode ser lido (${error})`,
+  markerNotValidYaml: 'o arquivo não é um YAML válido',
+  markerUnknownSchema: (schema: string) => `schema: esquema desconhecido '${schema}'`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2397,6 +2551,7 @@ export const CHANGE_METADATA_MESSAGES = {
 export const CHANGE_UTILS_MESSAGES = {
   changeAlreadyExists: (name: string, dir: string) => `A alteração '${name}' já existe em ${dir}`,
   nameEmpty: 'O nome da alteração não pode estar vazio',
+  nameTooLong: 'O nome da alteração é muito longo (máximo de 200 caracteres)',
   nameMustBeLowercase: 'O nome da alteração deve ser minúsculo (use kebab-case)',
   nameNoSpaces: 'O nome da alteração não pode conter espaços (use hífens)',
   nameNoUnderscores: 'O nome da alteração não pode conter underscores (use hífens)',
@@ -2404,7 +2559,6 @@ export const CHANGE_UTILS_MESSAGES = {
   nameNoEndHyphen: 'O nome da alteração não pode terminar com hífen',
   nameNoConsecutiveHyphens: 'O nome da alteração não pode conter hífens consecutivos',
   nameOnlyAllowedChars: 'O nome da alteração pode conter apenas letras minúsculas, números e hífens',
-  nameMustStartWithLetter: 'O nome da alteração deve começar com uma letra',
   nameKebabCase: 'O nome da alteração deve seguir a convenção kebab-case (ex: add-auth, refactor-db)',
 };
 

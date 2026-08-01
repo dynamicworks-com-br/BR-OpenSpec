@@ -35,25 +35,37 @@ export interface ValidationResult {
  * Validates that a change name follows kebab-case conventions.
  *
  * Valid names:
- * - Start with a lowercase letter
+ * - Start with a lowercase letter or a digit
  * - Contain only lowercase letters, numbers, and hyphens
  * - Do not start or end with a hyphen
  * - Do not contain consecutive hyphens
+ *
+ * A leading digit is allowed so ordering conventions like `100-add-feature` or
+ * `00001-add-auth` work; archive already treats such prefixes as a supported
+ * convention (see ARCHIVE_DATE_PREFIX_PATTERN).
  *
  * @param name - The change name to validate
  * @returns Validation result with `valid: true` or `valid: false` with an error message
  *
  * @example
  * validateChangeName('add-auth') // { valid: true }
+ * validateChangeName('100-add-feature') // { valid: true }
  * validateChangeName('Add-Auth') // { valid: false, error: '...' }
  */
 export function validateChangeName(name: string): ValidationResult {
-  // Pattern: starts with lowercase letter, followed by lowercase letters/numbers,
-  // optionally followed by hyphen + lowercase letters/numbers (repeatable)
-  const kebabCasePattern = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+  // Pattern: lowercase letters/numbers separated by single hyphens; a leading
+  // digit is allowed so numeric ordering prefixes work (#850, #1169)
+  const kebabCasePattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
   if (!name) {
     return { valid: false, error: CHANGE_UTILS_MESSAGES.nameEmpty };
+  }
+
+  // Filesystem directory components cap at 255 bytes and archive prepends a
+  // date prefix; bounding here turns the failure into a validation message
+  // instead of a raw ENAMETOOLONG from mkdir.
+  if (name.length > 200) {
+    return { valid: false, error: CHANGE_UTILS_MESSAGES.nameTooLong };
   }
 
   if (!kebabCasePattern.test(name)) {
@@ -78,9 +90,6 @@ export function validateChangeName(name: string): ValidationResult {
     }
     if (/[^a-z0-9-]/.test(name)) {
       return { valid: false, error: CHANGE_UTILS_MESSAGES.nameOnlyAllowedChars };
-    }
-    if (/^[0-9]/.test(name)) {
-      return { valid: false, error: CHANGE_UTILS_MESSAGES.nameMustStartWithLetter };
     }
 
     return { valid: false, error: CHANGE_UTILS_MESSAGES.nameKebabCase };

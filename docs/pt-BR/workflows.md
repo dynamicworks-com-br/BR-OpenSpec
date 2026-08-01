@@ -36,6 +36,7 @@ Novas instalações usam `core` por padrão, que fornece:
 - `/opsx:explore`
 - `/opsx:propose`
 - `/opsx:apply`
+- `/opsx:update`
 - `/opsx:sync`
 - `/opsx:archive`
 

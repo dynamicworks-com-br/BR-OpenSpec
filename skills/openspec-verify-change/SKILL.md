@@ -15,16 +15,19 @@ Verifica se uma implementação corresponde aos artifacts da change (specs, task
 
 **Passos**
 
-1. **Se nenhum nome de change for fornecido, solicite a seleção**
+1. **Selecione a change**
 
-   Execute `openspec list --json` para obter as changes disponíveis. Para cada change, execute `openspec status --change "<nome>" --json` e use os IDs de artifacts e `contextFiles` (via `openspec instructions apply --change "<nome>" --json`) para identificar qual artifact rastreia a implementação — não fixe `tasks`.
+   Se um nome for fornecido, use-o. Caso contrário:
+   - Infira do contexto da conversa se o usuário mencionou uma change
+   - Selecione automaticamente se existir apenas uma change ativa
+   - Se ambíguo, execute `openspec list --json` para obter as changes disponíveis e peça ao usuário que selecione uma
 
-   Use a ferramenta **AskUserQuestion** para permitir que o usuário selecione entre changes que possuem artifact de implementação.
+   Ao solicitar, mostre as changes que possuem artifact de implementação. Para cada change, execute `openspec status --change "<nome>" --json` e use os IDs de artifacts e `contextFiles` (via `openspec instructions apply --change "<nome>" --json`) para identificar qual artifact rastreia a implementação — não fixe `tasks`.
 
    Inclua o schema usado para cada change, se disponível.
    Marque as changes com tarefas incompletas como "(Em Progresso)".
 
-   **IMPORTANTE**: NÃO adivinhe ou selecione automaticamente uma change. Sempre deixe o usuário escolher.
+   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, `/openspec-verify-change <outra>`).
 
 2. **Verifique o status para entender o schema**
    ```bash

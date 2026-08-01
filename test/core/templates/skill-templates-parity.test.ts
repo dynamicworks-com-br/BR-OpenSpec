@@ -34,49 +34,49 @@ import {
 import { generateSkillContent, getSkillTemplates } from '../../../src/core/shared/skill-generation.js';
 
 const EXPECTED_FUNCTION_HASHES: Record<string, string> = {
-  getExploreSkillTemplate: '07c5e672fba9ffd4e03b0df49e94d5bf1800167d6a46a55041dab8c2028b298b',
-  getNewChangeSkillTemplate: 'f1cc31b5310eb2a0a693a3dd0bb795ea1a2524a05aaac3a136b1e2cda044ffe6',
-  getContinueChangeSkillTemplate: 'a0752c4a128d96d00dfd01aeedd765cbecbce85ec0c98b2ffa07a7930e344679',
-  getApplyChangeSkillTemplate: '3a836eb4deafdfb7507553195279ea8c3623dcc300e748472b8b8523c69ca436',
-  getUpdateChangeSkillTemplate: '6da296108c94a37b253c107f120113e87abce7eb34cd9dfe9d6320c6bcfdc77d',
-  getFfChangeSkillTemplate: 'a0153a45ec305ad03977bfb791d7c1925a97b8a17a5afb7dbc1210ad64164b50',
-  getSyncSpecsSkillTemplate: '5b71909c0524072b4dc004de3120d01b38a61f06c562e2954ec5eda412dddf38',
-  getOnboardSkillTemplate: '6fa40befab7da32020a2c04379a0c08f31d97421e0fe02ca3950dff1e01d1c18',
-  getOpsxExploreCommandTemplate: 'f8c9d7546429ed530dfdf03bf606fed9225bd89eae08a5982a41ce26591da1d3',
-  getOpsxNewCommandTemplate: '8000acbdc49d16a870ec3a148b25ecc0cc4a14b8f7e2ea5e3d83bf25111bb0ab',
-  getOpsxContinueCommandTemplate: 'ff61a5a4f3d051c02d5dbc07ec1233c4f0f6a784cf981b95b8a951af08af4675',
-  getOpsxApplyCommandTemplate: '836b6cd5fbca346eeadce7171ab7c843a88179ad4579bb30bf68663e92736fab',
-  getOpsxUpdateCommandTemplate: '08a14b59bb34caab5ed7750b0ddb793b9421480e3628c98ee74f3365cb59002e',
-  getOpsxFfCommandTemplate: '5b7ade643acfa49e4b7e76fb93534491f39ee1e39fb0439a390e5379af34be6d',
-  getArchiveChangeSkillTemplate: 'c73dd47fe80211f9cfeb60a9c94d662b06d8665964468461cf7372852b6d5c0e',
-  getBulkArchiveChangeSkillTemplate: '56a38548dc5eb203944aa8c9d5eb00490e9ce09f94d337f1f82446c760dbdd2b',
+  getExploreSkillTemplate: 'f76cd8a5a2200e5ebbc90d76288402d24a90be2642cfe398e1518303465a7685',
+  getNewChangeSkillTemplate: 'efba244285a815605b9a4f85e140da11d3301b997608d58536dd7c65eaf9e42a',
+  getContinueChangeSkillTemplate: '24720c8a0b007f0c24212e8c984f12b6ddc15a8d8272c6ca970b8cd3b2791f76',
+  getApplyChangeSkillTemplate: '0cf574d68301f9ed14f05b864da4fd28810dcc56a4327cba823c9cd9bb1fe267',
+  getUpdateChangeSkillTemplate: '9f1da486baf46a858362922e524460aa70bba04baa40c11cf92ff606f063986d',
+  getFfChangeSkillTemplate: 'f05980574193a31bb55d0b3842e1733095b736b1640396620f67eab2e3d0275b',
+  getSyncSpecsSkillTemplate: 'df60da64b5ae567f70ddcaedf020e5c8b48e7d9274c732fe5361fab824c811bf',
+  getOnboardSkillTemplate: 'eb35b49e1772c9f5976895b3ba8d9366478051bad1374d545ee88c97f9ecc195',
+  getOpsxExploreCommandTemplate: '0eb225c540cf219eef529419476b1b50b9277a789267cec69cfdab13ed340686',
+  getOpsxNewCommandTemplate: '27a71f3a3dc44a7e784dd6fc479d636d02b858be5de3f688830e7b24f0a54598',
+  getOpsxContinueCommandTemplate: '153ba33e4588b7fa6606f14a7027e5d7da00570cb1fd314e4302568439125eea',
+  getOpsxApplyCommandTemplate: '14a6302644d79790687b463dfeeb3ae48181fe2d000d2bb37a97836334251e64',
+  getOpsxUpdateCommandTemplate: '5e2d472164e04709891e5e761e3a6585d451d50049f3463495200d2bf18f8fd6',
+  getOpsxFfCommandTemplate: 'b85528290e5d592831738615e28b82ee68098b21cb49adcb0eebd3c98aef5148',
+  getArchiveChangeSkillTemplate: 'd5af90f6243ea90bf5243e6a065800a20b324848594d9434ecc0c7c2eacd1c02',
+  getBulkArchiveChangeSkillTemplate: '62b0f7e8f07c26daa3f2a0d2275a45a85b5542e974bb2fe9f2072902a5edf0be',
   getCodeReviewSkillTemplate: '53cadf1f52914d26c021b2e9cc10bdc535c02c5ecafe0d846928bd37b1db81ea',
-  getOpsxSyncCommandTemplate: '364ebd08bc6050b8b31139e7a32b3b12ccb46bab8c54e2accb67c8228f7b5dc6',
-  getVerifyChangeSkillTemplate: '2d81da934601c6e8b9c818b35971660593c86316dc85ec7e21c2c3183b834ba3',
-  getOpsxArchiveCommandTemplate: '2d0e7b7f3bdb60e428652c46ca39c589b321024e85abc33abf92d35218321a0b',
-  getOpsxOnboardCommandTemplate: 'ec32e36ac28c7a3c440d812a873c72860809e740b5d1f0e1eee4b0669be6db93',
-  getOpsxBulkArchiveCommandTemplate: '32c34b320e60533dc7f598afbae9ca740f76138e0ebcd65da9a5d613f902d684',
+  getOpsxSyncCommandTemplate: '054558c61645f90ccef27a9db45904fd3245f75783a470de789c13b49229263a',
+  getVerifyChangeSkillTemplate: '3d30f6a69528dd6ff0ff4067a7686b01e0ebda1fca14afd8fb40154064110e94',
+  getOpsxArchiveCommandTemplate: 'a9cf6a9905d50c99049c5f3c087c4b0fe8a7f2060d0bae62a30c089b24787813',
+  getOpsxOnboardCommandTemplate: '67158889470c19e3184433f8eaa6c2cb92c2030c662e0045e8a6b0e17dc84997',
+  getOpsxBulkArchiveCommandTemplate: '17ecedd8eb2107c980fe5e51c4cd2e8d2e2e0e3a41621ffcf5ca319fe4db26c6',
   getOpsxCodeReviewCommandTemplate: 'd4ee579f36b34a3f09ddb5512ff14780125e66205787544ae78c8b260e9605ae',
-  getOpsxVerifyCommandTemplate: '79091459dd49ce468db70dc2876a3d013ac2cc4cba86ec93832369e4dee4965d',
-  getOpsxProposeSkillTemplate: '33e39ecc2078c31c7e103d6f88cbe8da0bc705f425927bf95d8ba813fc918f5a',
-  getOpsxProposeCommandTemplate: 'd190d75f47a5c58e4bc9b9064f00ebe4b3f51a4024604f718cbc711c4d686c0e',
+  getOpsxVerifyCommandTemplate: 'b51a8e79626968405b148627ae6f8ba2cc7a377866e6e75be34facdeb069e3ce',
+  getOpsxProposeSkillTemplate: '17ed1603bf74be01b56dd0cb87e16d1303affb9c6f7ea4dd7774bf92aede4749',
+  getOpsxProposeCommandTemplate: '3312f9fd45b0aea019bc980bdf4b627be9d4c17023bb6e2d7e50fa61a5589941',
   getFeedbackSkillTemplate: '087c098185bfc7067fc89fab113ce7cf0df6b5c41138f4f869389f2e2daf0118',
 };
 
 const EXPECTED_GENERATED_SKILL_CONTENT_HASHES: Record<string, string> = {
-  'openspec-explore': '87c35ac17dff2fc7a2df49055c2324a4cd136c29243d913c3bef8d3772d280a1',
-  'openspec-new-change': 'c917175a7b8f11c7c0b7cc5ecee9389410f82d493f2b3349e26cc4dbaed8524d',
-  'openspec-continue-change': 'd47e63b0c0126f6d8f3efc4f91032c9401aa05ced40bc8acaa4037f5a5fcb8d0',
-  'openspec-apply-change': 'f1efd6170287ab57a323ae6b9590d4bf74b0cf932b4d3c583d787458938c30f7',
-  'openspec-update-change': '44f9dabea39ccfa2f786be230c2c750f613247ca245be34702b84bfb2cd0d9d0',
-  'openspec-ff-change': '64dd8ade2fa9c848f326de98e8d0d2cc291c6d69e7663d15c74116af54e9e19a',
-  'openspec-sync-specs': '1c47cd25255065aa58d5b8e30f339b6a87d5d6a7bb2fec99123d5d5bef810c9e',
-  'openspec-archive-change': 'bf54fb7341936e6742a9aafb3b7819736fb1dda779d419c3dbbe04bd8fd5764a',
-  'openspec-bulk-archive-change': '4a62f82195ce7ae603c15dc7161efb8449b884494fff85140f3435cc10c0ce14',
-  'openspec-verify-change': '7754b1eae87f47485e95d58c55dd977f0932281c6f0e70eabe9acc503f6e5ab8',
+  'openspec-explore': '6f8893bca0da8dc8f005b40d34094af88769c1a29ac6aab316eddddce8daf397',
+  'openspec-new-change': '396880c6dba86343b6087e0cdb7799f71cda4e11fc1701c73b16a5f369e29c6c',
+  'openspec-continue-change': 'f956dec99885cf6cce623ed4a52dfc0957e14f804d7f181f05af546039870554',
+  'openspec-apply-change': 'b45afb8e7c8d9c18cc9bae302e7f28fdaa856d4792ece78315bed8a30fb02f24',
+  'openspec-update-change': 'f27b21d871033548116ff3297ad7a1a65fd3f3c98285e20d9a8777a94c9ef9f4',
+  'openspec-ff-change': '366fea97d528a2d60e8d2a8a40d15e30828a3e0fdf6f63e9e0fb7e75dba61507',
+  'openspec-sync-specs': 'e31a5c8dcc5ee89fe778d4e244a07b5f2b182297c3ff82525bf2556d3dc83440',
+  'openspec-archive-change': 'dbfe708612086d846dc02db151c08d5e57060715255a82da2edd9eb27a893860',
+  'openspec-bulk-archive-change': '392eb206c5beb12621affc315f2b0067851fd387f81b888992336bd5cb0862dc',
+  'openspec-verify-change': 'c7078f8c0d078306865fd10b56603a61914882297bef0885c15ca9e3aa4d1060',
   'openspec-code-review': 'f1db9f85d11e9d66c6df2778a79540c97bb74ee4b41b111ff188f3f2d1836a65',
-  'openspec-onboard': 'a083102a3410492ce54d442653999ef547733847eb11d17209bdd021145aec21',
-  'openspec-propose': 'f9328d84b61f508ac8940bcf20bab76921a7871f9197757372498c8d941a3b5b',
+  'openspec-onboard': '45b18c05fb7d4c7b3dc4874a55e7ea303227935d55efe0ef39b4f4ece0ed3dee',
+  'openspec-propose': '5c8ef1aa72ba0adb0b42a81851617f683e2ccc6eabb5d7877f0857928f066e3a',
 };
 
 function stableStringify(value: unknown): string {
@@ -147,6 +147,16 @@ describe('skill templates split parity', () => {
     );
 
     expect(actualHashes).toEqual(EXPECTED_GENERATED_SKILL_CONTENT_HASHES);
+  });
+
+  // The assertion above only compares the skills this file already lists, so a
+  // workflow added to getSkillTemplates() but never pinned here would ship with
+  // no golden hash and nothing would fail. Pin the registry itself.
+  it('pins every skill the production registry deploys', () => {
+    const pinned = Object.keys(EXPECTED_GENERATED_SKILL_CONTENT_HASHES).sort();
+    const deployed = getSkillTemplates().map(({ dirName }) => dirName).sort();
+
+    expect(pinned, 'add the new skill to EXPECTED_GENERATED_SKILL_CONTENT_HASHES').toEqual(deployed);
   });
 
   // Auto-approve workflow tools: every generated skill carries allowed-tools

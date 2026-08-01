@@ -92,6 +92,12 @@ Isso lhe diz:
 - Seus nomes, schemas e status
 - No que o usuário pode estar trabalhando
 
+Em seguida, leia o contexto do próprio projeto a partir da raiz resolvida - `<root.path>/openspec/config.yaml` (ou `config.yml`). Use o `root.path` retornado acima, e pule isto se nenhum dos dois arquivos existir:
+- `context`: background do projeto - tech stack, convenções, restrições
+- `rules`: indexadas por id de artifact - as entradas de um artifact se aplicam apenas quando você escreve aquele artifact
+
+Fundamente seu pensamento nelas. Elas são restrições para você seguir, não conteúdo para reproduzir: NÃO as copie para a conversa nem para nenhum artifact que você criar.
+
 ### Quando não existe change
 
 Pense livremente. Quando os insights cristalizarem, você pode oferecer:
@@ -202,7 +208,7 @@ Você: [lê a codebase]
 
 **Usuário está travado no meio da implementação:**
 ```
-Usuário: /opsx:explore add-auth-system
+Usuário: /openspec-explore add-auth-system
       A integração OAuth é mais complexa do que esperado
 
 Você: [lê artifacts da change]

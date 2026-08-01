@@ -84,10 +84,8 @@ describe('tools command', () => {
   let configTempDir: string;
 
   beforeEach(async () => {
-    testDir = path.join(os.tmpdir(), `openspec-tools-cmd-test-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-    configTempDir = path.join(os.tmpdir(), `openspec-config-tools-${Date.now()}`);
-    await fs.mkdir(configTempDir, { recursive: true });
+    testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tools-cmd-test-'));
+    configTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-config-tools-'));
     process.env.XDG_CONFIG_HOME = configTempDir;
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -219,22 +217,22 @@ describe('tools command', () => {
     });
 
     it('adds and removes non-overlapping tools in one pass', async () => {
-      // Pre-configure windsurf so we can remove it
-      await runToolsCommand(['--add', 'windsurf', testDir], testDir);
+      // Pre-configure devin so we can remove it
+      await runToolsCommand(['--add', 'devin', testDir], testDir);
 
-      const windsurfSkill = path.join(testDir, '.windsurf', 'skills', 'openspec-explore', 'SKILL.md');
-      expect(await fileExists(windsurfSkill)).toBe(true);
+      const devinSkill = path.join(testDir, '.devin', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(devinSkill)).toBe(true);
 
-      // Now add claude and remove windsurf
+      // Now add claude and remove devin
       const result = await runToolsCommand(
-        ['--add', 'claude', '--remove', 'windsurf', testDir],
+        ['--add', 'claude', '--remove', 'devin', testDir],
         testDir
       );
       expect(result.exitCode).toBe(0);
 
       const claudeSkill = path.join(testDir, '.claude', 'skills', 'openspec-explore', 'SKILL.md');
       expect(await fileExists(claudeSkill)).toBe(true);
-      expect(await fileExists(windsurfSkill)).toBe(false);
+      expect(await fileExists(devinSkill)).toBe(false);
     });
 
     it('exits with code 1 when the same tool appears in both --add and --remove', async () => {

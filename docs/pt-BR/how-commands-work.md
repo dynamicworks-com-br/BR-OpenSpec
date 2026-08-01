@@ -21,7 +21,7 @@ openspec list        # ver mudanças ativas
 openspec view        # abrir o dashboard interativo
 ```
 
-**Os slash commands (a metade do chat).** Comandos curtos como `/opsx:propose` e `/opsx:apply` que você digita no seu assistente de IA. Eles dizem à IA para seguir o fluxo de trabalho do BR-OpenSpec: elaborar uma proposta, escrever specs, construir a partir da lista de tarefas, arquivar ao terminar. Você os digita no Claude Code, Cursor, Windsurf, Copilot, ou qualquer assistente que use.
+**Os slash commands (a metade do chat).** Comandos curtos como `/opsx:propose` e `/opsx:apply` que você digita no seu assistente de IA. Eles dizem à IA para seguir o fluxo de trabalho do BR-OpenSpec: elaborar uma proposta, escrever specs, construir a partir da lista de tarefas, arquivar ao terminar. Você os digita no Claude Code, Cursor, Devin Desktop, Copilot, ou qualquer assistente que use.
 
 ```text
 /opsx:propose add-dark-mode    (digitado no chat da sua IA)
@@ -51,7 +51,7 @@ Você não entra em um modo especial do BR-OpenSpec. Você simplesmente abre seu
 
 Então as instruções reais são:
 
-1. Abra seu assistente de codificação com IA (Claude Code, Cursor, Windsurf, etc.) no seu projeto.
+1. Abra seu assistente de codificação com IA (Claude Code, Cursor, Devin Desktop, etc.) no seu projeto.
 2. Digite `/opsx:propose` no chat dele, o mesmo lugar onde você digita qualquer outro pedido.
 3. Observe o autocompletar: se o BR-OpenSpec estiver instalado, você verá `/opsx:propose`, `/opsx:apply` e os demais aparecerem conforme digita a barra.
 
@@ -61,39 +61,44 @@ Uma coisa que *é* genuinamente interativa vive no terminal: `openspec view`. El
 
 ## Por que essa divisão existe
 
-Vale entender, porque explica por que o BR-OpenSpec funciona com mais de 25 ferramentas de IA diferentes.
+Vale entender, porque explica por que o BR-OpenSpec funciona com mais de 30 ferramentas de IA diferentes.
 
 A CLI é o **motor**. Ela conhece as regras: como é uma pasta de mudança, quais artefatos dependem de quais, como mesclar uma delta spec na sua fonte de verdade. É a mesma em todo lugar.
 
-Os slash commands são o **volante**, e cada ferramenta de IA tem um levemente diferente. O Claude Code os chama de comandos. Cursor e Windsurf têm seus próprios formatos. Algumas ferramentas os chamam de skills. Quando você roda `openspec init`, o BR-OpenSpec gera o tipo certo de arquivo para cada ferramenta que você selecionou, de modo que a mesma intenção `/opsx:propose` funcione não importa qual assistente você prefira.
+Os slash commands são o **volante**, e cada ferramenta de IA tem um levemente diferente. O Claude Code os chama de comandos. Cursor e Devin Desktop têm seus próprios formatos. Algumas ferramentas os chamam de skills. Quando você roda `openspec init`, o BR-OpenSpec gera o tipo certo de arquivo para cada ferramenta que você selecionou, de modo que a mesma intenção `/opsx:propose` funcione não importa qual assistente você prefira.
 
 A força desse design: você aprende o fluxo de trabalho uma vez e o carrega entre ferramentas. O trade-off: a sintaxe exata de um comando pode diferir levemente entre ferramentas, que é a próxima seção.
 
 ## Sintaxe de slash command por ferramenta
 
-A intenção é idêntica em todo lugar. A pontuação difere. Use a forma que corresponde ao seu assistente.
+A intenção é idêntica em todo lugar. A grafia segue o arquivo que sua ferramenta carrega.
 
-| Ferramenta | Como você digita |
-|------|-----------------|
-| Claude Code | `/opsx:propose`, `/opsx:apply` |
-| Cursor | `/opsx-propose`, `/opsx-apply` |
-| Windsurf | `/opsx-propose`, `/opsx-apply` |
-| GitHub Copilot (IDE) | `/opsx-propose`, `/opsx-apply` |
-| Codex | estilo skill via `.codex/skills/openspec-*` |
-| Oh My Pi | `/opsx-propose`, `/opsx-apply` |
-| Kimi Code | estilo skill, ex. `/skill:openspec-propose` |
-| Trae | `/opsx-propose`, `/opsx-apply` |
+| Arquivo de comando da sua ferramenta | Como você digita | Ferramentas de exemplo |
+|--------------------------------------|------------------|------------------------|
+| `.../commands/opsx/<id>.*` | `/opsx:propose` | Claude Code, Gemini CLI, Crush |
+| `.../opsx-<id>.*` | `/opsx-propose` | Cursor, GitHub Copilot (IDE), Devin Desktop, Codex (prompts globais) |
+| `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose` | Amazon Q Developer |
+| nenhum — somente skills | `/openspec-propose` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
+| nenhum — Kimi Code | `/skill:openspec-propose` | Kimi Code |
+| skills do Codex | `$openspec-propose` | Codex |
 
-A maioria das ferramentas usa a forma com dois-pontos (`/opsx:propose`) ou a forma com hífen (`/opsx-propose`). Algumas ferramentas expõem o BR-OpenSpec como skills nomeadas em vez de slash commands; para essas, você invoca a skill pelo nome. A lista completa por ferramenta, incluindo exatamente quais arquivos são escritos onde, está em [Ferramentas Suportadas](supported-tools.md).
+O Devin é a única ferramenta que ocupa duas linhas. O Devin Desktop lê
+`.devin/workflows/`, então `/opsx-propose` funciona lá; [o Devin Local não
+lê](https://docs.devin.ai/desktop/devin-local), então nesse agente use a skill
+`/openspec-propose`. As skills que o BR-OpenSpec escreve em `.devin/skills/`
+funcionam nos dois, e é por isso que elas referenciam umas às outras pelo nome
+da skill.
 
-Na dúvida, digite uma barra no chat da sua IA e olhe o autocompletar. Sua ferramenta mostrará a forma que ela espera.
+Todas as ferramentas estão listadas em [Como Invocar](supported-tools.md#como-invocar) — aquela tabela é a autoritativa. Duas linhas não são slash commands de forma alguma: o Amazon Q carrega seus arquivos numa biblioteca de prompts invocada com `@`, e as linhas de skill usam o nome da *skill*, que não é o id do comando (`/opsx:apply` é a skill `openspec-apply-change`).
+
+Na dúvida, leia a linha de "Início rápido" que o `openspec init` imprimiu: ela já usa a forma que suas ferramentas registraram. Digitar uma barra e observar o autocompletar também funciona, para as ferramentas que expõem slash commands.
 
 ## Como os comandos chegaram lá: skills e comandos
 
 Quando você roda `openspec init` (ou `openspec update`), o BR-OpenSpec escreve pequenos arquivos no seu projeto para que sua ferramenta de IA encontre o fluxo de trabalho. Dependendo da sua ferramenta e configurações, esses são **skills**, **comandos**, ou ambos.
 
 - **Skills** vivem em lugares como `.claude/skills/openspec-*/SKILL.md`. São o padrão emergente entre ferramentas: uma pasta de instruções que seu assistente detecta automaticamente.
-- **Comandos** vivem em lugares como `.claude/commands/opsx/<id>.md`. São os arquivos de slash command mais antigos, específicos de cada ferramenta. O Codex não recebe arquivos de comando gerados; use `.codex/skills/openspec-*`.
+- **Comandos** vivem em lugares como `.cursor/commands/opsx-<id>.md` ou `.claude/commands/opsx/<id>.md` — o layout é da ferramenta, e ele decide como você digita o comando. São os arquivos de slash command mais antigos, específicos de cada ferramenta. Os arquivos de comando do Codex vivem no diretório global do Codex (`$CODEX_HOME/prompts/`), não no seu projeto.
 
 Você não precisa se importar com qual deles sua ferramenta usa. Você simplesmente digita o slash command e funciona. Mas saber que esses arquivos existem ajuda quando algo dá errado: se seus comandos somem, geralmente significa que esses arquivos estão faltando ou desatualizados, e `openspec update` os regenera.
 
@@ -103,7 +108,7 @@ Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos exatos por fe
 
 Verificações rápidas, da mais rápida primeiro:
 
-1. **Digite uma barra no chat da sua IA.** Comece digitando `/opsx` e observe as sugestões de autocompletar. Se aparecerem, está tudo certo.
+1. **Digite uma barra no chat da sua IA.** Comece digitando `/opsx` e observe as sugestões de autocompletar. Se aparecerem, está tudo certo. Em uma ferramenta somente de skills (Kimi Code, ForgeCode, Mistral Vibe, Trae ou o alvo `.agents` compartilhado), `/opsx` nunca completa mesmo em uma instalação saudável — tente o nome da skill da tabela acima.
 2. **Procure os arquivos.** Para o Claude Code, verifique que `.claude/skills/` contém pastas `openspec-*`. Outras ferramentas usam seus próprios diretórios ([Ferramentas Suportadas](supported-tools.md) lista todos).
 3. **Rode a configuração de novo.** Da raiz do seu projeto, rode `openspec update`. Isso regenera os arquivos de skill e comando para as ferramentas que você configurou.
 4. **Reinicie seu assistente.** Muitas ferramentas varrem skills e comandos na inicialização, então uma janela nova pode ser o passo que faltava.
