@@ -77,6 +77,22 @@ Commits marcados STABLE pelo helper que na verdade dependem do subsistema stores
 | D25 | Erro factual em LC-7da3f34f §6: `3d0701f8` **não** troca a linha "Salve em `openspec/changes/<nome>/tasks.md`" do onboard — só insere `<capability-path>`; o executor ignora essa instrução |
 | D26 | Dívidas pré-existentes apontadas pelos briefs (adapter `pi.ts` sem `$@` nos corpos PT-BR; chave órfã `INIT_MESSAGES.startFirstChangeWithSkill`; cabeçalhos traduzidos em `ONBOARD_TEMPLATE_MESSAGES`; cauda narrativa legada em `openspec/specs/openspec-conventions/spec.md`; "placeholder TBD" × "A definir" no sync-specs; `.openspec-archive.lock`/`.openspec-move-*` não filtrados por `list`) → **fora de escopo**; registrar em `dev-reports/` no fechamento |
 
+## 3c. Decisões complementares (rodada 2 — `_COMPLETUDE-r2.md`)
+
+| # | Decisão |
+|---|---------|
+| D11' | Emenda a D11: `@inquirer/prompts@^8` exige `@inquirer/core@^12.0.1` (checkbox@^5.2.3 → core@^12); usar **core ^12.0.1** (não ^11) para não recriar cópias duplicadas |
+| D23' | D23 concretizado: (a) guarda de caminho do Lote 0 em `tools-manager.ts`; (b) ferramentas novas entram via `AI_TOOLS` (verificar que `openspec tools --add/--remove` as aceita); (c) árvore `.agents` compartilhada: `tools-manager` reutiliza `resolveSharedSkillWriters` de `shared-skill-target.ts` ao escrever skills — executado no lote D-4 (109f81f1); se a adaptação (c) for grande, registrar follow-up em `dev-reports/` |
+| D24' | Inventário de D24 (Lote G): `README.md` ("Notas de Uso"), `AGENTS.md` ("Reserved English Terms" + seção de env vars: `CI=true` desliga telemetria/version-check, `telemetry.enabled` no config global, `OPENSPEC_NO_COMPLETIONS`), cabeçalho de `src/messages/index.ts`; e frase em `docs/cli.md` (EN+PT) de que mensagens dentro do JSON (`warning`, `status[].message`, `issues[].message`) são PT-BR |
+| D27 | Adapters de comando com rótulo de argumentos: chave única `COMMAND_ADAPTER_MESSAGES.providedArguments(placeholder)` criada em D-3 (59c16a44) e consumida por 15e50d68 (`'$ARGUMENTS'`) e pelo **`fix(pi)`** colateral (`'$@'`, regex `**Entrada**:`/`Nenhuma necessária`) — commit separado no lote D-4, com teste tripwire ponta-a-ponta (template real, não fixture EN) |
+| D28 | Chaves órfãs do catálogo: **não remover** nesta sync (I1: só adicionar); registrar as órfãs (`spaceToToggle`, `removingExistingSchema`, `startFirstChangeWithSkill`…) em `dev-reports/` para limpeza futura. Não duplicar chaves existentes (`CLI_MESSAGES.unknownError`, `PROMPT_MESSAGES.navigate/confirm`) |
+| D29 | `LF-telemetry-notice`/`7276c6c2` dependem do scaffolding de `fd92ccc` (stores, adiado): portar **só o scaffolding** — `export { program }`, `runCli()` e guarda de módulo principal em `src/cli/index.ts`, `bin/openspec.js` chamando `runCli()` — sem o restante de stores |
+| D30 | `LF-ab81a4b4` depende dos tipos `PositionalType`/`PositionalDefinition`/`CommandDefinition.positionals` de `7c3accc` (adiado): portar **só esses tipos** em `completions/types.ts` |
+| D31 | `LE-infra`: aceitar os artefatos fork-only para preservar a dica PT-BR do checkbox após inquirer v8 (`src/prompts/keys-help-tip.ts` + chaves `PROMPT_MESSAGES.*` — reutilizando `navigate`/`confirm` existentes, sem duplicar); higiene opcional do comentário órfão em `release-prepare.yml` |
+| D32 | Lote B usa a **opção B** de LB-e50bd098 §2.1 (`projectRootOverride` em `resolveSchemaForChange`/`resolveTaskFilesForChange`), pré-requisito de `validate --archived` (83be9d11), que deve ignorar `.openspec-archive.lock`/`.openspec-move-*` com teste |
+| D33 | Glossário (complemento a D14): cada seção do catálogo segue sua convenção existente (`CHANGE_MESSAGES` "spec principal" masc.); pluralização no padrão `tarefa(s) incompleta(s)`; `TELEMETRY_MESSAGES.firstRunNotice` cita o comando entre aspas simples; docs PT-BR usam "delta specs"; transcrições de saída da CLI em `docs/cli.md` EN ficam em EN (PT-BR só em `docs/pt-BR/`) |
+| D34 | `LD-109f81f1` foi escrito assumindo `79f1dac6` adiado: com D20, as adaptações F1–F3 caem (Codex é skills-only), F4 (isolar `CODEX_HOME` nos testes) permanece obrigatória — e vale para **todos** os lotes que tocam Codex (D-0, D-1, D-3, D-4); os testes de forma dupla portam verbatim |
+
 ## 4. Sequência de execução (1 commit por tema, PT-BR, Conventional Commits)
 
 ### Lote 0 — Base de segurança de caminhos
