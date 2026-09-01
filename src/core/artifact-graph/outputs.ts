@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import fg from 'fast-glob';
 import { FileSystemUtils } from '../../utils/file-system.js';
+import { ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 
 /**
  * Checks if a path contains glob pattern characters.
@@ -10,16 +11,89 @@ export function isGlobPattern(pattern: string): boolean {
   return pattern.includes('*') || pattern.includes('?') || pattern.includes('[');
 }
 
+export function resolveArtifactOutputPath(changeDir: string, generates: string): string {
+  const outputPath = path.join(changeDir, generates);
+  FileSystemUtils.assertPathWithin(changeDir, outputPath);
+  return outputPath;
+}
+
+function assertGlobDirectoryTraversal(
+  changeDir: string,
+  currentDir: string,
+  directorySegments: string[],
+  segmentIndex = 0,
+  visited = new Set<string>(),
+  canonicalChangeDir = FileSystemUtils.canonicalizeExistingPath(changeDir),
+  ancestors = new Set<string>()
+): void {
+  if (segmentIndex >= directorySegments.length) return;
+  const canonicalDir = FileSystemUtils.canonicalizeExistingPath(currentDir);
+  FileSystemUtils.assertPathWithin(canonicalChangeDir, canonicalDir);
+  const visitKey = `${canonicalDir}\0${segmentIndex}`;
+  if (ancestors.has(visitKey)) {
+    throw new Error(ARTIFACT_GRAPH_MESSAGES.linkedDirectoryCycle(currentDir));
+  }
+  if (visited.has(visitKey)) return;
+  visited.add(visitKey);
+  ancestors.add(visitKey);
+
+  try {
+    const segment = directorySegments[segmentIndex];
+    if (segment === '**') {
+      // `**` pode não consumir diretório algum.
+      assertGlobDirectoryTraversal(
+        changeDir,
+        canonicalDir,
+        directorySegments,
+        segmentIndex + 1,
+        visited,
+        canonicalChangeDir,
+        ancestors
+      );
+    }
+
+    const matches = fg.sync(segment === '**' ? '*' : segment, {
+      cwd: canonicalDir,
+      onlyFiles: false,
+      followSymbolicLinks: false,
+      deep: 1,
+    });
+    for (const match of matches) {
+      const candidate = path.join(canonicalDir, match);
+      try {
+        if (!fs.statSync(candidate).isDirectory()) continue;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw error;
+      }
+      const canonicalCandidate = FileSystemUtils.canonicalizeExistingPath(candidate);
+      FileSystemUtils.assertPathWithin(canonicalChangeDir, canonicalCandidate);
+      assertGlobDirectoryTraversal(
+        changeDir,
+        canonicalCandidate,
+        directorySegments,
+        segment === '**' ? segmentIndex : segmentIndex + 1,
+        visited,
+        canonicalChangeDir,
+        ancestors
+      );
+    }
+  } finally {
+    ancestors.delete(visitKey);
+  }
+}
+
 /**
  * Resolves an artifact's output path(s) to concrete files that currently exist.
  * Returns absolute file paths. Glob matches are sorted for deterministic output.
  */
 export function resolveArtifactOutputs(changeDir: string, generates: string): string[] {
+  const outputPath = resolveArtifactOutputPath(changeDir, generates);
+
   if (!isGlobPattern(generates)) {
-    const fullPath = path.join(changeDir, generates);
     try {
-      return fs.statSync(fullPath).isFile()
-        ? [FileSystemUtils.canonicalizeExistingPath(fullPath)]
+      return fs.statSync(outputPath).isFile()
+        ? [FileSystemUtils.canonicalizeExistingPath(outputPath)]
         : [];
     } catch {
       return [];
@@ -27,9 +101,26 @@ export function resolveArtifactOutputs(changeDir: string, generates: string): st
   }
 
   const normalizedPattern = FileSystemUtils.toPosixPath(generates);
+  assertGlobDirectoryTraversal(
+    changeDir,
+    changeDir,
+    normalizedPattern.split('/').slice(0, -1)
+  );
   const matches = fg
-    .sync(normalizedPattern, { cwd: changeDir, onlyFiles: true, absolute: true })
-    .map((match) => FileSystemUtils.canonicalizeExistingPath(path.normalize(match)));
+    .sync(normalizedPattern, {
+      cwd: changeDir,
+      onlyFiles: true,
+      absolute: true,
+      // Preserva o suporte existente a diretórios de artefato vinculados
+      // (links). Cada match concreto é confinado canonicamente abaixo antes
+      // de ser retornado.
+      followSymbolicLinks: true,
+    })
+    .map((match) => {
+      const normalizedMatch = path.normalize(match);
+      FileSystemUtils.assertPathWithin(changeDir, normalizedMatch);
+      return FileSystemUtils.canonicalizeExistingPath(normalizedMatch);
+    });
 
   return Array.from(new Set(matches)).sort();
 }

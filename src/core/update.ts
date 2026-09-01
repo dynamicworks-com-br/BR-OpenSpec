@@ -25,6 +25,7 @@ import { AI_TOOLS, OPENSPEC_DIR_NAME } from './config.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
+  resolveCommandArtifactPath,
 } from './command-generation/index.js';
 import {
   getToolVersionStatus,
@@ -238,15 +239,20 @@ export class UpdateCommand {
               resolveCommandInvocation(tool.value)
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
+            FileSystemUtils.assertProjectArtifactPath(resolvedProjectPath, skillFile);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
 
-          removedDeselectedSkillCount += await this.removeUnselectedSkillDirs(skillsDir, desiredWorkflows);
+          removedDeselectedSkillCount += await this.removeUnselectedSkillDirs(
+            resolvedProjectPath,
+            skillsDir,
+            desiredWorkflows
+          );
         }
 
         // Delete skill directories if delivery is commands-only
         if (!shouldGenerateSkills) {
-          removedSkillCount += await this.removeSkillDirs(skillsDir);
+          removedSkillCount += await this.removeSkillDirs(resolvedProjectPath, skillsDir);
           // A tool with no command adapter now has zero OpenSpec artifacts;
           // say so, rather than deleting its skills silently and letting
           // tool detection re-suggest an init that would also generate
@@ -263,7 +269,11 @@ export class UpdateCommand {
             const generatedCommands = generateCommands(commandContents, adapter);
 
             for (const cmd of generatedCommands) {
-              const commandFile = path.isAbsolute(cmd.path) ? cmd.path : path.join(resolvedProjectPath, cmd.path);
+              const commandFile = resolveCommandArtifactPath(
+                resolvedProjectPath,
+                adapter,
+                cmd.path
+              );
               await FileSystemUtils.writeFile(commandFile, cmd.fileContent);
             }
 
@@ -380,6 +390,9 @@ export class UpdateCommand {
 
     console.log();
     console.log(chalk.dim(UPDATE_MESSAGES.restartIDE));
+    if (failedTools.length > 0) {
+      throw new Error(UPDATE_MESSAGES.updateFailedFor(failedTools.map((tool) => tool.name).join(', ')));
+    }
   }
 
   /**
@@ -484,7 +497,7 @@ export class UpdateCommand {
    * Removes skill directories for workflows when delivery changed to commands-only.
    * Returns the number of directories removed.
    */
-  private async removeSkillDirs(skillsDir: string): Promise<number> {
+  private async removeSkillDirs(projectPath: string, skillsDir: string): Promise<number> {
     let removed = 0;
 
     for (const workflow of ALL_WORKFLOWS) {
@@ -492,11 +505,11 @@ export class UpdateCommand {
       if (!dirName) continue;
 
       const skillDir = path.join(skillsDir, dirName);
+      if (!fs.existsSync(skillDir)) continue;
+      FileSystemUtils.assertProjectArtifactPath(projectPath, skillDir);
       try {
-        if (fs.existsSync(skillDir)) {
-          await fs.promises.rm(skillDir, { recursive: true, force: true });
-          removed++;
-        }
+        await fs.promises.rm(skillDir, { recursive: true, force: true });
+        removed++;
       } catch {
         // Ignore errors
       }
@@ -510,6 +523,7 @@ export class UpdateCommand {
    * Returns the number of directories removed.
    */
   private async removeUnselectedSkillDirs(
+    projectPath: string,
     skillsDir: string,
     desiredWorkflows: readonly (typeof ALL_WORKFLOWS)[number][]
   ): Promise<number> {
@@ -522,11 +536,11 @@ export class UpdateCommand {
       if (!dirName) continue;
 
       const skillDir = path.join(skillsDir, dirName);
+      if (!fs.existsSync(skillDir)) continue;
+      FileSystemUtils.assertProjectArtifactPath(projectPath, skillDir);
       try {
-        if (fs.existsSync(skillDir)) {
-          await fs.promises.rm(skillDir, { recursive: true, force: true });
-          removed++;
-        }
+        await fs.promises.rm(skillDir, { recursive: true, force: true });
+        removed++;
       } catch {
         // Ignore errors
       }
@@ -550,7 +564,7 @@ export class UpdateCommand {
 
     for (const workflow of ALL_WORKFLOWS) {
       const cmdPath = adapter.getFilePath(workflow);
-      const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
+      const fullPath = resolveCommandArtifactPath(projectPath, adapter, cmdPath);
 
       try {
         if (fs.existsSync(fullPath)) {
@@ -584,7 +598,7 @@ export class UpdateCommand {
     for (const workflow of ALL_WORKFLOWS) {
       if (desiredSet.has(workflow)) continue;
       const cmdPath = adapter.getFilePath(workflow);
-      const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
+      const fullPath = resolveCommandArtifactPath(projectPath, adapter, cmdPath);
 
       try {
         if (fs.existsSync(fullPath)) {
@@ -857,6 +871,7 @@ export class UpdateCommand {
               resolveCommandInvocation(tool.value)
             );
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
+            FileSystemUtils.assertProjectArtifactPath(projectPath, skillFile);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
         }
@@ -868,7 +883,11 @@ export class UpdateCommand {
             const generatedCommands = generateCommands(commandContents, adapter);
 
             for (const cmd of generatedCommands) {
-              const commandFile = path.isAbsolute(cmd.path) ? cmd.path : path.join(projectPath, cmd.path);
+              const commandFile = resolveCommandArtifactPath(
+                projectPath,
+                adapter,
+                cmd.path
+              );
               await FileSystemUtils.writeFile(commandFile, cmd.fileContent);
             }
           }

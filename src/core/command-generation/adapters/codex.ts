@@ -33,6 +33,14 @@ export const codexAdapter: ToolCommandAdapter = {
     return path.join(getCodexHome(), 'prompts', `opsx-${commandId}.md`);
   },
 
+  /**
+   * Os prompts do Codex são globais: a raiz de confiança é `<CODEX_HOME>/prompts`,
+   * nunca o projeto.
+   */
+  getArtifactRoot(): string {
+    return path.join(getCodexHome(), 'prompts');
+  },
+
   formatFile(content: CommandContent): string {
     return `---
 description: ${escapeYamlValue(content.description)}

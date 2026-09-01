@@ -1,15 +1,37 @@
 import { program } from 'commander';
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import path, { join } from 'path';
 import { MarkdownParser } from '../core/parsers/markdown-parser.js';
 import { Validator } from '../core/validation/validator.js';
 import type { Spec } from '../core/schemas/index.js';
 import { isInteractive } from '../utils/interactive.js';
 import { getSpecIds } from '../utils/item-discovery.js';
 import { discoverSpecFiles } from '../utils/spec-discovery.js';
-import { CLI_DESCRIPTIONS, CLI_MESSAGES, SPEC_MESSAGES } from '../messages/index.js';
+import { FileSystemUtils } from '../utils/file-system.js';
+import { CLI_DESCRIPTIONS, CLI_MESSAGES, FILE_SYSTEM_MESSAGES, SPEC_MESSAGES } from '../messages/index.js';
 
 const SPECS_DIR = 'openspec/specs';
+
+function assertSpecPath(specsDir: string, specPath: string): void {
+  const relativePath = path.relative(path.resolve(specsDir), path.resolve(specPath));
+  if (
+    relativePath === '..' ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    throw new Error(FILE_SYSTEM_MESSAGES.pathOutsideAllowedDirectory(specPath));
+  }
+
+  try {
+    // Preserva links de spec.md confinados, inclusive para uma capability irmã.
+    FileSystemUtils.assertPathWithin(specsDir, specPath);
+  } catch {
+    // Um diretório de capability pode ser, de propósito, um symlink de
+    // monorepo. Trate-o como raiz de confiança, mas ainda rejeite um link
+    // que saia dessa capability.
+    FileSystemUtils.assertPathWithin(path.dirname(specPath), specPath);
+  }
+}
 
 interface ShowOptions {
   json?: boolean;
@@ -20,7 +42,8 @@ interface ShowOptions {
   noInteractive?: boolean;
 }
 
-function parseSpecFromFile(specPath: string, specId: string): Spec {
+function parseSpecFromFile(specsDir: string, specPath: string, specId: string): Spec {
+  assertSpecPath(specsDir, specPath);
   const content = readFileSync(specPath, 'utf-8');
   const parser = new MarkdownParser(content);
   return parser.parseSpec(specId);
@@ -61,7 +84,8 @@ function filterSpec(spec: Spec, options: ShowOptions): Spec {
  * Print the raw markdown content for a spec file without any formatting.
  * Raw-first behavior ensures text mode is a passthrough for deterministic output.
  */
-function printSpecTextRaw(specPath: string): void {
+function printSpecTextRaw(specsDir: string, specPath: string): void {
+  assertSpecPath(specsDir, specPath);
   const content = readFileSync(specPath, 'utf-8');
   console.log(content);
 }
@@ -85,6 +109,7 @@ export class SpecCommand {
     }
 
     const specPath = join(this.SPECS_DIR, specId, 'spec.md');
+    assertSpecPath(this.SPECS_DIR, specPath);
     if (!existsSync(specPath)) {
       throw new Error(SPEC_MESSAGES.specNotFound(specId));
     }
@@ -93,7 +118,7 @@ export class SpecCommand {
       if (options.requirements && options.requirement) {
         throw new Error(SPEC_MESSAGES.requirementsAndRequirementConflict);
       }
-      const parsed = parseSpecFromFile(specPath, specId);
+      const parsed = parseSpecFromFile(this.SPECS_DIR, specPath, specId);
       const filtered = filterSpec(parsed, options);
       const output = {
         id: specId,
@@ -106,7 +131,7 @@ export class SpecCommand {
       console.log(JSON.stringify(output, null, 2));
       return;
     }
-    printSpecTextRaw(specPath);
+    printSpecTextRaw(this.SPECS_DIR, specPath);
   }
 }
 
@@ -154,7 +179,8 @@ export function registerSpecCommand(rootProgram: typeof program) {
         const specs = discovered
           .map(({ id, specFile }) => {
             try {
-              const spec = parseSpecFromFile(specFile, id);
+              assertSpecPath(SPECS_DIR, specFile);
+              const spec = parseSpecFromFile(SPECS_DIR, specFile, id);
 
               return {
                 id,
@@ -215,12 +241,14 @@ export function registerSpecCommand(rootProgram: typeof program) {
         }
 
         const specPath = join(SPECS_DIR, specId, 'spec.md');
-        
+        assertSpecPath(SPECS_DIR, specPath);
+
         if (!existsSync(specPath)) {
           throw new Error(SPEC_MESSAGES.specNotFound(specId));
         }
 
         const validator = new Validator(options.strict);
+        assertSpecPath(SPECS_DIR, specPath);
         const report = await validator.validateSpec(specPath);
 
         if (options.json) {

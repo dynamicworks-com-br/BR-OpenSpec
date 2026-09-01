@@ -230,7 +230,11 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
 
       // First check if it's an object structure (guard against null since typeof null === 'object')
       if (typeof raw.rules === 'object' && raw.rules !== null && !Array.isArray(raw.rules)) {
-        const parsedRules: Record<string, string[]> = {};
+        // IDs de artefato não são restritos à convenção de nomes embutida,
+        // então chaves como "constructor" continuam válidas para schemas
+        // customizados. Um mapa sem protótipo preserva essas chaves como
+        // dados sem deixar "__proto__" alterar o protótipo do objeto de lookup.
+        const parsedRules: Record<string, string[]> = Object.create(null);
         let hasValidRules = false;
 
         for (const [artifactId, rules] of Object.entries(raw.rules)) {

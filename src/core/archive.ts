@@ -4,7 +4,7 @@ import { formatLocalDate } from '../utils/date.js';
 import { getTaskProgressForChange, formatTaskStatus } from '../utils/task-progress.js';
 import { Validator } from './validation/validator.js';
 import chalk from 'chalk';
-import { ARCHIVE_MESSAGES, SPECS_APPLY_MESSAGES } from '../messages/index.js';
+import { ARCHIVE_MESSAGES, ID_MESSAGES, SPECS_APPLY_MESSAGES } from '../messages/index.js';
 import {
   findSpecUpdates,
   buildUpdatedSpec,
@@ -14,6 +14,8 @@ import {
 import { discoverSpecFiles, hasAnyFileUnder } from '../utils/spec-discovery.js';
 import { readSkipSpecsMarker } from '../utils/change-metadata.js';
 import { isNonInteractivePromptError } from '../utils/interactive.js';
+import { FileSystemUtils } from '../utils/file-system.js';
+import { folderStyleNameProblem } from './id.js';
 
 type ArchiveOptions = { yes?: boolean; skipSpecs?: boolean; noValidate?: boolean; validate?: boolean };
 
@@ -104,18 +106,40 @@ async function confirmOrBlock(
 }
 
 /**
+ * Recria um link simbólico no destino (sem dereferenciá-lo). No Windows,
+ * links de diretório viram junctions, que exigem alvo absoluto.
+ */
+async function copySymbolicLink(src: string, dest: string): Promise<void> {
+  const target = await fs.readlink(src);
+  const isWindowsDirectoryLink =
+    process.platform === 'win32' && (await fs.stat(src)).isDirectory();
+  const destinationTarget =
+    isWindowsDirectoryLink && !path.isAbsolute(target)
+      ? path.resolve(path.dirname(src), target)
+      : target;
+  await fs.symlink(destinationTarget, dest, isWindowsDirectoryLink ? 'junction' : undefined);
+}
+
+/**
  * Recursively copy a directory. Used when fs.rename fails (e.g. EPERM on Windows).
  */
 async function copyDirRecursive(src: string, dest: string): Promise<void> {
-  await fs.mkdir(dest, { recursive: true });
+  // Todo destino é novo: a criação exclusiva do diretório impede que um
+  // symlink introduzido depois da checagem do alvo do arquivamento redirecione
+  // o fallback entre dispositivos para fora do archive.
+  await fs.mkdir(dest);
   const entries = await fs.readdir(src, { withFileTypes: true });
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) {
       await copyDirRecursive(srcPath, destPath);
-    } else {
+    } else if (entry.isSymbolicLink()) {
+      await copySymbolicLink(srcPath, destPath);
+    } else if (entry.isFile()) {
       await fs.copyFile(srcPath, destPath);
+    } else {
+      throw new Error(ARCHIVE_MESSAGES.unsupportedFilesystemEntry(srcPath));
     }
   }
 }
@@ -132,8 +156,16 @@ async function moveDirectory(src: string, dest: string): Promise<void> {
   } catch (err: any) {
     const code = err?.code;
     if (code === 'EPERM' || code === 'EXDEV') {
-      await copyDirRecursive(src, dest);
-      await fs.rm(src, { recursive: true, force: true });
+      const sourceStat = await fs.lstat(src);
+      if (sourceStat.isSymbolicLink()) {
+        // Uma change que é ela mesma um link é movida como link.
+        await fs.mkdir(path.dirname(dest), { recursive: true });
+        await copySymbolicLink(src, dest);
+        await fs.unlink(src);
+      } else {
+        await copyDirRecursive(src, dest);
+        await fs.rm(src, { recursive: true, force: true });
+      }
     } else {
       throw err;
     }
@@ -164,6 +196,21 @@ export class ArchiveCommand {
       throw new Error(ARCHIVE_MESSAGES.noChangesDir);
     }
 
+    // As raízes gerenciadas precisam ficar dentro da raiz do projeto — um
+    // changes/, archive/ ou specs/ vinculado para fora é recusado antes de
+    // qualquer movimentação.
+    for (const [allowedDirectory, managedDir] of [
+      [targetPath, changesDir],
+      [changesDir, archiveDir],
+      [targetPath, mainSpecsDir],
+    ] as const) {
+      try {
+        FileSystemUtils.assertPathWithin(allowedDirectory, managedDir);
+      } catch {
+        throw new Error(ARCHIVE_MESSAGES.pathOutsideRoot(managedDir));
+      }
+    }
+
     // Get change name interactively if not provided
     if (!changeName) {
       const selectedChange = await this.selectChange(changesDir, options);
@@ -172,6 +219,11 @@ export class ArchiveCommand {
         return;
       }
       changeName = selectedChange;
+    }
+
+    const changeNameProblem = folderStyleNameProblem(changeName, ID_MESSAGES.changeNameLabel);
+    if (changeNameProblem) {
+      throw new Error(changeNameProblem);
     }
 
     const changeDir = path.join(changesDir, changeName);

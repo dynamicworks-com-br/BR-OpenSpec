@@ -15,6 +15,7 @@ import { AI_TOOLS, type AIToolOption } from './config.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
+  resolveCommandArtifactPath,
 } from './command-generation/index.js';
 import {
   resolveCommandInvocation,
@@ -64,7 +65,10 @@ const WORKFLOW_TO_SKILL_DIR: Record<string, string> = {
  *
  * @returns Number of directories removed
  */
-export async function removeOpenSpecSkillDirs(skillsDir: string): Promise<number> {
+export async function removeOpenSpecSkillDirs(
+  projectPath: string,
+  skillsDir: string
+): Promise<number> {
   let removed = 0;
 
   for (const workflow of ALL_WORKFLOWS) {
@@ -72,11 +76,13 @@ export async function removeOpenSpecSkillDirs(skillsDir: string): Promise<number
     if (!dirName) continue;
 
     const skillDir = path.join(skillsDir, dirName);
+    if (!fs.existsSync(skillDir)) continue;
+    // Nunca apaga através de um diretório de ferramenta vinculado para fora
+    // do projeto (mesma guarda de init/update).
+    FileSystemUtils.assertProjectArtifactPath(projectPath, skillDir);
     try {
-      if (fs.existsSync(skillDir)) {
-        await fs.promises.rm(skillDir, { recursive: true, force: true });
-        removed++;
-      }
+      await fs.promises.rm(skillDir, { recursive: true, force: true });
+      removed++;
     } catch {
       // Ignore individual errors
     }
@@ -102,9 +108,7 @@ export async function removeOpenSpecCommandFiles(
 
   for (const workflow of ALL_WORKFLOWS) {
     const cmdPath = adapter.getFilePath(workflow);
-    const fullPath = path.isAbsolute(cmdPath)
-      ? cmdPath
-      : path.join(projectPath, cmdPath);
+    const fullPath = resolveCommandArtifactPath(projectPath, adapter, cmdPath);
 
     try {
       if (fs.existsSync(fullPath)) {
@@ -159,6 +163,7 @@ export async function addTool(
         resolveCommandInvocation(tool.value)
       );
       const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
+      FileSystemUtils.assertProjectArtifactPath(projectPath, skillFile);
       await FileSystemUtils.writeFile(skillFile, skillContent);
     }
   }
@@ -171,9 +176,7 @@ export async function addTool(
       const generatedCommands = generateCommands(commandContents, adapter);
 
       for (const cmd of generatedCommands) {
-        const commandFile = path.isAbsolute(cmd.path)
-          ? cmd.path
-          : path.join(projectPath, cmd.path);
+        const commandFile = resolveCommandArtifactPath(projectPath, adapter, cmd.path);
         await FileSystemUtils.writeFile(commandFile, cmd.fileContent);
       }
     }
@@ -196,7 +199,7 @@ export async function removeTool(
   }
 
   const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
-  const removedSkillCount = await removeOpenSpecSkillDirs(skillsDir);
+  const removedSkillCount = await removeOpenSpecSkillDirs(projectPath, skillsDir);
   const removedCommandCount = await removeOpenSpecCommandFiles(projectPath, tool.value);
 
   return { removedSkillCount, removedCommandCount };

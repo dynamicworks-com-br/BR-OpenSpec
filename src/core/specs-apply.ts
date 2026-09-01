@@ -21,7 +21,8 @@ import { buildCodeFenceMask } from './parsers/code-fence.js';
 import { MarkdownParser } from './parsers/markdown-parser.js';
 import { MIN_PURPOSE_LENGTH } from './validation/constants.js';
 import { discoverSpecFiles } from '../utils/spec-discovery.js';
-import { SPECS_APPLY_MESSAGES } from '../messages/index.js';
+import { FileSystemUtils } from '../utils/file-system.js';
+import { FILE_SYSTEM_MESSAGES, SPECS_APPLY_MESSAGES } from '../messages/index.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -30,9 +31,61 @@ import { SPECS_APPLY_MESSAGES } from '../messages/index.js';
 export interface SpecUpdate {
   /** Capability id relative to the specs root, forward-slash separated (e.g. "web" or "platform/session-layout"). */
   id: string;
+  /** Raiz permitida para a fonte do delta. */
+  sourceRoot: string;
   source: string;
+  /** Raiz permitida para o alvo (spec principal). */
+  targetRoot: string;
   target: string;
   exists: boolean;
+}
+
+function isLexicallyWithin(allowedDirectory: string, targetPath: string): boolean {
+  const relative = path.relative(path.resolve(allowedDirectory), path.resolve(targetPath));
+  return (
+    relative === '' ||
+    (relative !== '..' &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative))
+  );
+}
+
+function resolveTrustedSpecPath(specsRoot: string, specPath: string): {
+  root: string;
+  file: string;
+} {
+  if (!isLexicallyWithin(specsRoot, specPath)) {
+    throw new Error(FILE_SYSTEM_MESSAGES.pathOutsideAllowedDirectory(specPath));
+  }
+
+  try {
+    // Preserva links de spec.md que permanecem dentro da árvore de specs.
+    FileSystemUtils.assertPathWithin(specsRoot, specPath);
+    const root = FileSystemUtils.canonicalizeExistingPath(specsRoot);
+    return {
+      root,
+      // Rebaseia na raiz canônica para que alvos ainda inexistentes também
+      // funcionem quando o projeto é alcançado por um alias de caminho do SO
+      // (por exemplo /var no macOS).
+      file: path.join(root, path.relative(path.resolve(specsRoot), path.resolve(specPath))),
+    };
+  } catch {
+    // Diretórios de capability diretos podem ser, de propósito, symlinks de
+    // monorepo. Congele sua localização canônica como raiz de confiança para
+    // que trocas posteriores sejam rejeitadas, enquanto um link de spec.md
+    // aninhado continua sem poder escapar.
+    const root = FileSystemUtils.canonicalizeExistingPath(path.dirname(specPath));
+    const file = path.join(root, path.basename(specPath));
+    FileSystemUtils.assertPathWithin(root, file);
+    return { root, file };
+  }
+}
+
+function assertTrustedSpecPath(root: string, specPath: string): void {
+  if (FileSystemUtils.canonicalizeExistingPath(root) !== path.resolve(root)) {
+    throw new Error(FILE_SYSTEM_MESSAGES.pathOutsideAllowedDirectory(specPath));
+  }
+  FileSystemUtils.assertPathWithin(root, specPath);
 }
 
 // -----------------------------------------------------------------------------
@@ -53,11 +106,13 @@ export async function findSpecUpdates(changeDir: string, mainSpecsDir: string): 
 
   for (const { id, specFile } of discovered) {
     const targetFile = path.join(mainSpecsDir, ...id.split('/'), 'spec.md');
+    const source = resolveTrustedSpecPath(changeSpecsDir, specFile);
+    const target = resolveTrustedSpecPath(mainSpecsDir, targetFile);
 
     // Check if target exists
     let exists = false;
     try {
-      await fs.access(targetFile);
+      await fs.access(target.file);
       exists = true;
     } catch {
       exists = false;
@@ -65,8 +120,10 @@ export async function findSpecUpdates(changeDir: string, mainSpecsDir: string): 
 
     updates.push({
       id,
-      source: specFile,
-      target: targetFile,
+      sourceRoot: source.root,
+      source: source.file,
+      targetRoot: target.root,
+      target: target.file,
       exists,
     });
   }
@@ -97,6 +154,7 @@ export async function buildUpdatedSpec(
     }
   };
   // Read change spec content (delta-format expected)
+  assertTrustedSpecPath(update.sourceRoot, update.source);
   const changeContent = await fs.readFile(update.source, 'utf-8');
 
   // Parse deltas from the change spec file
@@ -213,6 +271,7 @@ export async function buildUpdatedSpec(
   const deltaPurpose = extractPurposeSection(changeContent);
   let targetContent: string;
   let isNewSpec = false;
+  assertTrustedSpecPath(update.targetRoot, update.target);
   try {
     targetContent = await fs.readFile(update.target, 'utf-8');
     // Um Purpose do delta só semeia um spec que ainda não existe. Diga isso em
@@ -510,6 +569,8 @@ export async function writeUpdatedSpec(
   rebuilt: string,
   counts: { added: number; modified: number; removed: number; renamed: number }
 ): Promise<void> {
+  assertTrustedSpecPath(update.targetRoot, update.target);
+
   // Create target directory if needed
   const targetDir = path.dirname(update.target);
   await fs.mkdir(targetDir, { recursive: true });

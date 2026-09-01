@@ -29,5 +29,8 @@ export { CommandAdapterRegistry } from './registry.js';
 // Generator functions
 export { generateCommand, generateCommands } from './generator.js';
 
+// Confinamento de caminhos de comando (extensão do fork para o Codex global)
+export { resolveCommandArtifactPath } from './artifact-path.js';
+
 // Adapters (for direct access if needed)
 export { claudeAdapter, cursorAdapter, devinAdapter } from './adapters/index.js';

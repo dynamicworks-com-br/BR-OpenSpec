@@ -13,6 +13,7 @@ import {
 } from '../core/artifact-graph/resolver.js';
 import { parseSchema, SchemaValidationError } from '../core/artifact-graph/schema.js';
 import type { SchemaYaml, Artifact } from '../core/artifact-graph/types.js';
+import { FileSystemUtils } from '../utils/file-system.js';
 import { SCHEMA_MESSAGES, CLI_MESSAGES, CONFIG_MESSAGES } from '../messages/index.js';
 
 /**
@@ -197,21 +198,30 @@ function validateSchema(
     return { valid: false, issues };
   }
 
-  // Check template files exist
-  // Templates can be in schemaDir directly or in a templates/ subdirectory
+  // Verifica que os templates existem no mesmo diretório usado em runtime.
   if (verbose) {
     console.log(SCHEMA_MESSAGES.checkingTemplateFiles);
   }
   for (const artifact of schema.artifacts) {
-    // Try templates subdirectory first (standard location), then root
-    const templatePathInTemplates = path.join(schemaDir, 'templates', artifact.template);
-    const templatePathInRoot = path.join(schemaDir, artifact.template);
+    const templatesDir = path.join(schemaDir, 'templates');
+    const existingTemplatePath = path.join(templatesDir, artifact.template);
 
-    if (!fs.existsSync(templatePathInTemplates) && !fs.existsSync(templatePathInRoot)) {
+    if (!fs.existsSync(existingTemplatePath)) {
       issues.push({
         level: 'error',
         path: `artifacts.${artifact.id}.template`,
         message: SCHEMA_MESSAGES.templateNotFound(artifact.template, artifact.id),
+      });
+      continue;
+    }
+
+    try {
+      FileSystemUtils.assertPathWithin(templatesDir, existingTemplatePath);
+    } catch {
+      issues.push({
+        level: 'error',
+        path: `artifacts.${artifact.id}.template`,
+        message: SCHEMA_MESSAGES.templateOutsideTemplatesDir(artifact.template),
       });
     }
   }
@@ -233,21 +243,86 @@ function isValidSchemaName(name: string): boolean {
 }
 
 /**
+ * Resolve o caminho canônico de uma entrada do esquema, garantindo que ela
+ * permaneça dentro da raiz permitida (links confinados são aceitos).
+ */
+function resolveSchemaCopyPath(allowedRoot: string, sourcePath: string): string {
+  try {
+    const canonicalRoot = fs.realpathSync(allowedRoot);
+    const canonicalPath = fs.realpathSync(sourcePath);
+    FileSystemUtils.assertPathWithin(canonicalRoot, canonicalPath);
+    return canonicalPath;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(SCHEMA_MESSAGES.cannotForkLinkedEntry(sourcePath, detail), { cause: error });
+  }
+}
+
+/**
  * Copy a directory recursively.
  */
-function copyDirRecursive(src: string, dest: string): void {
+function copyDirRecursive(
+  src: string,
+  dest: string,
+  allowedRoot = src,
+  ancestors = new Set<string>()
+): void {
+  const canonicalSrc = resolveSchemaCopyPath(allowedRoot, src);
+  if (ancestors.has(canonicalSrc)) {
+    throw new Error(SCHEMA_MESSAGES.cannotForkLinkedCycle(src));
+  }
+  ancestors.add(canonicalSrc);
   fs.mkdirSync(dest, { recursive: true });
 
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+  try {
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      const canonicalEntry = resolveSchemaCopyPath(allowedRoot, srcPath);
+      const stats = fs.statSync(canonicalEntry);
 
-    if (entry.isDirectory()) {
-      copyDirRecursive(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
+      if (stats.isDirectory()) {
+        copyDirRecursive(canonicalEntry, destPath, allowedRoot, ancestors);
+      } else if (stats.isFile()) {
+        // Dereferencia links confinados para que a cópia seja um esquema independente.
+        fs.copyFileSync(canonicalEntry, destPath);
+      } else {
+        throw new Error(SCHEMA_MESSAGES.cannotForkLinkedEntry(srcPath));
+      }
     }
+  } finally {
+    ancestors.delete(canonicalSrc);
+  }
+}
+
+/**
+ * Verifica a árvore do esquema inteira antes de substituir ou criar o destino da cópia.
+ */
+function assertSchemaTreeCanBeCopied(
+  src: string,
+  allowedRoot = src,
+  ancestors = new Set<string>()
+): void {
+  const canonicalSrc = resolveSchemaCopyPath(allowedRoot, src);
+  if (ancestors.has(canonicalSrc)) {
+    throw new Error(SCHEMA_MESSAGES.cannotForkLinkedCycle(src));
+  }
+  ancestors.add(canonicalSrc);
+
+  try {
+    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+      const entryPath = path.join(src, entry.name);
+      const canonicalEntry = resolveSchemaCopyPath(allowedRoot, entryPath);
+      const stats = fs.statSync(canonicalEntry);
+      if (stats.isDirectory()) {
+        assertSchemaTreeCanBeCopied(canonicalEntry, allowedRoot, ancestors);
+      } else if (!stats.isFile()) {
+        throw new Error(SCHEMA_MESSAGES.cannotForkLinkedEntry(entryPath));
+      }
+    }
+  } finally {
+    ancestors.delete(canonicalSrc);
   }
 }
 
@@ -481,10 +556,10 @@ export function registerSchemaCommand(program: Command): void {
                 console.log(SCHEMA_MESSAGES.issueLine(issue.level, issue.message));
               }
             }
+          }
 
-            if (anyInvalid) {
-              process.exitCode = 1;
-            }
+          if (anyInvalid) {
+            process.exitCode = 1;
           }
           return;
         }
@@ -529,8 +604,10 @@ export function registerSchemaCommand(program: Command): void {
             for (const issue of result.issues) {
               console.log(SCHEMA_MESSAGES.issueLine(issue.level, issue.message));
             }
-            process.exitCode = 1;
           }
+        }
+        if (!result.valid) {
+          process.exitCode = 1;
         }
       } catch (error) {
         if (options?.json) {
@@ -595,6 +672,10 @@ export function registerSchemaCommand(program: Command): void {
         const sourceResolution = getSchemaResolution(source, projectRoot);
         const sourceLocation = sourceResolution?.source || 'package';
 
+        // Valida a origem completa antes que uma cópia forçada remova qualquer coisa.
+        const trustedSourceDir = fs.realpathSync(sourceDir);
+        assertSchemaTreeCanBeCopied(trustedSourceDir);
+
         // Check destination
         const destinationDir = path.join(getProjectSchemasDir(projectRoot), destinationName);
 
@@ -621,7 +702,7 @@ export function registerSchemaCommand(program: Command): void {
 
         // Copy schema
         if (spinner) spinner.start(SCHEMA_MESSAGES.forkingSchema(source, destinationName));
-        copyDirRecursive(sourceDir, destinationDir);
+        copyDirRecursive(trustedSourceDir, destinationDir);
 
         // Update name in schema.yaml
         const destSchemaPath = path.join(destinationDir, 'schema.yaml');

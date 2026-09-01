@@ -40,6 +40,13 @@ export interface ToolCommandAdapter {
    */
   getFilePath(commandId: string): string;
   /**
+   * Raiz global de confiança para ferramentas cujos comandos vivem fora do
+   * projeto (ex.: Codex escreve em `<CODEX_HOME>/prompts/`). Quando definida,
+   * caminhos absolutos retornados por `getFilePath` são confinados a ela;
+   * sem ela, um caminho absoluto é recusado como artefato fora do projeto.
+   */
+  getArtifactRoot?(): string;
+  /**
    * What the user types before the command name, when it is not the default
    * `/`. Amazon Q loads these files into its prompt library, which is invoked
    * with `@` (`@opsx-propose`), so its adapter sets '@'. The name itself is

@@ -34,6 +34,7 @@ import { serializeConfig } from './config-prompts.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
+  resolveCommandArtifactPath,
 } from './command-generation/index.js';
 import {
   removeOpenSpecSkillDirs,
@@ -178,6 +179,11 @@ export class InitCommand {
 
     // Display success message
     this.displaySuccessMessage(projectPath, validatedTools, results, configStatus);
+    if (results.failedTools.length > 0) {
+      throw new Error(
+        INIT_MESSAGES.setupFailedFor(results.failedTools.map((tool) => tool.name).join(', '))
+      );
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -501,6 +507,7 @@ export class InitCommand {
       ];
 
       for (const dir of directories) {
+        FileSystemUtils.assertProjectArtifactPath(path.dirname(openspecPath), dir);
         await FileSystemUtils.createDirectory(dir);
       }
       return;
@@ -516,6 +523,7 @@ export class InitCommand {
     ];
 
     for (const dir of directories) {
+      FileSystemUtils.assertProjectArtifactPath(path.dirname(openspecPath), dir);
       await FileSystemUtils.createDirectory(dir);
     }
 
@@ -584,12 +592,13 @@ export class InitCommand {
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
 
             // Write the skill file
+            FileSystemUtils.assertProjectArtifactPath(projectPath, skillFile);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
         }
         if (!shouldGenerateSkills) {
           const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
-          removedSkillCount += await this.removeSkillDirs(skillsDir);
+          removedSkillCount += await this.removeSkillDirs(projectPath, skillsDir);
         }
 
         // Generate commands if delivery includes commands
@@ -599,7 +608,7 @@ export class InitCommand {
             const generatedCommands = generateCommands(commandContents, adapter);
 
             for (const cmd of generatedCommands) {
-              const commandFile = path.isAbsolute(cmd.path) ? cmd.path : path.join(projectPath, cmd.path);
+              const commandFile = resolveCommandArtifactPath(projectPath, adapter, cmd.path);
               await FileSystemUtils.writeFile(commandFile, cmd.fileContent);
             }
           } else {
@@ -654,6 +663,7 @@ export class InitCommand {
 
     try {
       const yamlContent = serializeConfig({ schema: DEFAULT_SCHEMA });
+      FileSystemUtils.assertProjectArtifactPath(path.dirname(openspecPath), configPath);
       await FileSystemUtils.writeFile(configPath, yamlContent);
       return 'created';
     } catch {
@@ -679,7 +689,13 @@ export class InitCommand {
     configStatus: 'created' | 'exists' | 'skipped'
   ): void {
     console.log();
-    console.log(chalk.bold(INIT_MESSAGES.setupCompleteTitle));
+    console.log(
+      chalk.bold(
+        results.failedTools.length > 0
+          ? INIT_MESSAGES.setupIncompleteTitle
+          : INIT_MESSAGES.setupCompleteTitle
+      )
+    );
     console.log();
 
     // Show created vs refreshed tools
@@ -846,8 +862,8 @@ export class InitCommand {
     }).start();
   }
 
-  private async removeSkillDirs(skillsDir: string): Promise<number> {
-    return removeOpenSpecSkillDirs(skillsDir);
+  private async removeSkillDirs(projectPath: string, skillsDir: string): Promise<number> {
+    return removeOpenSpecSkillDirs(projectPath, skillsDir);
   }
 
   private async removeCommandFiles(projectPath: string, toolId: string): Promise<number> {

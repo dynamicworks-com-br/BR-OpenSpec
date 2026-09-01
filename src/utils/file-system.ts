@@ -105,6 +105,89 @@ export class FileSystemUtils {
     }
   }
 
+  /**
+   * Recusa um alvo que sai do diretório permitido, inclusive através de um
+   * link simbólico existente no próprio alvo ou em um de seus diretórios pais.
+   * Sufixos ainda inexistentes são resolvidos a partir do ancestral existente
+   * mais próximo.
+   */
+  static assertPathWithin(allowedDirectory: string, targetPath: string): void {
+    const resolvedDirectory = path.resolve(allowedDirectory);
+    const resolvedTarget = path.resolve(targetPath);
+
+    if (!this.isPathWithin(resolvedDirectory, resolvedTarget)) {
+      throw new Error(FILE_SYSTEM_MESSAGES.pathOutsideAllowedDirectory(targetPath));
+    }
+
+    const canonicalDirectory = this.canonicalizePotentialPath(resolvedDirectory);
+    const canonicalTarget = this.canonicalizePotentialPath(resolvedTarget);
+    if (!this.isPathWithin(canonicalDirectory, canonicalTarget)) {
+      throw new Error(FILE_SYSTEM_MESSAGES.pathOutsideAllowedDirectory(targetPath));
+    }
+  }
+
+  static resolveProjectArtifactPath(projectPath: string, artifactPath: string): string {
+    if (path.isAbsolute(artifactPath)) {
+      throw new Error(FILE_SYSTEM_MESSAGES.refusingArtifactOutsideProject(artifactPath));
+    }
+
+    const targetPath = path.join(projectPath, artifactPath);
+    this.assertPathWithin(projectPath, targetPath);
+    return targetPath;
+  }
+
+  static assertProjectArtifactPath(projectPath: string, targetPath: string): void {
+    this.assertPathWithin(projectPath, targetPath);
+  }
+
+  private static isPathWithin(allowedDirectory: string, targetPath: string): boolean {
+    const relative = path.relative(allowedDirectory, targetPath);
+    return (
+      relative === '' ||
+      (relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative))
+    );
+  }
+
+  private static canonicalizePotentialPath(targetPath: string): string {
+    let existingPath = targetPath;
+    const missingSegments: string[] = [];
+
+    while (true) {
+      try {
+        // lstat distingue um caminho inexistente de um link simbólico pendente.
+        // Um link pendente não pode ser provado confinado, então o realpath
+        // precisa falhar nele.
+        nodeFs.lstatSync(existingPath);
+        const canonicalExisting = nodeFs.realpathSync.native(existingPath);
+        return path.resolve(canonicalExisting, ...missingSegments);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT') {
+          throw error;
+        }
+
+        try {
+          if (nodeFs.lstatSync(existingPath).isSymbolicLink()) {
+            throw new Error(FILE_SYSTEM_MESSAGES.danglingSymbolicLink(existingPath));
+          }
+        } catch (lstatError) {
+          if ((lstatError as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw lstatError;
+          }
+        }
+
+        const parent = path.dirname(existingPath);
+        if (parent === existingPath) {
+          throw new Error(FILE_SYSTEM_MESSAGES.noExistingParent(targetPath));
+        }
+        missingSegments.unshift(path.basename(existingPath));
+        existingPath = parent;
+      }
+    }
+  }
+
   private static isWindowsBasePath(basePath: string): boolean {
     return /^[A-Za-z]:[\\/]/.test(basePath) || basePath.startsWith('\\');
   }

@@ -396,6 +396,9 @@ export const ARCHIVE_MESSAGES = {
     `Atualizar ${count} especificação(ões) requer confirmação, e não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
   blockedChangeNameRequired: (rerun: string) =>
     `Um nome de alteração é obrigatório: não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
+  // Limites de caminho (raízes gerenciadas e fallback copy-then-remove)
+  unsupportedFilesystemEntry: (srcPath: string) => `Não é possível arquivar uma entrada de sistema de arquivos não suportada: ${srcPath}`,
+  pathOutsideRoot: (managedDir: string) => `Recusando arquivar por um caminho fora da raiz do BR-OpenSpec: ${managedDir}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -434,6 +437,9 @@ export const INIT_MESSAGES = {
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   setupFailed: (name: string) => `Falha na configuração de ${name}`,
   setupCompleteTitle: 'Configuração do BR-OpenSpec Concluída',
+  setupIncompleteTitle: 'Configuração do BR-OpenSpec Incompleta',
+  // Lançado após o resumo quando alguma ferramenta falhou (exit ≠ 0 para automação).
+  setupFailedFor: (names: string) => `A configuração do BR-OpenSpec falhou para: ${names}`,
   created: (names: string) => `Criados: ${names}`,
   refreshed: (names: string) => `Atualizados: ${names}`,
   failed: (errors: string) => `Falhas: ${errors}`,
@@ -688,6 +694,11 @@ export const SCHEMA_MESSAGES = {
   validatingSchemaStructure: '  Validando estrutura do esquema...',
   checkingTemplateFiles: '  Verificando arquivos de template...',
   dependencyGraphPassed: '  Validação do grafo de dependências passou (via parseSchema)',
+  // Limites de caminho (schema validate / schema fork)
+  templateOutsideTemplatesDir: (template: string) => `Arquivo de template '${template}' aponta para fora do diretório de templates do esquema`,
+  cannotForkLinkedEntry: (entryPath: string, detail?: string) =>
+    `Não é possível copiar o esquema com uma entrada vinculada (link) ou não suportada: ${entryPath}${detail ? `: ${detail}` : ''}`,
+  cannotForkLinkedCycle: (entryPath: string) => `Não é possível copiar o esquema com um ciclo de diretórios vinculados (links): ${entryPath}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -929,6 +940,8 @@ export const UPDATE_MESSAGES = {
   failedToUpdate: (name: string) => `Falha ao atualizar ${name}`,
   updated: (tools: string, version: string) => `✓ Atualizados: ${tools} (v${version})`,
   failed: (errors: string) => `✗ Falhas: ${errors}`,
+  // Lançado após o resumo quando alguma ferramenta falhou (exit ≠ 0 para automação).
+  updateFailedFor: (names: string) => `A atualização do BR-OpenSpec falhou para: ${names}`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
   removedSkills: (count: number) => `Removidos: ${count} diretórios de skill (entrega: commands)`,
   noSkillsOrCommandsRemain: (names: string, singular: boolean) =>
@@ -1013,6 +1026,12 @@ export const FILE_SYSTEM_MESSAGES = {
   unableToDetermineWritePermissions: (filePath: string, error: string) => `Não foi possível determinar permissões de escrita para ${filePath}: ${error}`,
   insufficientPermissions: (dirPath: string, error: string) => `Permissões insuficientes para escrever em ${dirPath}: ${error}`,
   couldNotCleanUpTestFile: (filePath: string, error: string) => `Não foi possível limpar arquivo de teste ${filePath}: ${error}`,
+  // Guarda de limites de caminho (assertPathWithin & cia.): um alvo que sai do
+  // diretório permitido — lexicalmente ou via link simbólico — é recusado.
+  pathOutsideAllowedDirectory: (targetPath: string) => `O caminho está fora do diretório permitido: ${targetPath}`,
+  refusingArtifactOutsideProject: (artifactPath: string) => `Recusando gerenciar um artefato fora do projeto: ${artifactPath}`,
+  danglingSymbolicLink: (existingPath: string) => `Não foi possível verificar um link simbólico pendente (dangling): ${existingPath}`,
+  noExistingParent: (targetPath: string) => `Não foi possível resolver um diretório pai existente para ${targetPath}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1146,6 +1165,8 @@ export const WORKFLOW_MESSAGES = {
   loadingTemplates: 'Carregando templates...',
   schemaLabel3: (name: string) => `Esquema: ${name}`,
   sourceLabel: (source: string) => `Fonte: ${source}`,
+  templateOutsideTemplatesDir: (template: string, artifactId: string) =>
+    `Template '${template}' do artefato '${artifactId}' aponta para fora do diretório de templates do esquema`,
 };
 
 
@@ -2516,6 +2537,12 @@ export const ARTIFACT_GRAPH_MESSAGES = {
   cyclicDependency: (cycle: string) => `Dependência cíclica detectada: ${cycle}`,
   templateNotFound: (path: string) => `Template não encontrado: ${path}`,
   failedToReadTemplate: (error: string) => `Falha ao ler template: ${error}`,
+  linkedDirectoryCycle: (currentDir: string) =>
+    `Não é possível resolver as saídas do artefato por um ciclo de diretórios vinculados (links): ${currentDir}`,
+  // Mensagens Zod de schema.yaml: o nome técnico do campo (generates, template,
+  // apply.tracks) fica como está para casar com o YAML do usuário.
+  fieldRequired: (field: string) => `O campo ${field} é obrigatório`,
+  fieldMustBeRelativePath: (field: string) => `O campo ${field} deve ser um caminho relativo dentro do diretório permitido`,
   artifactNotFound: (artifactId: string, schemaName: string) =>
     `Artefato '${artifactId}' não encontrado no schema '${schemaName}'`,
   // Aviso anexado às instruções de um artefato ignorado via skip_specs.
@@ -2560,6 +2587,18 @@ export const CHANGE_UTILS_MESSAGES = {
   nameNoConsecutiveHyphens: 'O nome da alteração não pode conter hífens consecutivos',
   nameOnlyAllowedChars: 'O nome da alteração pode conter apenas letras minúsculas, números e hífens',
   nameKebabCase: 'O nome da alteração deve seguir a convenção kebab-case (ex: add-auth, refactor-db)',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Identificadores (src/core/id.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const ID_MESSAGES = {
+  mustNotBeEmpty: (label: string) => `${label} não pode estar vazio`,
+  mustNotBe: (label: string, value: string) => `${label} não pode ser '${value}'`,
+  mustNotContainPathSeparators: (label: string) => `${label} não pode conter separadores de caminho`,
+  // Rótulo passado a folderStyleNameProblem pelo archive.
+  changeNameLabel: 'O nome da alteração',
 };
 
 // ═══════════════════════════════════════════════════════════

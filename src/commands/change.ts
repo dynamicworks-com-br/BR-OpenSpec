@@ -8,6 +8,7 @@ import { Change } from '../core/schemas/index.js';
 import { isInteractive } from '../utils/interactive.js';
 import { getActiveChangeIds } from '../utils/item-discovery.js';
 import { getTaskProgressForChange } from '../utils/task-progress.js';
+import { FileSystemUtils } from '../utils/file-system.js';
 import { CHANGE_MESSAGES } from '../messages/index.js';
 
 /**
@@ -95,8 +96,10 @@ export class ChangeCommand {
       }
       throw new Error(CHANGE_MESSAGES.changeNotFound(changeName, proposalPath));
     }
+    FileSystemUtils.assertPathWithin(path.dirname(proposalPath), proposalPath);
 
     if (options?.json) {
+      FileSystemUtils.assertPathWithin(changeDir, proposalPath);
       const jsonOutput = await this.converter.convertChangeToJson(proposalPath);
 
       if (options.requirementsOnly) {
@@ -104,6 +107,7 @@ export class ChangeCommand {
       }
 
       const parsed: Change = JSON.parse(jsonOutput);
+      FileSystemUtils.assertPathWithin(changeDir, proposalPath);
       const contentForTitle = await fs.readFile(proposalPath, 'utf-8');
       const title = this.extractTitle(contentForTitle, changeName);
       const id = parsed.name;
@@ -122,6 +126,7 @@ export class ChangeCommand {
         console.log(JSON.stringify(output, null, 2));
       }
     } else {
+      FileSystemUtils.assertPathWithin(changeDir, proposalPath);
       const content = await fs.readFile(proposalPath, 'utf-8');
       console.log(content);
     }
@@ -161,6 +166,7 @@ export class ChangeCommand {
           }
 
           try {
+            FileSystemUtils.assertPathWithin(changeDir, proposalPath);
             const content = await fs.readFile(proposalPath, 'utf-8');
             const parser = new ChangeParser(content, changeDir);
             const change = await parser.parseChangeWithDeltas(changeName);
@@ -202,6 +208,7 @@ export class ChangeCommand {
           continue;
         }
         try {
+          FileSystemUtils.assertPathWithin(changeDir, proposalPath);
           const content = await fs.readFile(proposalPath, 'utf-8');
           const title = this.extractTitle(content, changeName);
           const parser = new ChangeParser(content, changeDir);
@@ -241,7 +248,9 @@ export class ChangeCommand {
     }
     
     const changeDir = path.join(changesPath, changeName);
-    
+    if (!isChangeDirectoryName(changesPath, changeDir)) {
+      throw new Error(CHANGE_MESSAGES.changeNotFound(changeName, changeDir));
+    }
     try {
       await fs.access(changeDir);
     } catch {

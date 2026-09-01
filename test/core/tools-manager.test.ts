@@ -215,11 +215,82 @@ describe('tools-manager', () => {
       await fs.mkdir(path.join(skillsDir, 'openspec-explore'), { recursive: true });
       await fs.mkdir(path.join(skillsDir, 'my-custom-skill'), { recursive: true });
 
-      await removeOpenSpecSkillDirs(skillsDir);
+      await removeOpenSpecSkillDirs(testDir, skillsDir);
 
       expect(await directoryExists(path.join(skillsDir, 'openspec-explore'))).toBe(false);
       expect(await directoryExists(path.join(skillsDir, 'my-custom-skill'))).toBe(true);
     });
+
+    it('does not delete through a tool directory linked outside the project', async () => {
+      // Guarda de caminho (Lote 0): um `.claude` que é link para fora do
+      // projeto não pode ser usado para apagar skills fora dele.
+      const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tm-outside-'));
+      const outsideSkill = path.join(outsideDir, 'skills', 'openspec-explore');
+      await fs.mkdir(outsideSkill, { recursive: true });
+      await fs.writeFile(path.join(outsideSkill, 'SKILL.md'), 'keep me');
+
+      try {
+        await fs.symlink(
+          outsideDir,
+          path.join(testDir, '.claude'),
+          process.platform === 'win32' ? 'junction' : 'dir'
+        );
+
+        const tool = AI_TOOLS.find((t) => t.value === 'claude')!;
+        await expect(removeTool(testDir, tool)).rejects.toThrow('fora do diretório permitido');
+
+        expect(await fileExists(path.join(outsideSkill, 'SKILL.md'))).toBe(true);
+      } finally {
+        await fs.rm(outsideDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Codex: prompts globais confinados a <CODEX_HOME>/prompts
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('codex global prompts', () => {
+    let originalCodexHome: string | undefined;
+    let codexHome: string;
+
+    beforeEach(async () => {
+      originalCodexHome = process.env.CODEX_HOME;
+      codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tm-codex-'));
+      process.env.CODEX_HOME = codexHome;
+    });
+
+    afterEach(async () => {
+      if (originalCodexHome === undefined) {
+        delete process.env.CODEX_HOME;
+      } else {
+        process.env.CODEX_HOME = originalCodexHome;
+      }
+      await fs.rm(codexHome, { recursive: true, force: true });
+    });
+
+    it('writes codex prompts to the global CODEX_HOME/prompts root', async () => {
+      const tool = AI_TOOLS.find((t) => t.value === 'codex')!;
+      await addTool(testDir, tool);
+
+      expect(await fileExists(path.join(codexHome, 'prompts', 'opsx-propose.md'))).toBe(true);
+    });
+
+    it.skipIf(process.platform === 'win32')(
+      'does not write through a codex prompt linked outside CODEX_HOME/prompts',
+      async () => {
+        const outsideFile = path.join(testDir, 'outside-prompt.md');
+        await fs.writeFile(outsideFile, 'keep me\n');
+        const promptsDir = path.join(codexHome, 'prompts');
+        await fs.mkdir(promptsDir, { recursive: true });
+        await fs.symlink(outsideFile, path.join(promptsDir, 'opsx-propose.md'), 'file');
+
+        const tool = AI_TOOLS.find((t) => t.value === 'codex')!;
+        await expect(addTool(testDir, tool)).rejects.toThrow('fora do diretório permitido');
+
+        expect(await fs.readFile(outsideFile, 'utf-8')).toBe('keep me\n');
+      }
+    );
   });
 
   // ─────────────────────────────────────────────────────────────────────────
