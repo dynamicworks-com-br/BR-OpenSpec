@@ -208,7 +208,10 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
         - Requisitos ADDED presentes
         - Requisitos MODIFIED carregando as alterações de cenário e descrição
           nomeadas no delta, com seus demais cenários intactos
-        - Requisitos REMOVED ausentes
+        - Requisitos REMOVED ausentes — e, onde este sync aposentou uma capability
+          (removeu seu último requisito, deixando \`## Requirements\` vazio), seu spec
+          principal foi excluído em vez de deixado vazio; um spec que o sync
+          deliberadamente manteve e reportou também conta como correspondente
         - Requisitos RENAMED presentes sob o novo nome e ausentes sob o antigo
       - Não verifique os delta specs em \`excludedDeltas\`; eles ficam
         intencionalmente sem sync.
@@ -568,7 +571,10 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
         - Requisitos ADDED presentes
         - Requisitos MODIFIED carregando as alterações de cenário e descrição
           nomeadas no delta, com seus demais cenários intactos
-        - Requisitos REMOVED ausentes
+        - Requisitos REMOVED ausentes — e, onde este sync aposentou uma capability
+          (removeu seu último requisito, deixando \`## Requirements\` vazio), seu spec
+          principal foi excluído em vez de deixado vazio; um spec que o sync
+          deliberadamente manteve e reportou também conta como correspondente
         - Requisitos RENAMED presentes sob o novo nome e ausentes sob o antigo
       - Não verifique os delta specs em \`excludedDeltas\`; eles ficam
         intencionalmente sem sync.

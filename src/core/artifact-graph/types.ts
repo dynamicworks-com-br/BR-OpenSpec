@@ -82,6 +82,13 @@ export const ChangeMetadataSchema = z.object({
   // complete - that path prefix, not the artifact id, is the contract custom
   // schemas inherit.
   skip_specs: z.boolean().optional(),
+  // Declara que esta alteração pode aposentar uma capability: quando suas
+  // entradas REMOVED levam o último requisito que uma capability possui, o
+  // archive exclui o spec principal dessa capability em vez de abortar em um
+  // spec que não conseguiria escrever (#1302). Obrigatório porque a exclusão
+  // não é recuperável a partir da árvore de trabalho - só do git - então é
+  // decisão do autor, não uma inferência a partir da forma de um delta.
+  retire_capabilities: z.boolean().optional(),
 });
 
 export type ChangeMetadata = z.infer<typeof ChangeMetadataSchema>;

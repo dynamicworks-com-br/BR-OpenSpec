@@ -280,10 +280,10 @@ The system SHALL do B.
 
       expect(report.valid).toBe(false);
       expect(
-        report.issues.some(i => i.level === 'ERROR' && i.message.includes('Main spec contains delta header'))
+        report.issues.some(i => i.level === 'ERROR' && i.message.includes('O spec principal contém o cabeçalho de delta'))
       ).toBe(true);
       expect(
-        report.issues.some(i => i.level === 'ERROR' && i.message.includes('Requirement header "### Requirement: B" appears outside'))
+        report.issues.some(i => i.level === 'ERROR' && i.message.includes('O cabeçalho de requisito "### Requirement: B" aparece fora'))
       ).toBe(true);
     });
 
@@ -318,7 +318,7 @@ The system SHALL do B.
 
       expect(report.valid).toBe(false);
       expect(
-        report.issues.some(i => i.level === 'ERROR' && i.message.includes('Requirement header "### Requirement: B" appears outside'))
+        report.issues.some(i => i.level === 'ERROR' && i.message.includes('O cabeçalho de requisito "### Requirement: B" aparece fora'))
       ).toBe(true);
     });
 
@@ -350,8 +350,8 @@ The system SHALL ...
       const report = await new Validator().validateSpec(specPath);
 
       expect(report.valid).toBe(true);
-      expect(report.issues.some(i => i.message.includes('Main spec contains delta header'))).toBe(false);
-      expect(report.issues.some(i => i.message.includes('appears outside the main ## Requirements section'))).toBe(false);
+      expect(report.issues.some(i => i.message.includes('O spec principal contém o cabeçalho de delta'))).toBe(false);
+      expect(report.issues.some(i => i.message.includes('aparece fora da seção principal ## Requirements'))).toBe(false);
     });
   });
 

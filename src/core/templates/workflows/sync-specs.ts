@@ -108,6 +108,29 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
       **REMOVED Requirements:**
       - Remova o bloco inteiro do requisito do spec principal
+      - Aposentando a capability. Exclua o \`spec.md\` inteiro - e o diretório, quando
+        não sobrar mais nada nele - somente quando TODAS estas condições valerem:
+        1. remover os requisitos *nesta execução* não deixou nenhum bloco de requisito;
+        2. o restante do spec está bem formado (ele ainda tem um \`## Purpose\`);
+        3. o spec principal não estava vazio antes deste sync - se você não removeu
+           nada, não altere nada;
+        4. toda outra linha não vazia do arquivo inteiro é contabilizada como o
+           título, o Purpose, o cabeçalho Requirements, ou o enunciado, os cenários
+           ou os exemplos cercados de um requisito canônico;
+        5. o \`.openspec.yaml\` da change declara \`retire_capabilities: true\`;
+        6. o \`spec.md\` resolve dentro da raiz real dos specs (não siga um link
+           simbólico de diretório de capability para excluir um arquivo externo).
+        Se remover os requisitos selecionados deixaria zero blocos de requisito e
+        qualquer condição de aposentadoria não for satisfeita, não modifique o spec
+        principal. Interrompa o sync para essa capability, reporte a condição que
+        bloqueou e diga ao usuário como resolvê-la.
+        Nunca escreva nem deixe uma seção \`## Requirements\` vazia. Quando só o
+        marcador estiver faltando, diga isso também - é a única coisa que o usuário
+        pode adicionar para a aposentadoria passar.
+      - Excluir o arquivo também exclui seu \`## Purpose\`; qualquer outra seção bloqueia
+        a aposentadoria. Nomeie o Purpose ao reportar a aposentadoria. Inclua um
+        \`git checkout\` pronto para colar só quando o spec vivia no checkout de quem
+        chamou; caso contrário, dê orientação de recuperação restrita ao checkout.
 
       **RENAMED Requirements:**
       - Encontre o requisito FROM, renomeie para TO
@@ -130,6 +153,8 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
    - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
      para que ele seja escrito agora em vez de ficar pendente
+   - Qualquer capability aposentada, nomeando o \`spec.md\` excluído, seu Purpose e
+     ou um \`git checkout\` pronto para colar ou orientação de recuperação restrita ao checkout
 
 **Referência de Formato de Delta Spec**
 
@@ -337,6 +362,29 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
       **REMOVED Requirements:**
       - Remova o bloco inteiro do requisito do spec principal
+      - Aposentando a capability. Exclua o \`spec.md\` inteiro - e o diretório, quando
+        não sobrar mais nada nele - somente quando TODAS estas condições valerem:
+        1. remover os requisitos *nesta execução* não deixou nenhum bloco de requisito;
+        2. o restante do spec está bem formado (ele ainda tem um \`## Purpose\`);
+        3. o spec principal não estava vazio antes deste sync - se você não removeu
+           nada, não altere nada;
+        4. toda outra linha não vazia do arquivo inteiro é contabilizada como o
+           título, o Purpose, o cabeçalho Requirements, ou o enunciado, os cenários
+           ou os exemplos cercados de um requisito canônico;
+        5. o \`.openspec.yaml\` da change declara \`retire_capabilities: true\`;
+        6. o \`spec.md\` resolve dentro da raiz real dos specs (não siga um link
+           simbólico de diretório de capability para excluir um arquivo externo).
+        Se remover os requisitos selecionados deixaria zero blocos de requisito e
+        qualquer condição de aposentadoria não for satisfeita, não modifique o spec
+        principal. Interrompa o sync para essa capability, reporte a condição que
+        bloqueou e diga ao usuário como resolvê-la.
+        Nunca escreva nem deixe uma seção \`## Requirements\` vazia. Quando só o
+        marcador estiver faltando, diga isso também - é a única coisa que o usuário
+        pode adicionar para a aposentadoria passar.
+      - Excluir o arquivo também exclui seu \`## Purpose\`; qualquer outra seção bloqueia
+        a aposentadoria. Nomeie o Purpose ao reportar a aposentadoria. Inclua um
+        \`git checkout\` pronto para colar só quando o spec vivia no checkout de quem
+        chamou; caso contrário, dê orientação de recuperação restrita ao checkout.
 
       **RENAMED Requirements:**
       - Encontre o requisito FROM, renomeie para TO
@@ -359,6 +407,8 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
    - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
      para que ele seja escrito agora em vez de ficar pendente
+   - Qualquer capability aposentada, nomeando o \`spec.md\` excluído, seu Purpose e
+     ou um \`git checkout\` pronto para colar ou orientação de recuperação restrita ao checkout
 
 **Referência de Formato de Delta Spec**
 

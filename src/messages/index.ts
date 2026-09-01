@@ -399,6 +399,79 @@ export const ARCHIVE_MESSAGES = {
   // Limites de caminho (raízes gerenciadas e fallback copy-then-remove)
   unsupportedFilesystemEntry: (srcPath: string) => `Não é possível arquivar uma entrada de sistema de arquivos não suportada: ${srcPath}`,
   pathOutsideRoot: (managedDir: string) => `Recusando arquivar por um caminho fora da raiz do BR-OpenSpec: ${managedDir}`,
+  // Aposentadoria de capabilities (#1302, #1696) e transação de arquivamento
+  // (claim do destino, fingerprints, snapshots e rollback).
+  changeIsSymlink: (name: string) =>
+    `A alteração '${name}' é um link simbólico. Substitua-o por um diretório real antes de arquivar.`,
+  archiveBeingCreated: (archiveName: string, claimPath: string) =>
+    `O arquivamento '${archiveName}' já está sendo criado. Se nenhum processo de arquivamento estiver em execução, remova a reivindicação obsoleta em ${claimPath} e execute novamente.`,
+  expectedDirectoryWhileVerifying: (dir: string) => `Esperava um diretório ao verificar ${dir}.`,
+  pathChangedWhileReading: (filePath: string) => `O caminho ${filePath} mudou enquanto o arquivamento o lia.`,
+  directoryChangedWhileReading: (dir: string) => `O diretório ${dir} mudou enquanto o arquivamento o lia.`,
+  changeContentsChangedDuringFallbackCopy: (src: string, dest: string) =>
+    `O conteúdo do diretório da alteração mudou durante a cópia de fallback de ${src} para ${dest}.`,
+  couldNotStageBeforeFallback: (src: string, error: string) =>
+    `Não foi possível preparar ${src} com segurança antes da cópia de fallback do arquivamento (${error}). Nenhuma cópia de fallback foi tentada.`,
+  couldNotRestoreStagedSource: (original: string, staged: string, error: string) =>
+    `${original} Não foi possível restaurar a origem preparada em ${staged} (${error}).`,
+  copiedButStagedSourceRetained: (src: string, dest: string, staged: string, error: string) =>
+    `${src} foi copiado para ${dest}, mas não foi possível remover completamente a origem preparada em ${staged} (${error}). O destino completo foi mantido para recuperação.`,
+  retirementAuthorizationChangedBeforeComplete: (file: string) =>
+    `A autorização de aposentadoria em ${file} mudou antes que o arquivamento pudesse ser concluído.`,
+  specUpdatesResolveToSameTarget: (a: string, b: string, identity: string) =>
+    `As atualizações de especificação de '${a}' e '${b}' resolvem para o mesmo alvo ${identity}. Substitua o alias da capability ou combine os deltas antes de arquivar.`,
+  rollbackWouldOverwriteConcurrent: (target: string) =>
+    `O rollback do arquivamento sobrescreveria uma alteração concorrente em ${target}.`,
+  rollbackWouldOverwriteConcurrentRetained: (target: string, displaced: string) =>
+    `O rollback do arquivamento sobrescreveria uma alteração concorrente em ${target}. A especificação deslocada foi mantida em ${displaced}.`,
+  displacedSpecChangedAfterVerification: 'a especificação deslocada mudou após a verificação da aposentadoria',
+  couldNotRemoveRetirementBackup: (backupPath: string, error: string) =>
+    `Não foi possível remover o backup de aposentadoria confirmado em ${backupPath} (${error}).`,
+  changeRemainsArchivedBackupsRetained: (errors: string) =>
+    `${errors} A alteração permanece arquivada e cada backup listado foi mantido para recuperação.`,
+  specInputsChangedWhilePreparing: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram enquanto o arquivamento preparava a prévia.`,
+  retirementAuthorizationChangedAtPrompt: (file: string) =>
+    `A autorização de aposentadoria em ${file} mudou enquanto o arquivamento aguardava confirmação.`,
+  changeSpecsChangedAtPrompt: 'As especificações da alteração mudaram enquanto o arquivamento aguardava confirmação.',
+  deltaChangedAtPrompt: (id: string) => `O delta de '${id}' mudou enquanto o arquivamento aguardava confirmação.`,
+  specInputsChangedAtPrompt: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram enquanto o arquivamento aguardava confirmação. Nenhum arquivo foi alterado; revise o novo conteúdo e execute novamente.`,
+  mainSpecChangedAtPrompt: (id: string) =>
+    `A especificação principal '${id}' mudou enquanto o arquivamento aguardava confirmação. Nenhum arquivo foi alterado; revise o novo conteúdo e execute novamente.`,
+  // Dica impressa quando só o marcador retire_capabilities está faltando.
+  retirementHint: (specName: string, metadataFile: string) =>
+    `Esta alteração remove o último requisito que '${specName}' possui. Para aposentar a capability e excluir sua especificação, adicione \`retire_capabilities: true\` ao ${metadataFile} da alteração (ao lado do \`schema:\`, que esse arquivo exige) e execute novamente.`,
+  // Sufixo (com espaço inicial) anexado às dicas quando o marcador presente não pode ser honrado.
+  retirementMarkerCannotBeHonored: (reason: string) => ` O marcador presente agora não pode ser honrado (${reason}).`,
+  // #1696: marcador ausente E conteúdo que a mesclagem não consegue contabilizar.
+  retirementBlockedByContent: (specName: string, lines: string) =>
+    `Esta alteração remove o último requisito que '${specName}' possui, então a especificação reconstruída fica sem nenhum e não pode ser escrita. Em vez disso, o arquivamento aposenta a capability, mas isso é recusado enquanto a especificação contiver conteúdo que a mesclagem não consegue contabilizar com segurança e que a exclusão do arquivo levaria junto: ${lines}. Mova esse conteúdo para \`## Purpose\` ou para um requisito canônico, ou exclua a especificação manualmente, e execute novamente.`,
+  // Marcador declarado, mas a aposentadoria foi recusada por conteúdo não contabilizado.
+  retirementRefused: (specName: string, lines: string) =>
+    `'${specName}' declara retire_capabilities, mas a especificação contém conteúdo que a mesclagem não consegue contabilizar com segurança e que a exclusão do arquivo levaria junto: ${lines}. Mova esse conteúdo para \`## Purpose\` ou para um requisito canônico, ou exclua a especificação manualmente.`,
+  // Sufixo (com vírgula inicial) da lista de linhas bloqueantes quando há mais de 3.
+  unaccountedMoreLines: (count: number) => `, e mais ${count} linha(s)`,
+  specInputsChangedBeforeApply: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram antes que o arquivamento pudesse aplicá-las. Nenhum arquivo foi alterado; revise o novo conteúdo e execute novamente.`,
+  specInputsChangedBeforeWrite: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram antes que o arquivamento pudesse escrevê-las.`,
+  retirementAuthorizationUnavailable: (file: string) => `A autorização de aposentadoria em ${file} não está disponível.`,
+  specInputsChangedBeforeRetire: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram antes que o arquivamento pudesse aposentá-las.`,
+  mainSpecChangedWhileSecuring: (id: string) =>
+    `A especificação principal '${id}' mudou enquanto o arquivamento a protegia para a aposentadoria.`,
+  couldNotTrackDisplacedSpec: (id: string) =>
+    `Não foi possível rastrear a especificação principal deslocada de '${id}' durante a aposentadoria.`,
+  // Linha de recuperação impressa logo após "Aposentando <caminho>".
+  retirementRecoveryCommand: (pasteablePath: string) =>
+    `Se o arquivo estava commitado, restaure-o com: git checkout HEAD -- ${pasteablePath}`,
+  retirementRecoveryGuidance: (deletedPath: string) =>
+    `O arquivo foi excluído de ${deletedPath}; se estava commitado, restaure-o a partir do histórico desse checkout.`,
+  deltaChangedBeforeArchive: (id: string) => `O delta de '${id}' mudou antes que a alteração pudesse ser arquivada.`,
+  archivedDeltaChangedDuringMove: (id: string) => `O delta arquivado de '${id}' mudou durante a movimentação final.`,
+  activeDeltaChangedDuringFallbackCopy: (id: string) => `O delta ativo de '${id}' mudou durante a cópia de fallback.`,
+  rollbackAlsoFailed: (original: string, errors: string) => `${original} O rollback também falhou: ${errors}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2436,6 +2509,23 @@ export const CHANGE_PARSER_MESSAGES = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// Core — Parsers (src/core/parsers/spec-structure.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const SPEC_STRUCTURE_MESSAGES = {
+  deltaHeader: (header: string) =>
+    `O spec principal contém o cabeçalho de delta "${header}". ` +
+    'Cabeçalhos de delta só são válidos dentro de openspec/changes/<name>/specs/<capability>/spec.md ' +
+    'e truncam a seção ## Requirements analisada.',
+  requirementOutsideRequirements: (header: string) =>
+    `O cabeçalho de requisito "${header}" aparece fora da seção principal ## Requirements. ` +
+    'Specs principais só analisam requisitos dentro dessa seção, então este requisito está atualmente invisível para validate, list e archive.',
+  duplicateRequirement: (header: string, previousLine: number) =>
+    `O cabeçalho de requisito "${header}" duplica o requisito declarado na linha ${previousLine}. ` +
+    'Nomes de requisito devem ser únicos para que atualizações de spec não descartem um bloco ao atualizar outro.',
+};
+
+// ═══════════════════════════════════════════════════════════
 // Core — Specs Apply (src/core/specs-apply.ts)
 // ═══════════════════════════════════════════════════════════
 
@@ -2496,6 +2586,22 @@ export const SPECS_APPLY_MESSAGES = {
   renamedRemovedConflict: (specName: string, fromName: string, removedSpelling?: string) =>
     `${specName} validação falhou - requisito presente em múltiplas seções (RENAMED e REMOVED) para cabeçalho "### Requirement: ${fromName}"` +
     (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
+  // Aposentadoria de capability (retireSpec, #1302): exclusão do spec.md
+  // principal quando o delta removeu o último requisito.
+  deferredRetirementRequiresVerification: 'A aposentadoria adiada requer verificação do arquivo deslocado.',
+  retireCouldNotVerifyBeforeDeletion: (id: string, target: string, error: string) =>
+    `Não foi possível aposentar a capability '${id}': não foi possível verificar ${target} antes da exclusão (${error}).`,
+  retireCouldNotVerifyInside: (id: string, target: string, dir: string, error: string) =>
+    `Não foi possível aposentar a capability '${id}': não foi possível verificar que ${target} está dentro de ${dir} (${error}).`,
+  retireResolvesOutside: (id: string, target: string, dir: string) =>
+    `Não foi possível aposentar a capability '${id}': ${target} resolve fora de ${dir}. Remova o arquivo externo manualmente, ou substitua o link simbólico e execute novamente.`,
+  concurrentFileAppearedWhileRetiring: (target: string) =>
+    `Um arquivo concorrente apareceu em ${target} enquanto o arquivamento o aposentava.`,
+  concurrentFileOccupiesTargetRetained: (error: string, target: string, displaced: string) =>
+    `${error} Um arquivo concorrente agora ocupa ${target}; o spec deslocado foi mantido em ${displaced}.`,
+  retireFailedToDelete: (id: string, target: string, error: string) =>
+    `Não foi possível aposentar a capability '${id}': falha ao excluir ${target} (${error}). Remova-o manualmente e execute o arquivamento novamente.`,
+  retiringSpec: (nominalPath: string) => `Aposentando ${nominalPath}: todos os requisitos removidos.`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2564,8 +2670,11 @@ export const CHANGE_METADATA_MESSAGES = {
   invalidYaml: (error: string) => `YAML inválido no arquivo de metadados: ${error}`,
   unknownSchema: (schema: string, available: string) =>
     `Schema desconhecido '${schema}'. Disponíveis: ${available}`,
-  // Razões pelas quais o marcador skip_specs não pode ser honrado
-  // (readSkipSpecsMarker); embutidas na mensagem de validação correspondente.
+  // Razões pelas quais os marcadores booleanos skip_specs/retire_capabilities
+  // não podem ser honrados (readBooleanMarker); embutidas na mensagem de
+  // validação correspondente e nas dicas do archive. Caracteres de controle
+  // são substituídos na fonte (unhonorable), pois cada razão cita algo que o
+  // autor escreveu.
   markerMetadataUnreadable: (error: string) => `o arquivo de metadados não pode ser lido (${error})`,
   markerNotValidYaml: 'o arquivo não é um YAML válido',
   markerUnknownSchema: (schema: string) => `schema: esquema desconhecido '${schema}'`,

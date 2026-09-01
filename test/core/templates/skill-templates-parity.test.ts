@@ -170,4 +170,33 @@ describe('skill templates split parity', () => {
       expect(content, dirName).toContain(expected);
     }
   });
+
+  // A golden hash proves the generated file matches its source, never that the
+  // source is right - so a careless `regen:parity-hashes` over a dropped
+  // paragraph passes CI silently. The sync skill is the one place an agent
+  // learns that retiring a capability needs the marker; pin the fact, not the
+  // hash, so losing the guidance fails here instead of shipping.
+  it('tells the sync skill that retirement needs the retire_capabilities marker', () => {
+    const sync = getSkillTemplates().find(
+      ({ dirName }) => dirName === 'openspec-sync-specs'
+    );
+    expect(sync, 'openspec-sync-specs template').toBeTruthy();
+    const variants = [
+      ['sync skill', sync!.template.instructions],
+      ['sync command', getOpsxSyncCommandTemplate().content],
+    ] as const;
+    for (const [variant, text] of variants) {
+      expect(text, variant).toContain('retire_capabilities: true');
+      expect(text, variant).toContain('toda outra linha não vazia do arquivo inteiro é contabilizada');
+      expect(text, variant).toContain('resolve dentro da raiz real dos specs');
+      expect(text, variant).toContain('orientação de recuperação restrita ao checkout');
+      expect(text, variant).toContain('não modifique o spec');
+      expect(text, variant).toMatch(/Interrompa o sync para essa capability/);
+      expect(text, variant).toContain(
+        'Nunca escreva nem deixe uma seção `## Requirements` vazia'
+      );
+      expect(text, variant).not.toContain('quaisquer outras seções');
+      expect(text, variant).not.toContain('Prosa solta deixada sob `## Requirements` NÃO bloqueia');
+    }
+  });
 });
