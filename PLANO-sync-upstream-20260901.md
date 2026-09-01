@@ -59,6 +59,24 @@ Commits marcados STABLE pelo helper que na verdade dependem do subsistema stores
 | D12 | CI (`02b124e6` permissões do release-prepare, `89169627`/`d7893184` bumps de actions, `3e50944f` paths, `144901ca` dependabot ignore): aplicar os deltas nos workflows **do fork**, preservando `NPM_TOKEN` (não migrar para OIDC-only) |
 | D13 | Testes `test/**` do upstream: portar adaptando só asserções de string ao PT-BR; testes que dependem de stores (`store-root-selection`, `store-lifecycle`, `declared-store-fallback`) → pular |
 
+## 3b. Decisões complementares (após análise por commit — `_COMPLETUDE-r1.md`)
+
+| # | Decisão |
+|---|---------|
+| D14 | Glossário: novas chaves de `ARCHIVE_MESSAGES` usam **"especificação"** (convenção da seção); `SPECS_APPLY_MESSAGES` e os workflow templates mantêm **"o spec"** (masc.); `docs/pt-BR` mantém "a spec". Termo novo **retire → "aposentar/aposentadoria"** (registrar no glossário do AGENTS.md ao fechar) |
+| D15 | Textos do Lote 0 vencem e são reutilizados pelos lotes seguintes: `INIT_MESSAGES.setupFailedFor(x)` = "A configuração do BR-OpenSpec falhou para: x"; `UPDATE_MESSAGES.updateFailedFor(x)` = "A atualização do BR-OpenSpec falhou para: x" |
+| D16 | Redações únicas nos templates (C-4 grava já o **estado final** de C-5 onde a mesma linha muda duas vezes): placeholder `<novo-nome-da-change>`; "Se ele não estiver disponível, `openspec status --change "<nome>" --json` mostra o próximo artifact"; "verifique primeiro se o workflow opcional `/opsx:new` está disponível" (207f3cc5 então só exporta `WORKFLOW_PROMPT_META` + teste do picker); explore: "Não faça scaffold de changes manualmente" e "Para uma change nova, faça o scaffold dela primeiro, conforme descrito abaixo." — os testes usam essas *needles* |
+| D17 | Mensagens de `src/core/parsers/spec-structure.ts` passam a PT-BR via nova seção `SPEC_STRUCTURE_MESSAGES` (`deltaHeader(header)`, `requirementOutsideRequirements(header)`, `duplicateRequirement(header, line)`), criada no Lote A (521ee33e); 3d0701f8 só troca o token `<capability-path>`; asserções de `validation.test.ts`/`archive.test.ts` ajustadas uma única vez |
+| D18 | Criar já em D-6 (59bfb27a) a chave genérica `INIT_MESSAGES.sharedSkillsRootOneTree(names, root, owner)` (evita renomear em f3aa167d/109f81f1) |
+| D19 | Após o Lote 0, `init`/`update` **lançam** quando uma ferramenta falha: testes portados usam `rejects.toThrow(UPDATE_MESSAGES.updateFailedFor(...))` / `INIT_MESSAGES.setupFailedFor(...)` (corrige LD-59bfb27a §5) |
+| D20 | **`79f1dac6`** (feat(codex): Codex skills-only, #1283, 2026-07-18) foi adiado em 2026-07-19 por **falso positivo** do classificador (`registry.ts`) e não pertence ao subsistema stores → **PORTAR nesta sync** como Lote D-0, antes de D-6 (59bfb27a/07dea6ed/109f81f1 pressupõem Codex skills-only). Brief próprio |
+| D21 | Política única para deltas pendentes do upstream: **não antecipar** em `openspec/specs/**` deltas que só existem em `openspec/changes/**` do upstream (fix-archive-retirement-guidance, warn-on-purpose-placeholder, spec-diffs, suppress-telemetry-notice-in-json…). LA-18688c8b **não** aplica o delta em `cli-archive/spec.md`. Registrar em `dev-reports/` para revisitar quando o upstream arquivar |
+| D22 | Pins comportamentais de templates seguem a **localização do upstream** (dentro de `skill-templates-parity.test.ts` ou no arquivo dedicado do commit de origem); não criar arquivos de teste que o upstream não tem |
+| D23 | Subsistema fork-only `openspec tools` (`src/core/tools-manager.ts`): **adaptar** — aplicar a guarda de caminho do Lote 0 e manter coerência com `AI_TOOLS` para as ferramentas novas (MiniMax, Zed, Rovo, Command Code) e para a árvore `.agents` compartilhada |
+| D24 | Lote G ajusta `README.md`, `AGENTS.md` ("Reserved English Terms") e o cabeçalho de `src/messages/index.ts`: omitir SHALL/MUST passa a gerar **WARNING** (erro só com `--strict`), não "quebra o validate" (consequência de D9) |
+| D25 | Erro factual em LC-7da3f34f §6: `3d0701f8` **não** troca a linha "Salve em `openspec/changes/<nome>/tasks.md`" do onboard — só insere `<capability-path>`; o executor ignora essa instrução |
+| D26 | Dívidas pré-existentes apontadas pelos briefs (adapter `pi.ts` sem `$@` nos corpos PT-BR; chave órfã `INIT_MESSAGES.startFirstChangeWithSkill`; cabeçalhos traduzidos em `ONBOARD_TEMPLATE_MESSAGES`; cauda narrativa legada em `openspec/specs/openspec-conventions/spec.md`; "placeholder TBD" × "A definir" no sync-specs; `.openspec-archive.lock`/`.openspec-move-*` não filtrados por `list`) → **fora de escopo**; registrar em `dev-reports/` no fechamento |
+
 ## 4. Sequência de execução (1 commit por tema, PT-BR, Conventional Commits)
 
 ### Lote 0 — Base de segurança de caminhos
@@ -76,6 +94,7 @@ Commits marcados STABLE pelo helper que na verdade dependem do subsistema stores
 5. **fix(templates) lote 2** — `0b233efb`→`06b310bf`→`96a65486` (estado final: corpo de apply compartilhado entre skill e command via `skill-templates.ts`), `bf5099e3` (apply expõe escopo adiado), `207f3cc5` (rótulo do update no picker; sem "expanded-profile"), `7010e268` (explore pede confirmação antes de escrever), `e5e350d0` (ASCII nos diagramas do explore), `7da3f34f` (tasks com verificação; schema.yaml + onboard)
 
 ### Lote D — Ferramentas / init / update / adapters
+5b. **feat(codex)** — `79f1dac6` (Codex skills-only: remove o adapter de custom prompts, aposenta os prompts gerenciados em `~/.codex/prompts`, migração/limpeza legada; D20)
 6. **feat(tools) lote 1** — `690a27e6` (legacy-cleanup não apaga CoStrict/Junie), `161f9454` (MiniMax Code skills; `shared/skill-paths.ts`), `59bfb27a` (Codex instala skills em `.agents/` canônico; `shared-skill-target.ts`, `skill-content-equivalence.ts`), `13e213e0` (Atlassian Rovo Dev)
 7. **feat(copilot)** — `7a4a745d` + `73207a6f` (arquivos do Copilot coding agent no init, opt-in `--copilot-cloud`/`--no-copilot-cloud`; `github-copilot/cloud-agent.ts`)
 8. **feat(tools) lote 2** — `42d7f673` + `59c16a44` (Command Code), `07dea6ed` (upgrade legado do Codex não sequestra `agents`), `17581c11` (dica "reinicie a IDE" só para ferramentas embutidas)
@@ -93,7 +112,7 @@ Commits marcados STABLE pelo helper que na verdade dependem do subsistema stores
 14. **docs** — espelho EN + tradução PT-BR de todos os hunks `docs/**` (+ README.md, SECURITY.md, scripts/README.md): `4e4c9e1f` + `98c79324` (lifecycle mermaid em workflows.md), `1a10dd58` (opsx.md /opsx:sync), `d0071d73` (retire capabilities em cli.md), e hunks de docs de `521ee33e`, `3d0701f8`, `161f9454`, `59bfb27a`, `622c509a`, `42d7f673`, `59c16a44`, `9ae75c86`, `07dea6ed`, `fc0fec12`, `f3aa167d`, `c747ed1f`, `18688c8b`, `7276c6c2`, `73207a6f`, `83be9d11`, `afea111c`, `13e213e0`; informação de `a7353aea`/`dd7cea3f`/`109f81f1`/`2fa679f1` (D4)
 15. **chore(skills)** — regenerar `skills/**` + hashes de paridade (D5)
 16. **chore(changeset+marcador)** — changeset `minor` do fork; `.upstream-sync.json` → `d0071d73` / `v1.11.0-1-gd0071d7` / histórico; tag `synced/upstream-v1.11.0`; recomputar hash do flake (D11)
-17. **Validação** — `node build.js && pnpm lint && pnpm exec tsc --noEmit && pnpm test` + smokes (`init --tools zed,minimax,rovodev,commandcode`, `init --language`, `show --diff`, `status --all`, `validate --archived`, `openspec` sem postinstall)
+17. **Validação** — `node build.js && pnpm lint && pnpm exec tsc --noEmit && pnpm test` + smokes (`init --tools zed,minimax-code,rovodev,command-code`, `init --language`, `show --diff`, `status --all`, `validate --archived`, `openspec` sem postinstall)
 
 ## 5. Adiados (acumulado)
 
