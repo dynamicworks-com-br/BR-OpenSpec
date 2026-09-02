@@ -30,10 +30,12 @@ describe('ptBrKeysHelpTip', () => {
   });
 
   it('traduz o par de teclas do select', () => {
+    // O @inquirer/{select,search} envia ['⏎','select'] com o sentido de
+    // confirmar — não de alternar, como no checkbox.
     const tip = strip(
       ptBrKeysHelpTip([
         ['↑↓', 'navigate'],
-        ['⏎', 'submit'],
+        ['⏎', 'select'],
       ])
     );
 

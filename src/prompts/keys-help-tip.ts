@@ -12,17 +12,31 @@ const KEY_LABELS: Record<string, string> = {
 
 /**
  * Rótulos de ação enviados junto com cada tecla. Ações desconhecidas passam
- * sem tradução. `navigate`, `select` e `submit` reaproveitam as chaves já
- * usadas pelo prompt de seleção múltipla do fork, para que a tecla espaço
- * continue descrita como `alternar` em todas as telas.
+ * sem tradução. `navigate` e `submit` reaproveitam as chaves já usadas pelo
+ * prompt de seleção múltipla do fork.
  */
 const ACTION_LABELS: Record<string, string> = {
   navigate: PROMPT_MESSAGES.navigate,
-  select: PROMPT_MESSAGES.toggle,
   all: PROMPT_MESSAGES.keyActionAll,
   invert: PROMPT_MESSAGES.keyActionInvert,
   submit: PROMPT_MESSAGES.confirm,
 };
+
+/**
+ * A ação `select` significa coisas diferentes conforme a tecla que a acompanha:
+ * o checkbox envia `['space','select']` (espaço alterna a marcação) e o select
+ * e o search enviam `['⏎','select']` (Enter confirma a escolha). Um rótulo
+ * único para as duas descreveria uma delas errado, então a desambiguação é
+ * feita pelo par (tecla, ação).
+ */
+const ACTION_LABELS_BY_KEY: Record<string, Record<string, string>> = {
+  space: { select: PROMPT_MESSAGES.toggle },
+  '⏎': { select: PROMPT_MESSAGES.confirm },
+};
+
+function resolveActionLabel(key: string, action: string): string {
+  return ACTION_LABELS_BY_KEY[key]?.[action] ?? ACTION_LABELS[action] ?? action;
+}
 
 /**
  * Dica de teclas em PT-BR para os prompts do inquirer.
@@ -36,7 +50,7 @@ export function ptBrKeysHelpTip(keys: [key: string, action: string][]): string {
   return keys
     .map(
       ([key, action]) =>
-        `${chalk.bold(KEY_LABELS[key] ?? key)} ${chalk.dim(ACTION_LABELS[action] ?? action)}`
+        `${chalk.bold(KEY_LABELS[key] ?? key)} ${chalk.dim(resolveActionLabel(key, action))}`
     )
     .join(chalk.dim(' • '));
 }
