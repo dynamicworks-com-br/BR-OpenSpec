@@ -11,13 +11,17 @@ metadata:
 
 Proponha uma nova change - crie a change e gere todos os artifacts em um passo.
 
+**Fronteira de planejamento**: Este workflow cria apenas artifacts de planejamento. A solicitação do usuário que selecionou ou acionou este workflow autoriza apenas o planejamento, mesmo que peça para construir ou corrigir algo. Não edite código do projeto. Depois que os artifacts de planejamento estiverem completos, pare. Não inicie a implementação na mesma resposta, mesmo que a solicitação inicial peça isso. Aguarde uma nova solicitação do usuário após apresentar os artifacts; só então inicie o workflow de apply.
+
 Vou criar uma change com os artifacts que o seu schema define. Com o schema spec-driven padrão, são:
 - proposal.md (o que & por que)
-- `specs/<capability>/spec.md` (o que o sistema deve fazer - um delta, não o spec principal)
+- `specs/<capability-path>/spec.md` (o que o sistema deve fazer - um delta, não o spec principal)
 - design.md (como)
 - tasks.md (passos de implementação)
 
-Quando pronto para implementar, execute /openspec-apply-change
+`<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo, `user-auth` ou `identity/user-auth`). Preserve o caminho completo de uma capability existente e siga a organização já estabelecida no projeto para capabilities novas.
+
+Quando o usuário estiver pronto para implementar, ele deve iniciar o workflow de apply explicitamente.
 
 ---
 
@@ -25,22 +29,43 @@ Quando pronto para implementar, execute /openspec-apply-change
 
 **Passos**
 
-1. **Se nenhuma entrada clara for fornecida, pergunte o que ele quer construir**
+1. **Entenda a solicitação e esclareça ambiguidades relevantes**
 
-   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
+   Se nenhuma entrada clara for fornecida, pergunte ao usuário (de forma aberta, sem opções pré-definidas):
    > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
 
    A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → `add-user-auth`).
 
    **IMPORTANTE**: NÃO prossiga sem entender o que o usuário quer construir.
 
-2. **Crie o diretório da change**
+   Se a solicitação contiver ambiguidade que afete de forma relevante o escopo, o comportamento externamente observável, a compatibilidade ou os critérios de aceitação, pergunte ao usuário antes de criar a change. Para detalhes menores, faça uma suposição razoável e registre-a nos artifacts de planejamento.
+
+2. **Determine o schema de workflow**
+
+   Use o schema padrão configurado a menos que o usuário solicite explicitamente um workflow diferente.
+
+   **Use um schema diferente apenas se o usuário:**
+   - Solicitar explicitamente um schema específico pelo nome → use `--schema <nome-do-schema>`
+   - Pedir para "mostrar workflows" ou perguntar "quais workflows" existem → execute `openspec schemas --json` a partir do diretório de trabalho atual e deixe-o escolher
+
+   Caso contrário, omita `--schema` para preservar o padrão configurado.
+
+3. **Crie o diretório da change**
+
+   Escolha uma das formas de schema abaixo.
+
+   Usando o padrão configurado:
    ```bash
    openspec new change "<nome>"
    ```
+
+   Usando um schema solicitado explicitamente:
+   ```bash
+   openspec new change "<nome>" --schema "<nome-do-schema>"
+   ```
    Isso cria uma change com scaffold em `openspec/changes/<nome>/` com `.openspec.yaml`.
 
-3. **Obtenha a ordem de construção dos artifacts**
+4. **Obtenha a ordem de construção dos artifacts**
    ```bash
    openspec status --change "<nome>" --json
    ```
@@ -48,7 +73,7 @@ Quando pronto para implementar, execute /openspec-apply-change
    - `applyRequires`: array de IDs de artifacts necessários antes da implementação (por exemplo, `["tasks"]`)
    - `artifacts`: lista de todos os artifacts, cada um com seu `status` e suas arestas `requires` (os IDs de artifact dos quais ele depende diretamente)
 
-4. **Crie todos os artifacts do conjunto necessário**
+5. **Crie todos os artifacts do conjunto necessário**
 
    Use uma lista de tarefas para rastrear o progresso pelos artifacts.
 
@@ -87,7 +112,7 @@ Quando pronto para implementar, execute /openspec-apply-change
       - Peça esclarecimento ao usuário
       - Depois continue com a criação
 
-5. **Mostre o status final**
+6. **Mostre o status final**
    ```bash
    openspec status --change "<nome>"
    ```
@@ -98,7 +123,7 @@ Após completar todos os artifacts, resuma:
 - Nome da change e localização
 - Lista de artifacts criados com breves descrições, mais qualquer artifact condicional que você pulou e por quê
 - O que está pronto: "Todos os artifacts necessários para a implementação estão prontos."
-- Prompt: "Execute `/openspec-apply-change` ou peça-me para implementar para começar a trabalhar nas tarefas."
+- Prompt: "Os artifacts estão prontos para revisão. Quando estiver pronto, execute `/openspec-apply-change` ou peça-me para aplicar esta change."
 
 **Diretrizes de Criação de Artifacts**
 
@@ -112,8 +137,9 @@ Após completar todos os artifacts, resuma:
   - Eles guiam o que você escreve, mas nunca devem aparecer na saída
 
 **Guardrails**
+- A solicitação que invocou este workflow autoriza apenas o planejamento. Qualquer instrução de implementação ou de apply contida nessa solicitação não é levada adiante. NÃO implemente a change, não inicie o workflow de apply nem edite código do projeto durante este workflow. Depois de apresentar os artifacts, pare e aguarde uma nova solicitação do usuário para iniciar o workflow de apply
 - Crie todo artifact do qual a fase de apply depende transitivamente, não apenas os ids listados em `apply.requires`
 - Sempre leia artifacts de dependência antes de criar um novo - releia do disco, não da memória da conversa (os arquivos podem ter mudado desde a última vez que você os viu)
-- Se o contexto estiver criticamente incerto, pergunte ao usuário - mas prefira tomar decisões razoáveis para manter o momento
+- Pergunte sobre ambiguidades que mudariam de forma relevante o escopo, o comportamento externamente observável, a compatibilidade ou os critérios de aceitação; para detalhes menores, faça suposições razoáveis e registre-as
 - Se uma change com aquele nome já existir, pergunte se o usuário quer continuar ela ou criar uma nova
 - Verifique se cada arquivo do artifact existe após escrever antes de prosseguir para o próximo

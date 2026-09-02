@@ -13,6 +13,8 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
 
 **Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
+`/openspec-continue-change` é um workflow opcional e pode não estar instalado. Antes de sugeri-lo em qualquer ponto abaixo, verifique se ele está disponível. Se ele não estiver disponível, `openspec status --change "<nome>" --json` mostra o próximo artifact e `openspec instructions "<artifact-id>" --change "<nome>" --json` explica como criá-lo.
+
 **Passos**
 
 1. **Selecione a change**
@@ -39,7 +41,7 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
    Analise o JSON para entender o estado atual. A resposta inclui:
    - `schemaName`: O schema de workflow sendo usado (por exemplo, "spec-driven")
    - `artifacts`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
-   - `isComplete`: Booleano indicando se todos os artifacts estão completos
+   - `isPlanningComplete`: Booleano indicando se todos os artifacts de planejamento estão completos. Versões mais antigas do CLI expõem o mesmo valor como `isComplete`.
    - `artifactPaths`: Caminhos por artifact (`outputPath`, `resolvedOutputPath`, `existingOutputPaths`). Use-os em vez de assumir caminhos locais do repositório.
 
    Os ids e caminhos dos artifacts vêm do schema ativo - NÃO os assuma e NÃO ramifique com base em nomes de artifact fixos. Schemas personalizados devem funcionar sem alterações.
@@ -62,7 +64,7 @@ Revise os artifacts de planejamento existentes de uma change e mantenha-os coere
    - Se o usuário rejeitar uma revisão, não a escreva - deixe aquele artifact inalterado.
    - Quando uma reescrita substancial for necessária, obtenha primeiro as regras e o template daquele artifact:
      ```bash
-     openspec instructions <artifact-id> --change "<nome>" --json
+     openspec instructions "<artifact-id>" --change "<nome>" --json
      ```
 
 6. **Aponte o próximo passo (apenas orientação - NUNCA aja sobre ele)**
@@ -83,5 +85,4 @@ Após cada invocação, mostre:
 - Edite apenas os arquivos concretos em `existingOutputPaths`; nunca escreva em um `resolvedOutputPath` com glob.
 - Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do `/openspec-continue-change`.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com `/openspec-new-change` (a heurística "Atualizar vs. Começar do Zero").
-- `/openspec-continue-change` e `/openspec-new-change` podem não estar instalados (perfil core). Ao sugerir um que esteja indisponível, aponte para o CLI: `openspec status --change "<name>" --json` mostra o próximo artifact e `openspec instructions <artifact-id> --change "<name>" --json` explica como criá-lo.
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, verifique primeiro se o workflow opcional `/openspec-new-change` está disponível. Se estiver, recomende começar do zero com `/openspec-new-change` (a heurística "Atualizar vs. Começar do Zero"). Se ele não estiver disponível, peça um nome de change distinto e ainda não usado e recomende `openspec new change "<novo-nome-da-change>"` em vez disso.
