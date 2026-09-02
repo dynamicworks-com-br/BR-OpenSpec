@@ -19,7 +19,14 @@ import {
 import { findMainSpecStructureIssues } from '../parsers/spec-structure.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
 import { discoverSpecFiles, hasAnyFileUnder } from '../../utils/spec-discovery.js';
-import { METADATA_FILENAME, readSkipSpecsMarker } from '../../utils/change-metadata.js';
+import {
+  METADATA_FILENAME,
+  readSkipSpecsMarker,
+  resolveSchemaForChange,
+} from '../../utils/change-metadata.js';
+import { resolveTaskFilesForChange } from '../../utils/task-progress.js';
+import { findTaskNumberingIssues } from './task-numbering.js';
+import { getPackageSchemasDir, getSchemaDir } from '../artifact-graph/index.js';
 import { VALIDATOR_MESSAGES } from '../../messages/index.js';
 
 export class Validator {
@@ -130,19 +137,21 @@ export class Validator {
    * Validate delta-formatted spec files under a change directory.
    * Enforces:
    * - At least one delta across all files
-   * - ADDED/MODIFIED: each requirement has SHALL/MUST and at least one scenario
+   * - ADDED/MODIFIED: each requirement has at least one scenario; missing
+   *   English SHALL/MUST keywords are guidance unless strict mode is enabled
    * - REMOVED: names only; no scenario/description required
    * - RENAMED: pairs well-formed
    * - No duplicates within sections; no cross-section conflicts per spec
    *
    * When `options.mainSpecsDir` is given, MODIFIED blocks are also checked
    * against the current main specs for the scenario loss archive refuses to
-   * apply (#1477). Omitting it keeps the change-only checks, so callers with
-   * no main specs root (and existing library callers) behave as before.
+   * apply (#1477). When `options.projectRoot` is given, the schema's tracked
+   * task files are checked for ambiguous numbering (#1520). Omitting either
+   * option keeps existing library and archive callers behaving as before.
    */
   async validateChangeDeltaSpecs(
     changeDir: string,
-    options: { mainSpecsDir?: string } = {}
+    options: { mainSpecsDir?: string; projectRoot?: string } = {}
   ): Promise<ValidationReport> {
     const issues: ValidationIssue[] = [];
     const specsDir = path.join(changeDir, 'specs');
@@ -240,7 +249,15 @@ export class Validator {
                 : VALIDATOR_MESSAGES.missingRequirementTextAdded(block.name),
             });
           } else if (!this.containsShallOrMust(requirementText)) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustAdded(block.name, this.containsShallOrMust(block.name)) });
+            issues.push({
+              level: 'WARNING',
+              path: entryPath,
+              message: VALIDATOR_MESSAGES.missingShallOrMustAdded(
+                block.name,
+                this.containsShallOrMust(block.name),
+                true
+              ),
+            });
           }
           const scenarioCount = this.countScenarios(block.raw);
           if (scenarioCount < 1) {
@@ -267,7 +284,15 @@ export class Validator {
                 : VALIDATOR_MESSAGES.missingRequirementTextModified(block.name),
             });
           } else if (!this.containsShallOrMust(requirementText)) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingShallOrMustModified(block.name, this.containsShallOrMust(block.name)) });
+            issues.push({
+              level: 'WARNING',
+              path: entryPath,
+              message: VALIDATOR_MESSAGES.missingShallOrMustModified(
+                block.name,
+                this.containsShallOrMust(block.name),
+                true
+              ),
+            });
           }
           const scenarioCount = this.countScenarios(block.raw);
           if (scenarioCount < 1) {
@@ -427,7 +452,68 @@ export class Validator {
       }
     }
 
+    if (options.projectRoot) {
+      issues.push(...await this.collectTaskNumberingIssues(changeDir, options.projectRoot));
+    }
+
     return this.createReport(issues);
+  }
+
+  private async collectTaskNumberingIssues(
+    changeDir: string,
+    projectRoot: string
+  ): Promise<ValidationIssue[]> {
+    try {
+      const schemaName = resolveSchemaForChange(changeDir, undefined, projectRoot).replace(
+        /\.ya?ml$/,
+        ''
+      );
+      const schemaDir = getSchemaDir(schemaName, projectRoot);
+      const builtInSchemaDir = path.join(getPackageSchemasDir(), 'spec-driven');
+      if (
+        schemaName !== 'spec-driven' ||
+        schemaDir === null ||
+        FileSystemUtils.canonicalizeExistingPath(schemaDir) !==
+          FileSystemUtils.canonicalizeExistingPath(builtInSchemaDir)
+      ) {
+        return [];
+      }
+    } catch {
+      return [];
+    }
+
+    let taskFiles: string[];
+    try {
+      taskFiles = resolveTaskFilesForChange(changeDir, projectRoot);
+    } catch {
+      return [];
+    }
+    if (taskFiles.length === 0) {
+      taskFiles = [path.join(changeDir, 'tasks.md')];
+    }
+
+    const documents: Array<{ path: string; content: string }> = [];
+    for (const taskFile of taskFiles) {
+      let content: string;
+      try {
+        content = await fs.readFile(taskFile, 'utf-8');
+      } catch {
+        continue;
+      }
+
+      documents.push({
+        path: FileSystemUtils.toPosixPath(path.relative(changeDir, taskFile)),
+        content,
+      });
+    }
+
+    documents.sort((left, right) => left.path.localeCompare(right.path));
+    return findTaskNumberingIssues(documents).map((issue) => ({
+      level: 'WARNING',
+      path: issue.path,
+      line: issue.line,
+      message: issue.message,
+    }));
   }
 
   /**
@@ -581,20 +667,29 @@ export class Validator {
       }
     });
 
-    // SHALL/MUST body-keyword enforcement for main specs (#1156). The main-spec
+    // SHALL/MUST body-keyword guidance for main specs (#1156, #243). The main-spec
     // parser collapses the requirement header into `text`, so we recover the
     // header+body pairs here (the same source the delta path trusts) and reuse
-    // the delta detection: a body that omits the keyword errors, with the
-    // targeted "move it to the body line" hint when the keyword is in the header
-    // only and the generic message otherwise. Emitted exactly once per
+    // the delta detection. A non-empty body that omits the English keyword gets
+    // guidance, while a missing body remains an error. Emitted exactly once per
     // requirement (the Zod refine that used to emit a generic error is removed).
     extractRequirementsSection(content).bodyBlocks.forEach((block, index) => {
       const requirementText = this.extractRequirementText(block.raw);
-      if (!requirementText || !this.containsShallOrMust(requirementText)) {
+      if (!requirementText) {
         issues.push({
           level: 'ERROR',
           path: `requirements[${index}]`,
           message: VALIDATOR_MESSAGES.missingShallOrMustRequirement(block.name, this.containsShallOrMust(block.name)),
+        });
+      } else if (!this.containsShallOrMust(requirementText)) {
+        issues.push({
+          level: 'WARNING',
+          path: `requirements[${index}]`,
+          message: VALIDATOR_MESSAGES.missingShallOrMustRequirement(
+            block.name,
+            this.containsShallOrMust(block.name),
+            true
+          ),
         });
       }
     });

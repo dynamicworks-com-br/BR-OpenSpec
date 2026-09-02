@@ -237,7 +237,7 @@ export function loadChangeContext(
   );
 
   // Resolve schema: explicit > metadata > default
-  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName, {
+  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName, projectRoot, {
     projectConfig: options.projectConfig,
   });
 

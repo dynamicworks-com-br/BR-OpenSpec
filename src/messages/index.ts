@@ -1116,32 +1116,47 @@ export const FILE_SYSTEM_MESSAGES = {
 // Core — Validação (src/core/validation/validator.ts)
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Sufixo anexado à orientação (WARNING) de requisito sem SHALL/MUST no corpo.
+ * O upstream diz "best practice for English specs"; no fork as palavras-chave
+ * normativas continuam em inglês mesmo em specs em português (termos
+ * reservados), então o sufixo reforça a recomendação em vez de dispensá-la.
+ */
+const MISSING_SHALL_OR_MUST_GUIDANCE_SUFFIX =
+  ' (boa prática RFC 2119; use as palavras-chave normativas em inglês)';
+
+/**
+ * Mensagem para um bloco de requisito cujo corpo não contém SHALL/MUST.
+ *
+ * `keywordInHeader`: a palavra-chave aparece só no cabeçalho
+ * "### Requirement: ..." — aponta a correção exata (#1156/#1280).
+ * `guidanceOnly`: um corpo não vazio sem a palavra-chave é orientação
+ * (WARNING), não erro (#243) — verbo "deveria" + sufixo RFC 2119. Um corpo
+ * ausente continua sendo ERROR ("deve conter"). A frase acionável (tudo após o
+ * prefixo) é byte-idêntica entre o caminho de spec principal e o de delta.
+ */
+const missingShallOrMust = (prefix: string, keywordInHeader: boolean, guidanceOnly: boolean): string => {
+  const base = `${prefix} ${guidanceOnly ? 'deveria' : 'deve'} conter SHALL ou MUST`;
+  const suffix = guidanceOnly ? MISSING_SHALL_OR_MUST_GUIDANCE_SUFFIX : '';
+  return keywordInHeader
+    ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".${suffix}`
+    : `${base}${suffix}`;
+};
+
 export const VALIDATOR_MESSAGES = {
   unknownError: 'Erro desconhecido',
   duplicateRequirementAdded: (name: string) => `Requisito duplicado em ADDED: "${name}"`,
   missingRequirementTextAdded: (name: string) => `ADDED "${name}" está sem texto de requisito`,
-  missingShallOrMustAdded: (name: string, keywordInHeader = false) => {
-    const base = `ADDED "${name}" deve conter SHALL ou MUST`;
-    return keywordInHeader
-      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
-      : base;
-  },
+  missingShallOrMustAdded: (name: string, keywordInHeader = false, guidanceOnly = false) =>
+    missingShallOrMust(`ADDED "${name}"`, keywordInHeader, guidanceOnly),
   missingScenarioAdded: (name: string) => `ADDED "${name}" deve incluir pelo menos um cenário`,
   duplicateRequirementModified: (name: string) => `Requisito duplicado em MODIFIED: "${name}"`,
   missingRequirementTextModified: (name: string) => `MODIFIED "${name}" está sem texto de requisito`,
-  missingShallOrMustModified: (name: string, keywordInHeader = false) => {
-    const base = `MODIFIED "${name}" deve conter SHALL ou MUST`;
-    return keywordInHeader
-      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
-      : base;
-  },
+  missingShallOrMustModified: (name: string, keywordInHeader = false, guidanceOnly = false) =>
+    missingShallOrMust(`MODIFIED "${name}"`, keywordInHeader, guidanceOnly),
   missingScenarioModified: (name: string) => `MODIFIED "${name}" deve incluir pelo menos um cenário`,
-  missingShallOrMustRequirement: (name: string, keywordInHeader = false) => {
-    const base = `Requirement "${name}" deve conter SHALL ou MUST`;
-    return keywordInHeader
-      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
-      : base;
-  },
+  missingShallOrMustRequirement: (name: string, keywordInHeader = false, guidanceOnly = false) =>
+    missingShallOrMust(`Requirement "${name}"`, keywordInHeader, guidanceOnly),
   skippedHeaderNameless: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} está sem nome de requisito e é ignorado pela validação. Adicione um nome, ex.: "### Requirement: <nome>".`,
   skippedHeaderNotRequirement: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} não é um cabeçalho "### Requirement:" e é ignorado pela validação. Use "### Requirement: ${header}" se ele deve ser validado como um requisito.`,
   duplicateRequirementRemoved: (name: string) => `Requisito duplicado em REMOVED: "${name}"`,
@@ -1162,6 +1177,19 @@ export const VALIDATOR_MESSAGES = {
     `MODIFIED "${reqName}" omite cenário(s) que o spec atual ainda tem: ${scenarioNames}. Copie-os para o bloco MODIFIED (um requisito MODIFIED substitui o bloco inteiro, então o archive se recusa a descartá-los).`,
   couldNotReadMainSpec: (specPath: string, code: string) =>
     `Não foi possível ler ${specPath} para verificar os requisitos MODIFIED contra ele (${code}). O archive lê o mesmo arquivo, então corrija o arquivo antes de arquivar.`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Validação de numeração de tarefas (src/core/validation/task-numbering.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const TASK_NUMBERING_MESSAGES = {
+  taskGroupMismatch: (id: string, currentGroup: string, taskGroup: string) =>
+    `Tarefa "${id}" está sob o grupo ${currentGroup}, mas seu número inicial aponta para o grupo ${taskGroup}. Mova-a para o grupo ${taskGroup} ou renumere-a.`,
+  duplicateTaskId: (id: string, firstDeclaration: string) =>
+    `ID de tarefa "${id}" está duplicado; foi declarado pela primeira vez ${firstDeclaration}.`,
+  firstDeclaredOnLine: (line: number) => `na linha ${line}`,
+  firstDeclaredInFileOnLine: (filePath: string, line: number) => `em ${filePath} na linha ${line}`,
 };
 
 // ═══════════════════════════════════════════════════════════

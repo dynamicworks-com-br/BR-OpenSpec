@@ -163,6 +163,10 @@ export interface ResolveSchemaForChangeOptions {
  *
  * @param changeDir - The path to the change directory
  * @param explicitSchema - Optional explicit schema override
+ * @param projectRootOverride - Optional project root. When omitted it is derived
+ * from changeDir (assumed to be projectRoot/openspec/changes/<name>); callers
+ * whose change lives at a different depth (e.g. changes/archive/<name>) pass it
+ * explicitly so metadata and config are read from the right root
  * @param options - Optional pre-read project config, so a command can reuse a
  * single config snapshot instead of letting this fallback read it again
  * @returns The resolved schema name
@@ -170,10 +174,11 @@ export interface ResolveSchemaForChangeOptions {
 export function resolveSchemaForChange(
   changeDir: string,
   explicitSchema?: string,
+  projectRootOverride?: string,
   options: ResolveSchemaForChangeOptions = {}
 ): string {
   // Derive project root from changeDir (changeDir is typically projectRoot/openspec/changes/change-name)
-  const projectRoot = path.resolve(changeDir, '../../..');
+  const projectRoot = projectRootOverride ?? path.resolve(changeDir, '../../..');
 
   // 1. Explicit override wins
   if (explicitSchema) {

@@ -149,6 +149,7 @@ export class ValidateCommand {
       const start = Date.now();
       const report = await validator.validateChangeDeltaSpecs(changeDir, {
         mainSpecsDir: path.join(process.cwd(), 'openspec', 'specs'),
+        projectRoot: process.cwd(),
       });
       const durationMs = Date.now() - start;
       this.printReport('change', id, report, durationMs, opts.json);
@@ -233,6 +234,7 @@ export class ValidateCommand {
         const changeDir = path.join(process.cwd(), 'openspec', 'changes', id);
         const report = await validator.validateChangeDeltaSpecs(changeDir, {
           mainSpecsDir: path.join(process.cwd(), 'openspec', 'specs'),
+          projectRoot: process.cwd(),
         });
         const durationMs = Date.now() - start;
         return { id, type: 'change' as const, valid: report.valid, issues: report.issues, durationMs };
