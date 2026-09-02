@@ -494,6 +494,7 @@ export const INIT_MESSAGES = {
   insufficientPermissions: (path: string) => `Permissões insuficientes para escrever em ${path}`,
   invalidProfile: (profile: string) => `Perfil inválido "${profile}". Perfis disponíveis: core, custom`,
   upgradeLegacyPrompt: 'Atualizar e limpar arquivos legados?',
+  preservedDeferredGlobalPrompts: 'Prompts globais adiados preservados por falta de skills substitutas:',
   initializationCancelled: 'Inicialização cancelada.',
   skipPromptHint: 'Execute com --force para pular esta pergunta, ou remova manualmente os arquivos legados.',
   cleaningLegacy: 'Limpando arquivos legados...',
@@ -522,6 +523,8 @@ export const INIT_MESSAGES = {
   refreshed: (names: string) => `Atualizados: ${names}`,
   failed: (errors: string) => `Falhas: ${errors}`,
   commandsSkipped: (tools: string) => `Comandos ignorados para: ${tools} (sem adaptador)`,
+  // Ferramentas skills-invocable (Codex): a superfície de comandos é a própria skill.
+  commandsSkippedUsesSkills: (tools: string) => `Comandos ignorados para: ${tools} (usa skills)`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
   removedSkills: (count: number) => `Removidos: ${count} diretórios de skill (entrega: commands)`,
   skillsAndCommandsCount: (skills: number, commands: number, dirs: string) => `${skills} skills e ${commands} commands em ${dirs}/`,
@@ -1018,6 +1021,8 @@ export const UPDATE_MESSAGES = {
   failedToUpdate: (name: string) => `Falha ao atualizar ${name}`,
   updated: (tools: string, version: string) => `✓ Atualizados: ${tools} (v${version})`,
   failed: (errors: string) => `✗ Falhas: ${errors}`,
+  // Ferramentas skills-invocable (Codex): a superfície de comandos é a própria skill.
+  commandsSkippedUsesSkills: (tools: string) => `Comandos ignorados para: ${tools} (usa skills)`,
   // Lançado após o resumo quando alguma ferramenta falhou (exit ≠ 0 para automação).
   updateFailedFor: (names: string) => `A atualização do BR-OpenSpec falhou para: ${names}`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
@@ -1048,6 +1053,8 @@ export const UPDATE_MESSAGES = {
   forceLegacyHint: '⚠ Execute com --force para limpar automaticamente arquivos legados, ou execute de forma interativa.',
   upgradeLegacyPrompt: 'Atualizar e limpar arquivos legados?',
   skippingLegacyCleanup: 'Ignorando limpeza de legados. Continuando com a atualização de skills...',
+  preservedDeferredGlobalPrompts: 'Prompts globais adiados preservados por falta de skills substitutas:',
+  noAdditionalRefreshAfterLegacy: 'Nenhuma atualização adicional necessária após a migração de legados.',
   toolsDetectedFromLegacy: 'Ferramentas detectadas de artefatos legados:',
   setupSkillsFor: (tools: string) => `Configurando skills para: ${tools}`,
   selectToolsNewSkillSystem: 'Selecione as ferramentas para configurar com o novo sistema de skills:',
@@ -1312,6 +1319,11 @@ export const LEGACY_CLEANUP_MESSAGES = {
   failedToDeleteOpenspecAgents: (error: string) => `Falha ao excluir openspec/AGENTS.md: ${error}`,
   cleanedUpHeader: 'Arquivos legados limpos:',
   removedFile: (file: string) => `  ✓ Removido ${file}`,
+  removedFileReplacedBy: (file: string, replacement: string) =>
+    `  ✓ Removido ${file} (substituído por ${replacement})`,
+  // Rótulo da superfície que substitui os prompts globais gerenciados do Codex.
+  codexSkillsReplacementLabel: 'skills do Codex',
+  skippedUnmanagedGlobalPrompt: (file: string) => `Prompt global não gerenciado ignorado: ${file}`,
   removedDir: (dir: string) => `  ✓ Removido ${dir}/ (substituído por skills e comandos do BR-OpenSpec)`,
   removedMarkers: (file: string) => `  ✓ Marcadores BR-OpenSpec removidos de ${file}`,
   errorsHeader: 'Erros durante a limpeza:',
@@ -1324,6 +1336,12 @@ export const LEGACY_CLEANUP_MESSAGES = {
   upgradeLine1: 'O BR-OpenSpec agora usa agent skills, o padrão emergente entre agentes de codificação',
   upgradeLine2: 'Isso simplifica sua configuração enquanto mantém tudo funcionando',
   upgradeLine3: 'como antes.',
+  // Prompts globais (fora da árvore do projeto) cuja remoção é adiada até que as
+  // skills substitutas existam.
+  deferredGlobalPromptsHeader: 'Limpeza adiada de prompts globais',
+  deferredGlobalPromptsSubheader:
+    'Estes prompts globais só serão removidos depois que as skills substitutas correspondentes forem instaladas.',
+  deferredGlobalPromptItem: (toolLabel: string, promptPath: string) => `  • ${toolLabel}${promptPath}`,
   filesToRemoveHeader: 'Arquivos a remover',
   filesToRemoveSubheader: 'Nenhum conteúdo do usuário a preservar:',
   filesToUpdateHeader: 'Arquivos a atualizar',

@@ -20,6 +20,8 @@ import {
 import {
   resolveCommandInvocation,
   resolveCommandSurfaceCapability,
+  shouldGenerateCommandsForTool,
+  shouldGenerateSkillsForTool,
 } from './command-surface.js';
 import {
   getSkillTemplates,
@@ -145,8 +147,10 @@ export async function addTool(
   const delivery: Delivery = globalConfig.delivery ?? 'both';
   const workflows = getProfileWorkflows(profile, globalConfig.workflows);
 
-  const shouldGenerateSkills = delivery !== 'commands';
-  const shouldGenerateCommands = delivery !== 'skills';
+  // Por ferramenta: uma ferramenta skills-invocable (Codex) recebe skills mesmo
+  // sob `delivery: commands` e nunca recebe arquivos de comando.
+  const shouldGenerateSkills = shouldGenerateSkillsForTool(tool.value, delivery);
+  const shouldGenerateCommands = shouldGenerateCommandsForTool(tool.value, delivery);
 
   // Write skill files
   if (shouldGenerateSkills) {

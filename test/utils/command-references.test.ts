@@ -247,9 +247,20 @@ describe('getTransformerForTool', () => {
       expect(getTransformerForTool(toolId, 'skills', 'adapter-backed', FLAT_SLASH)).toBe(transformToSkillReferences);
     }
     // codex skills are invoked as $<name>, so the default / form is wrong there
-    expect(getTransformerForTool('codex', 'skills', 'adapter-backed', FLAT_SLASH)?.('/opsx:propose')).toBe(
+    expect(getTransformerForTool('codex', 'skills', 'skills-invocable', undefined)?.('/opsx:propose')).toBe(
       '$openspec-propose'
     );
+  });
+
+  it('selects $-prefixed skill references for Codex under every delivery mode', () => {
+    // O Codex é somente skills: não recebe arquivos de comando sob nenhuma
+    // entrega, então suas skills sempre se referenciam como $openspec-*.
+    for (const delivery of ['both', 'skills', 'commands'] as const) {
+      expect(
+        getTransformerForTool('codex', delivery, 'skills-invocable', undefined)?.('/opsx:propose'),
+        delivery
+      ).toBe('$openspec-propose');
+    }
   });
 
   it('selects skill references for tools without a command surface, regardless of delivery', () => {
@@ -268,10 +279,9 @@ describe('getTransformerForTool', () => {
   it('selects hyphen commands for every flat-invocation tool when commands are generated', () => {
     // Essas ferramentas invocam comandos pelo nome do arquivo (/opsx-<id>),
     // então as skills devem referenciar a forma com hífen a que seus arquivos
-    // de comando realmente respondem. codex é o adapter flat próprio do fork
-    // (upstream o removeu). devin fica de fora: sob delivery 'both' ele usa
-    // referências de skill — ver o teste dedicado abaixo.
-    for (const toolId of ['bob', 'codex', 'cursor', 'github-copilot', 'opencode', 'pi', 'qwen'] as const) {
+    // de comando realmente respondem. devin fica de fora: sob delivery 'both'
+    // ele usa referências de skill — ver o teste dedicado abaixo.
+    for (const toolId of ['bob', 'cursor', 'github-copilot', 'opencode', 'pi', 'qwen'] as const) {
       for (const delivery of ['both', 'commands'] as const) {
         const transformer = getTransformerForTool(toolId, delivery, 'adapter-backed', FLAT_SLASH);
         expect(transformer?.('/opsx:apply'), `${toolId} ${delivery}`).toBe('/opsx-apply');

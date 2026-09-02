@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import {
   hasProjectConfigDrift,
+  hasToolProfileOrDeliveryDrift,
   WORKFLOW_TO_SKILL_DIR,
 } from '../../src/core/profile-sync-drift.js';
 import { CORE_WORKFLOWS } from '../../src/core/profiles.js';
@@ -88,5 +89,22 @@ describe('profile sync drift detection', () => {
 
     const hasDrift = hasProjectConfigDrift(tempDir, CORE_WORKFLOWS, 'both');
     expect(hasDrift).toBe(true);
+  });
+
+  // O Codex é somente skills: mantém as skills sob delivery 'commands' e nunca
+  // recebe arquivos de comando, então skills instaladas não são drift.
+  it('does not flag Codex skills as drift under commands-only delivery', () => {
+    for (const workflow of CORE_WORKFLOWS) {
+      const skillDirName = WORKFLOW_TO_SKILL_DIR[workflow as keyof typeof WORKFLOW_TO_SKILL_DIR];
+      const skillPath = path.join(tempDir, '.codex', 'skills', skillDirName, 'SKILL.md');
+      fs.mkdirSync(path.dirname(skillPath), { recursive: true });
+      fs.writeFileSync(skillPath, `name: ${skillDirName}\n`);
+    }
+
+    expect(hasToolProfileOrDeliveryDrift(tempDir, 'codex', CORE_WORKFLOWS, 'commands')).toBe(false);
+  });
+
+  it('flags a Codex tool with no skills as drift under commands-only delivery', () => {
+    expect(hasToolProfileOrDeliveryDrift(tempDir, 'codex', CORE_WORKFLOWS, 'commands')).toBe(true);
   });
 });

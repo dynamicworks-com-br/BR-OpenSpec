@@ -36,16 +36,9 @@ export interface ToolCommandAdapter {
    * Returns the file path for a command.
    * @param commandId - The command identifier (e.g., 'explore')
    * @returns Path from project root (e.g., '.claude/commands/opsx/explore.md').
-   *          May be absolute for tools with global-scoped prompts (e.g., Codex).
+   *          May be absolute for tools with global-scoped command files.
    */
   getFilePath(commandId: string): string;
-  /**
-   * Raiz global de confiança para ferramentas cujos comandos vivem fora do
-   * projeto (ex.: Codex escreve em `<CODEX_HOME>/prompts/`). Quando definida,
-   * caminhos absolutos retornados por `getFilePath` são confinados a ela;
-   * sem ela, um caminho absoluto é recusado como artefato fora do projeto.
-   */
-  getArtifactRoot?(): string;
   /**
    * What the user types before the command name, when it is not the default
    * `/`. Amazon Q loads these files into its prompt library, which is invoked
@@ -65,7 +58,7 @@ export interface ToolCommandAdapter {
  * Result of generating a command file.
  */
 export interface GeneratedCommand {
-  /** File path from project root, or absolute for global-scoped tools */
+  /** File path from project root, or absolute for global-scoped command files */
   path: string;
   /** Complete file content (frontmatter + body) */
   fileContent: string;

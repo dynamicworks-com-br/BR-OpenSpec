@@ -75,8 +75,8 @@ describe('migration', () => {
     await fsp.mkdir(configHome, { recursive: true });
     originalEnv = { ...process.env };
     process.env.XDG_CONFIG_HOME = configHome;
-    // Isolate from the real Codex home: the codex adapter path is global, so
-    // the artifact scan would otherwise see this machine's actual prompts.
+    // Isolate from the real Codex home: legacy cleanup scans the global Codex
+    // prompt directory, so it would otherwise see this machine's actual prompts.
     process.env.CODEX_HOME = path.join(projectDir, 'codex-home');
   });
 
@@ -171,9 +171,8 @@ describe('migration', () => {
   });
 
   it('prints the $-prefixed skill reference when migrating a codex-only project (skills-only inferred delivery)', async () => {
-    // Neste fork o Codex tem adaptador de comandos, mas com apenas skills
-    // instaladas a entrega inferida é 'skills' e os comandos nunca serão
-    // gerados — e o Codex CLI invoca skills como $<name>, não como /<name>.
+    // O Codex é somente skills: nunca recebe arquivos de comando, a entrega
+    // inferida é 'skills' e o Codex CLI invoca skills como $<name>.
     await writeSkill(projectDir, 'openspec-propose', '.codex');
 
     const message = captureMigrationLogs(projectDir, [requireTool('codex')]).find((entry) =>

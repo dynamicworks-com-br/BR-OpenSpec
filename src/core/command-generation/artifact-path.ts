@@ -1,29 +1,22 @@
 /**
  * Resolução confinada de caminhos de comando gerados.
  *
- * Extensão do fork: no upstream, nenhum adapter produz caminho absoluto e
- * `FileSystemUtils.resolveProjectArtifactPath` recusa qualquer um. No fork, o
- * adapter do Codex escreve prompts globais em `<CODEX_HOME>/prompts/`; esses
- * caminhos são confinados à raiz declarada pelo adapter (`getArtifactRoot`),
- * com a mesma guarda canônica (links para fora são recusados).
+ * Nenhum adapter registrado produz caminho absoluto (o adapter do Codex, que
+ * escrevia prompts globais em `<CODEX_HOME>/prompts/`, foi aposentado quando o
+ * Codex passou a ser somente skills), então todo caminho é resolvido dentro da
+ * raiz do projeto pela guarda canônica.
+ *
+ * O wrapper continua recebendo o adapter para manter a assinatura estável nos
+ * chamadores caso alguma ferramenta volte a declarar uma raiz global.
  */
 
-import path from 'path';
 import { FileSystemUtils } from '../../utils/file-system.js';
 import type { ToolCommandAdapter } from './types.js';
 
 export function resolveCommandArtifactPath(
   projectPath: string,
-  adapter: ToolCommandAdapter,
+  _adapter: ToolCommandAdapter,
   commandPath: string
 ): string {
-  if (path.isAbsolute(commandPath)) {
-    const globalRoot = adapter.getArtifactRoot?.();
-    if (globalRoot) {
-      FileSystemUtils.assertPathWithin(globalRoot, commandPath);
-      return commandPath;
-    }
-  }
-
   return FileSystemUtils.resolveProjectArtifactPath(projectPath, commandPath);
 }

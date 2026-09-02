@@ -4,8 +4,12 @@ import path from 'path';
 import os from 'os';
 
 // Mock global config so tests don't depend on real config file
+const mockGlobalConfig = vi.hoisted(() => ({
+  current: { profile: 'core', delivery: 'both' } as { profile: string; delivery: string },
+}));
+
 vi.mock('../../src/core/global-config.js', () => ({
-  getGlobalConfig: vi.fn(() => ({ profile: 'core', delivery: 'both' })),
+  getGlobalConfig: vi.fn(() => mockGlobalConfig.current),
   saveGlobalConfig: vi.fn(),
 }));
 
@@ -54,6 +58,7 @@ describe('tools-manager', () => {
   });
 
   afterEach(async () => {
+    mockGlobalConfig.current = { profile: 'core', delivery: 'both' };
     await fs.rm(testDir, { recursive: true, force: true });
     await fs.rm(configTempDir, { recursive: true, force: true });
     vi.restoreAllMocks();
@@ -247,50 +252,23 @@ describe('tools-manager', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Codex: prompts globais confinados a <CODEX_HOME>/prompts
+  // Codex: somente skills (o adapter de prompts globais foi aposentado)
   // ─────────────────────────────────────────────────────────────────────────
 
-  describe('codex global prompts', () => {
-    let originalCodexHome: string | undefined;
-    let codexHome: string;
+  describe('codex (skills-only)', () => {
+    it('writes codex skills and no global prompts, even under commands delivery', async () => {
+      mockGlobalConfig.current = { profile: 'core', delivery: 'commands' };
 
-    beforeEach(async () => {
-      originalCodexHome = process.env.CODEX_HOME;
-      codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tm-codex-'));
-      process.env.CODEX_HOME = codexHome;
-    });
-
-    afterEach(async () => {
-      if (originalCodexHome === undefined) {
-        delete process.env.CODEX_HOME;
-      } else {
-        process.env.CODEX_HOME = originalCodexHome;
-      }
-      await fs.rm(codexHome, { recursive: true, force: true });
-    });
-
-    it('writes codex prompts to the global CODEX_HOME/prompts root', async () => {
       const tool = AI_TOOLS.find((t) => t.value === 'codex')!;
       await addTool(testDir, tool);
 
-      expect(await fileExists(path.join(codexHome, 'prompts', 'opsx-propose.md'))).toBe(true);
+      expect(
+        await fileExists(path.join(testDir, '.codex', 'skills', 'openspec-propose', 'SKILL.md'))
+      ).toBe(true);
+      expect(
+        await fileExists(path.join(process.env.CODEX_HOME!, 'prompts', 'opsx-propose.md'))
+      ).toBe(false);
     });
-
-    it.skipIf(process.platform === 'win32')(
-      'does not write through a codex prompt linked outside CODEX_HOME/prompts',
-      async () => {
-        const outsideFile = path.join(testDir, 'outside-prompt.md');
-        await fs.writeFile(outsideFile, 'keep me\n');
-        const promptsDir = path.join(codexHome, 'prompts');
-        await fs.mkdir(promptsDir, { recursive: true });
-        await fs.symlink(outsideFile, path.join(promptsDir, 'opsx-propose.md'), 'file');
-
-        const tool = AI_TOOLS.find((t) => t.value === 'codex')!;
-        await expect(addTool(testDir, tool)).rejects.toThrow('fora do diretório permitido');
-
-        expect(await fs.readFile(outsideFile, 'utf-8')).toBe('keep me\n');
-      }
-    );
   });
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -20,6 +20,8 @@ import {
   resolveCommandInvocation,
   shouldGenerateCommandsForTool,
   shouldGenerateSkillsForTool,
+  shouldReconcileCommandFilesForTool,
+  shouldRemoveSkillsForTool,
 } from './command-surface.js';
 import {
   AI_TOOLS,
@@ -44,7 +46,11 @@ import {
   detectLegacyArtifacts,
   cleanupLegacyArtifacts,
   formatCleanupSummary,
+  formatDeferredGlobalPromptSummary,
   formatDetectionSummary,
+  getLegacyGlobalPromptMatches,
+  omitGlobalLegacyPromptFiles,
+  pickGlobalLegacyPromptFiles,
   type LegacyDetectionResult,
 } from './legacy-cleanup.js';
 import {
@@ -60,7 +66,14 @@ import {
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { getProfileWorkflows, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
-import { migrateIfNeeded, migrateLegacyToolDirs, describeLegacyMigration, keptInPlaceNotice, hasMovableContent } from './migration.js';
+import {
+  migrateIfNeeded,
+  migrateLegacyToolDirs,
+  describeLegacyMigration,
+  keptInPlaceNotice,
+  hasMovableContent,
+  scanInstalledWorkflows as scanInstalledWorkflowsShared,
+} from './migration.js';
 
 const require = createRequire(import.meta.url);
 const { version: OPENSPEC_VERSION } = require('../../package.json');
@@ -88,6 +101,14 @@ type InitCommandOptions = {
   profile?: string;
   /** Commander's --no-animation flag: false disables the welcome animation. */
   animation?: boolean;
+};
+
+/**
+ * Holds the global Codex prompt matches that must wait until replacement skills
+ * are generated before cleanup can continue.
+ */
+type DeferredLegacyCleanup = {
+  detection: LegacyDetectionResult;
 };
 
 // -----------------------------------------------------------------------------
@@ -118,7 +139,7 @@ export class InitCommand {
     const extendMode = await this.validate(projectPath, openspecPath);
 
     // Check for legacy artifacts and handle cleanup
-    await this.handleLegacyCleanup(projectPath, extendMode);
+    const deferredLegacyCleanup = await this.handleLegacyCleanup(projectPath, extendMode);
 
     // Migrate OpenSpec-managed skills left in renamed tool directories
     // (e.g. .kimi -> .kimi-code) before detection so they stay recognized.
@@ -173,6 +194,12 @@ export class InitCommand {
 
     // Generate skills and commands for each tool
     const results = await this.generateSkillsAndCommands(projectPath, validatedTools);
+
+    // Legacy cleanup was deferred to avoid interfering with skill/command generation;
+    // now that outputs are written, finalize the cleanup (e.g. remove stale files).
+    if (deferredLegacyCleanup) {
+      await this.finalizeDeferredLegacyCleanup(projectPath, deferredLegacyCleanup);
+    }
 
     // Create config.yaml if needed
     const configStatus = await this.createConfig(openspecPath, extendMode);
@@ -235,18 +262,35 @@ export class InitCommand {
   // LEGACY CLEANUP
   // ═══════════════════════════════════════════════════════════
 
-  private async handleLegacyCleanup(projectPath: string, extendMode: boolean): Promise<void> {
+  /**
+   * Cleans repo-local legacy artifacts immediately and defers global Codex prompt
+   * cleanup until replacement skills have been installed.
+   */
+  private async handleLegacyCleanup(projectPath: string, extendMode: boolean): Promise<DeferredLegacyCleanup | null> {
     // Detect legacy artifacts
     const detection = await detectLegacyArtifacts(projectPath);
 
     if (!detection.hasLegacyArtifacts) {
-      return; // No legacy artifacts found
+      return null; // No legacy artifacts found
     }
 
+    const immediateDetection = omitGlobalLegacyPromptFiles(detection);
+
     // Show what was detected
-    console.log();
-    console.log(formatDetectionSummary(detection));
-    console.log();
+    const immediateSummary = formatDetectionSummary(immediateDetection);
+    if (immediateSummary) {
+      console.log();
+      console.log(immediateSummary);
+      console.log();
+    }
+
+    // Show which global prompts are deferred — they'll only be removed once
+    // the corresponding replacement skills are installed during generation.
+    const deferredSummary = formatDeferredGlobalPromptSummary(detection);
+    if (deferredSummary) {
+      console.log(deferredSummary);
+      console.log();
+    }
 
     const canPrompt = this.canPromptInteractively();
 
@@ -254,8 +298,8 @@ export class InitCommand {
       // --force flag or non-interactive mode: proceed with cleanup automatically.
       // Legacy slash commands are 100% OpenSpec-managed, and config file cleanup
       // only removes markers (never deletes files), so auto-cleanup is safe.
-      await this.performLegacyCleanup(projectPath, detection);
-      return;
+      await this.performImmediateLegacyCleanup(projectPath, detection);
+      return detection.globalSlashCommandFiles.length > 0 ? { detection } : null;
     }
 
     // Interactive mode: prompt for confirmation
@@ -271,7 +315,71 @@ export class InitCommand {
       process.exit(0);
     }
 
-    await this.performLegacyCleanup(projectPath, detection);
+    await this.performImmediateLegacyCleanup(projectPath, detection);
+    return detection.globalSlashCommandFiles.length > 0 ? { detection } : null;
+  }
+
+  /**
+   * Applies the safe subset of legacy cleanup that does not depend on newly
+   * generated Codex skills.
+   */
+  private async performImmediateLegacyCleanup(
+    projectPath: string,
+    detection: LegacyDetectionResult
+  ): Promise<void> {
+    const immediateDetection = omitGlobalLegacyPromptFiles(detection);
+    if (!immediateDetection.hasLegacyArtifacts) {
+      return;
+    }
+
+    await this.performLegacyCleanup(projectPath, immediateDetection);
+  }
+
+  /**
+   * Removes only the legacy global Codex prompts whose workflows now have
+   * replacement skills in the project.
+   */
+  private async finalizeDeferredLegacyCleanup(
+    projectPath: string,
+    deferredCleanup: DeferredLegacyCleanup
+  ): Promise<void> {
+    const availableCodexWorkflows = await this.getInstalledWorkflowsForTool(projectPath, 'codex');
+    const removableMatches = getLegacyGlobalPromptMatches(deferredCleanup.detection)
+      .filter((prompt) => prompt.workflowIds.every((workflowId) => availableCodexWorkflows.has(workflowId)));
+
+    if (removableMatches.length > 0) {
+      await this.performLegacyCleanup(
+        projectPath,
+        pickGlobalLegacyPromptFiles(
+          deferredCleanup.detection,
+          removableMatches.map((prompt) => prompt.path)
+        )
+      );
+    }
+
+    const blockedMatches = getLegacyGlobalPromptMatches(deferredCleanup.detection)
+      .filter((prompt) => !removableMatches.some((match) => match.path === prompt.path));
+
+    if (blockedMatches.length > 0) {
+      console.log(chalk.yellow(INIT_MESSAGES.preservedDeferredGlobalPrompts));
+      for (const prompt of blockedMatches) {
+        console.log(chalk.dim(`  - ${prompt.toolId}: ${prompt.path}`));
+      }
+      console.log();
+    }
+  }
+
+  /**
+   * Reads the currently installed workflow IDs for a single tool from the
+   * generated skill layout on disk.
+   */
+  private async getInstalledWorkflowsForTool(projectPath: string, toolId: string): Promise<Set<string>> {
+    const tool = AI_TOOLS.find((candidate) => candidate.value === toolId);
+    if (!tool) {
+      return new Set<string>();
+    }
+
+    return new Set(scanInstalledWorkflowsShared(projectPath, [tool]));
   }
 
   private async performLegacyCleanup(projectPath: string, detection: LegacyDetectionResult): Promise<void> {
@@ -545,6 +653,7 @@ export class InitCommand {
     refreshedTools: typeof tools;
     failedTools: Array<{ name: string; error: Error }>;
     commandsSkipped: string[];
+    skillsInvocableCommandSkips: string[];
     removedCommandCount: number;
     removedSkillCount: number;
   }> {
@@ -552,6 +661,7 @@ export class InitCommand {
     const refreshedTools: typeof tools = [];
     const failedTools: Array<{ name: string; error: Error }> = [];
     const commandsSkipped: string[] = [];
+    const skillsInvocableCommandSkips: string[] = [];
     let removedCommandCount = 0;
     let removedSkillCount = 0;
 
@@ -562,17 +672,19 @@ export class InitCommand {
     const workflows = getProfileWorkflows(profile, globalConfig.workflows);
 
     // Get skill and command templates filtered by profile workflows
-    const shouldGenerateSkills = delivery !== 'commands';
-    const shouldGenerateCommands = delivery !== 'skills';
-    const skillTemplates = shouldGenerateSkills ? getSkillTemplates(workflows) : [];
-    const commandContents = shouldGenerateCommands ? getCommandContents(workflows) : [];
+    const deliveryIncludesCommands = delivery !== 'skills';
+    const skillTemplates = getSkillTemplates(workflows);
+    const commandContents = getCommandContents(workflows);
 
     // Process each tool
     for (const tool of tools) {
       const spinner = ora(INIT_MESSAGES.settingUp(tool.name)).start();
 
       try {
-        // Generate skill files if delivery includes skills
+        const shouldGenerateSkills = shouldGenerateSkillsForTool(tool.value, delivery);
+        const shouldGenerateCommands = shouldGenerateCommandsForTool(tool.value, delivery);
+
+        // Generate skill files if the selected delivery and tool capability allow skills
         if (shouldGenerateSkills) {
           // Use tool-specific skillsDir
           const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
@@ -596,7 +708,7 @@ export class InitCommand {
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
         }
-        if (!shouldGenerateSkills) {
+        if (shouldRemoveSkillsForTool(tool.value, delivery)) {
           const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
           removedSkillCount += await this.removeSkillDirs(projectPath, skillsDir);
         }
@@ -611,11 +723,15 @@ export class InitCommand {
               const commandFile = resolveCommandArtifactPath(projectPath, adapter, cmd.path);
               await FileSystemUtils.writeFile(commandFile, cmd.fileContent);
             }
+          }
+        } else if (deliveryIncludesCommands) {
+          if (resolveCommandSurfaceCapability(tool.value) === 'skills-invocable') {
+            skillsInvocableCommandSkips.push(tool.value);
           } else {
             commandsSkipped.push(tool.value);
           }
         }
-        if (!shouldGenerateCommands) {
+        if (shouldReconcileCommandFilesForTool(tool.value, delivery)) {
           removedCommandCount += await this.removeCommandFiles(projectPath, tool.value);
         }
 
@@ -637,6 +753,7 @@ export class InitCommand {
       refreshedTools,
       failedTools,
       commandsSkipped,
+      skillsInvocableCommandSkips,
       removedCommandCount,
       removedSkillCount,
     };
@@ -683,6 +800,7 @@ export class InitCommand {
       refreshedTools: typeof tools;
       failedTools: Array<{ name: string; error: Error }>;
       commandsSkipped: string[];
+      skillsInvocableCommandSkips: string[];
       removedCommandCount: number;
       removedSkillCount: number;
     },
@@ -714,8 +832,12 @@ export class InitCommand {
       const delivery: Delivery = globalConfig.delivery ?? 'both';
       const workflows = getProfileWorkflows(profile, globalConfig.workflows);
       const toolDirs = [...new Set(successfulTools.map((t) => t.skillsDir))].join(', ');
-      const skillCount = delivery !== 'commands' ? getSkillTemplates(workflows).length : 0;
-      const commandCount = delivery !== 'skills' ? getCommandContents(workflows).length : 0;
+      const skillCount = successfulTools.some((tool) => shouldGenerateSkillsForTool(tool.value, delivery))
+        ? getSkillTemplates(workflows).length
+        : 0;
+      const commandCount = successfulTools.some((tool) => shouldGenerateCommandsForTool(tool.value, delivery))
+        ? getCommandContents(workflows).length
+        : 0;
       if (skillCount > 0 && commandCount > 0) {
         console.log(INIT_MESSAGES.skillsAndCommandsCount(skillCount, commandCount, toolDirs));
       } else if (skillCount > 0) {
@@ -733,6 +855,9 @@ export class InitCommand {
     // Show skipped commands
     if (results.commandsSkipped.length > 0) {
       console.log(chalk.dim(INIT_MESSAGES.commandsSkipped(results.commandsSkipped.join(', '))));
+    }
+    if (results.skillsInvocableCommandSkips.length > 0) {
+      console.log(chalk.dim(INIT_MESSAGES.commandsSkippedUsesSkills(results.skillsInvocableCommandSkips.join(', '))));
     }
     if (results.removedCommandCount > 0) {
       console.log(chalk.dim(INIT_MESSAGES.removedCommands(results.removedCommandCount)));

@@ -122,9 +122,9 @@ export function getToolSkillStatus(projectRoot: string, toolId: string): ToolSki
 /**
  * Checks whether a tool has at least one generated OpenSpec command file.
  *
- * Paths outside the project root do not count: the codex adapter writes prompts
- * to a global home directory (~/.codex/prompts), which exists regardless of how
- * this project is configured and must not mark every project as configured.
+ * Paths outside the project root do not count: a global-scoped command file (as
+ * the retired Codex prompt adapter wrote) exists regardless of how this project
+ * is configured and must not mark every project as configured.
  */
 export function toolHasAnyConfiguredCommand(projectPath: string, toolId: string): boolean {
   const adapter = CommandAdapterRegistry.get(toolId);

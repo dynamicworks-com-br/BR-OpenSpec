@@ -25,6 +25,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     globalSetup: './vitest.setup.ts',
+    // Isola `CODEX_HOME` por arquivo de teste: a limpeza de artefatos legados
+    // apaga prompts em `$CODEX_HOME/prompts` e não pode tocar o `~/.codex` real.
+    setupFiles: ['./vitest.env-setup.ts'],
     // Tests rely on per-file process isolation (e.g., `process.cwd()` assumptions).
     pool: 'forks',
     maxWorkers: resolveMaxWorkers(),

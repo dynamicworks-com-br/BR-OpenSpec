@@ -130,9 +130,8 @@ export function getSkillReferenceTransformer(toolId: string): (text: string) => 
  * surface at all (capability 'none', e.g. Kimi Code, ForgeCode, Trae or
  * Mistral Vibe), or because the tool invokes skills directly and OpenSpec
  * generates no command files for it (capability 'skills-invocable', i.e.
- * Codex upstream; in this fork codex still registers an adapter, so that
- * branch is currently unreachable) — so those skills never point at commands
- * that were not generated.
+ * Codex, whose skills are invoked as `$openspec-*`) — so those skills never
+ * point at commands that were not generated.
  *
  * When commands are generated, the spelling follows the tool's invocation: a
  * `flat` adapter names the command by filename (`.cursor/commands/opsx-apply.md`

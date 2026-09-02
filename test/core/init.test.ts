@@ -5,6 +5,7 @@ import path from 'path';
 import os from 'os';
 import { InitCommand } from '../../src/core/init.js';
 import { saveGlobalConfig, getGlobalConfig } from '../../src/core/global-config.js';
+import { LEGACY_CLEANUP_MESSAGES } from '../../src/messages/index.js';
 
 const { confirmMock, showWelcomeScreenMock, searchableMultiSelectMock } = vi.hoisted(() => ({
   confirmMock: vi.fn(),
@@ -37,6 +38,9 @@ describe('InitCommand', () => {
     configTempDir = path.join(os.tmpdir(), `openspec-config-init-${randomUUID()}`);
     await fs.mkdir(configTempDir, { recursive: true });
     process.env.XDG_CONFIG_HOME = configTempDir;
+    // A limpeza de artefatos legados varre `<CODEX_HOME>/prompts`; manter o
+    // diretório dentro do testDir para nunca tocar o `~/.codex` real.
+    process.env.CODEX_HOME = path.join(testDir, 'codex-home');
 
     // Mock console.log to suppress output during tests
     vi.spyOn(console, 'log').mockImplementation(() => { });
@@ -362,6 +366,26 @@ describe('InitCommand', () => {
       expect(await fileExists(path.join(testDir, '.kimi', 'config.toml'))).toBe(true);
     });
 
+    it.each(['both', 'skills', 'commands'] as const)(
+      'should create Codex skills and no global prompts when delivery=%s',
+      async (delivery) => {
+        saveGlobalConfig({
+          featureFlags: {},
+          profile: 'core',
+          delivery,
+        });
+
+        const initCommand = new InitCommand({ tools: 'codex', force: true });
+        await initCommand.execute(testDir);
+
+        const skillFile = path.join(testDir, '.codex', 'skills', 'openspec-explore', 'SKILL.md');
+        expect(await fileExists(skillFile)).toBe(true);
+
+        const promptFile = path.join(process.env.CODEX_HOME!, 'prompts', 'opsx-explore.md');
+        expect(await fileExists(promptFile)).toBe(false);
+      }
+    );
+
     it('should create skills for multiple tools at once', async () => {
       const initCommand = new InitCommand({ tools: 'claude,cursor', force: true });
 
@@ -380,11 +404,6 @@ describe('InitCommand', () => {
         profile: 'core',
         delivery: 'both',
       });
-      // The fork still registers the Codex command adapter, which writes to
-      // <CODEX_HOME>/prompts; keep it inside the test dir so the run never
-      // touches the developer's real ~/.codex.
-      process.env.CODEX_HOME = path.join(testDir, 'codex-home');
-
       const initCommand = new InitCommand({
         tools: 'factory,cursor,kilocode,pi,codex',
         force: true,
@@ -743,6 +762,9 @@ describe('InitCommand - profile and detection features', () => {
     configTempDir = path.join(os.tmpdir(), `openspec-config-test-${randomUUID()}`);
     await fs.mkdir(configTempDir, { recursive: true });
     process.env.XDG_CONFIG_HOME = configTempDir;
+    // A limpeza de artefatos legados varre `<CODEX_HOME>/prompts`; manter o
+    // diretório dentro do testDir para nunca tocar o `~/.codex` real.
+    process.env.CODEX_HOME = path.join(testDir, 'codex-home');
     vi.spyOn(console, 'log').mockImplementation(() => {});
     confirmMock.mockReset();
     confirmMock.mockResolvedValue(true);
@@ -819,6 +841,65 @@ describe('InitCommand - profile and detection features', () => {
     // New commands should be at the correct plural path
     const newCommandsDir = path.join(testDir, '.opencode', 'commands');
     expect(await directoryExists(newCommandsDir)).toBe(true);
+  });
+
+  it('should remove managed global Codex prompts in non-interactive mode', async () => {
+    const promptDir = path.join(process.env.CODEX_HOME!, 'prompts');
+    const legacyPrompt = path.join(promptDir, 'opsx-apply.md');
+    await fs.mkdir(promptDir, { recursive: true });
+    await fs.writeFile(legacyPrompt, 'legacy apply prompt');
+
+    const initCommand = new InitCommand({ tools: 'codex' });
+    await initCommand.execute(testDir);
+
+    expect(await fileExists(legacyPrompt)).toBe(false);
+    expect(await fileExists(
+      path.join(testDir, '.codex', 'skills', 'openspec-apply-change', 'SKILL.md')
+    )).toBe(true);
+  });
+
+  it('should preserve legacy Codex prompts without replacement skills during non-interactive init', async () => {
+    const promptDir = path.join(process.env.CODEX_HOME!, 'prompts');
+    const legacyPrompt = path.join(promptDir, 'opsx-onboard.md');
+    await fs.mkdir(promptDir, { recursive: true });
+    await fs.writeFile(legacyPrompt, 'legacy onboard prompt');
+
+    const initCommand = new InitCommand({ tools: 'codex' });
+    await initCommand.execute(testDir);
+
+    expect(await fileExists(legacyPrompt)).toBe(true);
+    expect(await fileExists(
+      path.join(testDir, '.codex', 'skills', 'openspec-explore', 'SKILL.md')
+    )).toBe(true);
+    expect(await fileExists(
+      path.join(testDir, '.codex', 'skills', 'openspec-onboard', 'SKILL.md')
+    )).toBe(false);
+  });
+
+  it('should defer global Codex prompt removal messaging until after interactive tool selection', async () => {
+    const promptDir = path.join(process.env.CODEX_HOME!, 'prompts');
+    const legacyPrompt = path.join(promptDir, 'opsx-apply.md');
+    await fs.mkdir(promptDir, { recursive: true });
+    await fs.writeFile(legacyPrompt, 'legacy apply prompt');
+
+    searchableMultiSelectMock.mockResolvedValue(['codex']);
+
+    const initCommand = new InitCommand({ force: true });
+    vi.spyOn(initCommand as any, 'canPromptInteractively').mockReturnValue(true);
+
+    await initCommand.execute(testDir);
+
+    const toolSelectionOrder = searchableMultiSelectMock.mock.invocationCallOrder[0];
+    const consoleLogMock = console.log as ReturnType<typeof vi.fn>;
+    const logsBeforeSelection = consoleLogMock.mock.calls
+      .filter((_, index) => consoleLogMock.mock.invocationCallOrder[index] < toolSelectionOrder)
+      .flat()
+      .join('\n');
+
+    expect(logsBeforeSelection).toContain(LEGACY_CLEANUP_MESSAGES.deferredGlobalPromptsHeader);
+    expect(logsBeforeSelection).toContain('só serão removidos depois que as skills substitutas');
+    expect(logsBeforeSelection).toContain(`codex: ${legacyPrompt}`);
+    expect(await fileExists(legacyPrompt)).toBe(false);
   });
 
   it('should preselect configured tools but not directory-detected tools in extend mode', async () => {
