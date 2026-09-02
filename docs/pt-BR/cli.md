@@ -73,6 +73,11 @@ O comportamento padrão usa os valores globais de configuração: perfil `core`,
 openspec init [path] [options]
 ```
 
+Use `--language <language>` para adicionar uma instrução de idioma ao
+`openspec/config.yaml` de um projeto novo. Em um projeto existente, edite o
+campo `context` da configuração — o BR-OpenSpec nunca sobrescreve orientações
+específicas do projeto.
+
 **Argumentos:**
 
 | Argumento | Obrigatório | Descrição |
@@ -84,6 +89,7 @@ openspec init [path] [options]
 | Opção | Descrição |
 |-------|-----------|
 | `--tools <list>` | Configurar ferramentas de IA de forma não interativa. Use `all`, `none` ou lista separada por vírgulas |
+| `--language <language>` | Escrever os artefatos neste idioma ao criar uma nova configuração |
 | `--force` | Limpar arquivos legados automaticamente sem solicitar confirmação |
 | `--profile <profile>` | Substituir o perfil global para esta execução do init (`core` ou `custom`) |
 | `--no-animation` | Exibir uma tela de boas-vindas estática em vez da animada |

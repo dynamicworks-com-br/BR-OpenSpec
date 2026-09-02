@@ -46,6 +46,11 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
         takesValue: true,
       },
       {
+        name: 'language',
+        description: CLI_DESCRIPTIONS.language,
+        takesValue: true,
+      },
+      {
         name: 'no-animation',
         description: CLI_DESCRIPTIONS.noAnimation,
       },

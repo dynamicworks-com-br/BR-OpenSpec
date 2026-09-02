@@ -48,6 +48,7 @@ import {
   ONBOARDING_MESSAGES,
 } from '../messages/index.js';
 import { serializeConfig } from './config-prompts.js';
+import { MAX_CONTEXT_SIZE, readProjectConfig } from './project-config.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
@@ -107,6 +108,19 @@ const { version: OPENSPEC_VERSION } = require('../../package.json');
 
 const DEFAULT_SCHEMA = 'spec-driven';
 
+/**
+ * Bloco de contexto gravado em `openspec/config.yaml` por `init --language`.
+ * Fica em INGLÊS de propósito: é conteúdo lido pelos agentes de IA (e nomeia o
+ * padrão de cabeçalhos do OpenSpec), não uma mensagem para o usuário.
+ */
+function formatLanguageContext(language: string): string {
+  return [
+    `Language: ${language}`,
+    `All artifacts must be written in ${language}.`,
+    'Keep OpenSpec structural headings and SHALL/MUST keywords in English.',
+  ].join('\n');
+}
+
 const PROGRESS_SPINNER = {
   interval: 80,
   frames: ['░░░', '▒░░', '▒▒░', '▒▒▒', '▓▒▒', '▓▓▒', '▓▓▓', '▒▓▓', '░▒▓'],
@@ -119,6 +133,8 @@ const PROGRESS_SPINNER = {
 
 type InitCommandOptions = {
   tools?: string;
+  /** Idioma dos artefatos gerados (`--language`); grava `context` no config. */
+  language?: string;
   force?: boolean;
   interactive?: boolean;
   profile?: string;
@@ -158,6 +174,7 @@ type DeferredLegacyCleanup = {
 
 export class InitCommand {
   private readonly toolsArg?: string;
+  private readonly language?: string;
   private readonly force: boolean;
   private readonly interactiveOption?: boolean;
   private readonly profileOverride?: string;
@@ -166,6 +183,7 @@ export class InitCommand {
 
   constructor(options: InitCommandOptions = {}) {
     this.toolsArg = options.tools;
+    this.language = this.normalizeLanguage(options.language);
     this.force = options.force ?? false;
     this.interactiveOption = options.interactive;
     this.profileOverride = options.profile;
@@ -180,6 +198,10 @@ export class InitCommand {
 
     // Validation happens silently in the background
     const extendMode = await this.validate(projectPath, openspecPath);
+
+    // --language falha antes de qualquer escrita: nada de limpar legados,
+    // migrar diretórios ou gerar skills se o idioma não puder ser aplicado.
+    await this.assertLanguageCanBeApplied(projectPath, openspecPath);
 
     // Check for legacy artifacts and handle cleanup
     const deferredLegacyCleanup = await this.handleLegacyCleanup(projectPath, extendMode);
@@ -1000,6 +1022,57 @@ export class InitCommand {
   // CONFIG FILE
   // ═══════════════════════════════════════════════════════════
 
+  private normalizeLanguage(language: string | undefined): string | undefined {
+    if (language === undefined) return undefined;
+
+    const normalized = language.trim();
+    if (!normalized) {
+      throw new Error(INIT_MESSAGES.languageRequiresValue);
+    }
+    if (/\p{Cc}|\p{Bidi_Control}|[\u200B\u2028\u2029\uFEFF]/u.test(normalized)) {
+      throw new Error(INIT_MESSAGES.languageMustBeSingleLine);
+    }
+    const serializedContext = `${formatLanguageContext(normalized)}\n`;
+    if (Buffer.byteLength(serializedContext, 'utf8') > MAX_CONTEXT_SIZE) {
+      throw new Error(INIT_MESSAGES.languageTooLong(String(MAX_CONTEXT_SIZE / 1024)));
+    }
+    return normalized;
+  }
+
+  private languageContext(): string | undefined {
+    if (!this.language) return undefined;
+    return formatLanguageContext(this.language);
+  }
+
+  private async assertLanguageCanBeApplied(
+    projectPath: string,
+    openspecPath: string
+  ): Promise<void> {
+    const languageContext = this.languageContext();
+    if (!languageContext) return;
+
+    const configPath = path.join(openspecPath, 'config.yaml');
+    const hasConfig = fs.existsSync(configPath) ||
+      fs.existsSync(path.join(openspecPath, 'config.yml'));
+    if (!hasConfig) {
+      try {
+        FileSystemUtils.assertProjectArtifactPath(projectPath, configPath);
+      } catch (error) {
+        const reason = error instanceof Error ? `: ${error.message}` : '';
+        throw new Error(INIT_MESSAGES.languageCannotCreateConfig(reason));
+      }
+      if (!(await FileSystemUtils.canWriteFile(configPath))) {
+        throw new Error(INIT_MESSAGES.languageConfigNotWritable);
+      }
+      return;
+    }
+
+    const existingContext = readProjectConfig(projectPath)?.context;
+    if (existingContext?.includes(languageContext)) return;
+
+    throw new Error(INIT_MESSAGES.languageDoesNotOverwriteConfig);
+  }
+
   private async createConfig(openspecPath: string, extendMode: boolean): Promise<'created' | 'exists' | 'skipped'> {
     const configPath = path.join(openspecPath, 'config.yaml');
     const configYmlPath = path.join(openspecPath, 'config.yml');
@@ -1010,17 +1083,27 @@ export class InitCommand {
       return 'exists';
     }
 
-    // In non-interactive mode without --force, skip config creation
-    if (!this.canPromptInteractively() && !this.force) {
+    // In non-interactive mode without --force, skip config creation.
+    // Exceção do fork: `--language` é um pedido explícito de config, então não
+    // pode ser descartado em silêncio (o upstream removeu este guard inteiro no
+    // subsistema de stores, adiado aqui).
+    if (!this.canPromptInteractively() && !this.force && !this.language) {
       return 'skipped';
     }
 
     try {
-      const yamlContent = serializeConfig({ schema: DEFAULT_SCHEMA });
+      const yamlContent = serializeConfig({
+        schema: DEFAULT_SCHEMA,
+        context: this.languageContext(),
+      });
       FileSystemUtils.assertProjectArtifactPath(path.dirname(openspecPath), configPath);
       await FileSystemUtils.writeFile(configPath, yamlContent);
       return 'created';
-    } catch {
+    } catch (error) {
+      if (this.language) {
+        const reason = error instanceof Error ? `: ${error.message}` : '';
+        throw new Error(INIT_MESSAGES.languageConfigWriteFailed(reason));
+      }
       return 'skipped';
     }
   }

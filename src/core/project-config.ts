@@ -163,7 +163,7 @@ function parseOperations(raw: unknown): OperationsConfig | undefined {
   return Object.keys(operations).length > 0 ? operations : undefined;
 }
 
-const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
+export const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
 
 /**
  * Read and parse openspec/config.yaml from project root.

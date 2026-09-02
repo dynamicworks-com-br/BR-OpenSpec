@@ -112,12 +112,13 @@ program
   .command('init [path]')
   .description(CLI_DESCRIPTIONS.init)
   .option('--tools <tools>', CLI_DESCRIPTIONS.tools(availableToolIds.join(', '), toolAliasNote))
+  .option('--language <language>', CLI_DESCRIPTIONS.language)
   .option('--force', CLI_DESCRIPTIONS.force)
   .option('--profile <profile>', CLI_DESCRIPTIONS.profile)
   .option('--no-animation', CLI_DESCRIPTIONS.noAnimation)
   .option('--copilot-cloud', CLI_DESCRIPTIONS.copilotCloud)
   .option('--no-copilot-cloud', CLI_DESCRIPTIONS.noCopilotCloud)
-  .action(async (targetPath = '.', options?: { tools?: string; force?: boolean; profile?: string; animation?: boolean; copilotCloud?: boolean }) => {
+  .action(async (targetPath = '.', options?: { tools?: string; language?: string; force?: boolean; profile?: string; animation?: boolean; copilotCloud?: boolean }) => {
     try {
       // Validate that the path is a valid directory
       const resolvedPath = path.resolve(targetPath);
@@ -141,6 +142,7 @@ program
       const { InitCommand } = await import('../core/init.js');
       const initCommand = new InitCommand({
         tools: options?.tools,
+        language: options?.language,
         force: options?.force,
         profile: options?.profile,
         animation: options?.animation,

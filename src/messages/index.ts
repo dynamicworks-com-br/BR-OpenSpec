@@ -65,6 +65,9 @@ export const CLI_DESCRIPTIONS = {
   noColor: 'Desativa cores na saída',
   tools: (availableToolIds: string, toolAliasNote: string) => `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${availableToolIds}. Também aceito: ${toolAliasNote}`,
   toolAlias: (retired: string, current: string) => `${retired} (agora ${current})`,
+  // Idioma dos artefatos gerados (`openspec init --language`). Usada tanto no
+  // help do commander quanto no registry de completions, como no upstream.
+  language: 'Escreve os novos artefatos do BR-OpenSpec neste idioma',
   force: 'Limpa arquivos legados automaticamente sem perguntar',
   profile: 'Sobrescreve o perfil da configuração global (core ou custom)',
   noAnimation: 'Exibe uma tela de boas-vindas estática em vez da animada',
@@ -562,6 +565,23 @@ export const INIT_MESSAGES = {
   configCreated: (schema: string) => `Config: openspec/config.yaml (schema: ${schema})`,
   configExists: (name: string) => `Config: openspec/${name} (existe)`,
   configSkipped: 'Config: ignorado (modo não interativo)',
+  // Idioma dos artefatos (`init --language`). O bloco gravado no config.yaml
+  // fica em inglês (é lido pelos agentes); só os erros são traduzidos.
+  languageRequiresValue: 'A opção --language requer um valor não vazio.',
+  languageMustBeSingleLine:
+    'A opção --language deve ser uma única linha, sem caracteres de controle ou de formatação invisíveis.',
+  languageTooLong: (limitKb: string) =>
+    `O valor de --language é longo demais para o limite de ${limitKb}KB do contexto de projeto do BR-OpenSpec.`,
+  // `reason` já chega prefixado com ": " (ou vazio), como no upstream.
+  languageCannotCreateConfig: (reason: string) =>
+    `Não é possível criar openspec/config.yaml para --language${reason}`,
+  languageConfigNotWritable:
+    'Não é possível criar openspec/config.yaml para --language: o destino não tem permissão de escrita.',
+  languageDoesNotOverwriteConfig:
+    '--language não sobrescreve uma configuração existente do BR-OpenSpec. ' +
+    'Em vez disso, adicione a instrução de idioma ao campo context dela.',
+  languageConfigWriteFailed: (reason: string) =>
+    `Falha ao criar openspec/config.yaml para --language${reason}`,
   gettingStarted: 'Início rápido:',
   startFirstChange: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
   // Ferramentas sem superfície de slash (Rovo Dev): a dica vira instrução,
