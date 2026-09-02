@@ -68,6 +68,12 @@ export const CLI_DESCRIPTIONS = {
   force: 'Limpa arquivos legados automaticamente sem perguntar',
   profile: 'Sobrescreve o perfil da configuração global (core ou custom)',
   noAnimation: 'Exibe uma tela de boas-vindas estática em vez da animada',
+  copilotCloud: 'Configura os arquivos do Copilot coding agent (nuvem) do GitHub sem perguntar',
+  noCopilotCloud: 'Ignora os arquivos do Copilot coding agent (nuvem) do GitHub sem perguntar',
+  // Variantes usadas no registry de completions (texto mais descritivo que o
+  // help do commander, como no upstream).
+  copilotCloudCompletion: 'Gera os arquivos do Copilot coding agent (nuvem) do GitHub (opt-in; padrão: perguntar)',
+  noCopilotCloudCompletion: 'Não gera os arquivos do Copilot coding agent (nuvem) do GitHub',
 
   // Opções — init / experimental
   experimentalTool: 'Ferramenta de IA alvo (mapeia para --tools)',
@@ -532,6 +538,18 @@ export const INIT_MESSAGES = {
   commandsSkippedUsesSkills: (tools: string) => `Comandos ignorados para: ${tools} (usa skills)`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
   removedSkills: (count: number) => `Removidos: ${count} diretórios de skill (entrega: commands)`,
+  // Copilot coding agent (nuvem) — opt-in dos arquivos gerados em .github/.
+  copilotCloudFlagIgnored:
+    '--copilot-cloud/--no-copilot-cloud foi ignorado porque a ferramenta github-copilot não foi selecionada.',
+  copilotCloudPrompt:
+    'Configurar os arquivos do Copilot coding agent (nuvem) do GitHub? Isso é para o Copilot coding agent ' +
+    'hospedado no GitHub (github.com), não para o Copilot no seu editor. Serão escritos dois arquivos: ' +
+    '.github/workflows/copilot-setup-steps.yml e .github/agents/openspec.agent.md.',
+  copilotCloudFiles: (files: string) => `Arquivos do Copilot coding agent (nuvem): ${files}`,
+  removedCopilotCloudOptOut: (count: number) =>
+    `Removidos: ${count} arquivo(s) do Copilot coding agent (nuvem) (opt-out dos arquivos de nuvem)`,
+  copilotCloudSkipped:
+    "Arquivos do Copilot coding agent (nuvem) ignorados (opt-in). Ative com 'openspec init --copilot-cloud'.",
   skillsAndCommandsCount: (skills: number, commands: number, dirs: string) => `${skills} skills e ${commands} commands em ${dirs}/`,
   skillsCount: (skills: number, dirs: string) => `${skills} skills em ${dirs}/`,
   commandsCount: (commands: number, dirs: string) => `${commands} commands em ${dirs}/`,
@@ -1059,6 +1077,16 @@ export const UPDATE_MESSAGES = {
     `Execute 'openspec config set delivery both' para gerar skills.`,
   removedDeselectedCommands: (count: number) => `Removidos: ${count} arquivos de comando (fluxos de trabalho desselecionados)`,
   removedDeselectedSkills: (count: number) => `Removidos: ${count} diretórios de skill (fluxos de trabalho desselecionados)`,
+  // Copilot coding agent (nuvem) — `openspec update` nunca pergunta: só honra a
+  // decisão persistida (ou os arquivos gerenciados já presentes).
+  removedCopilotCloudOptOut: (count: number) =>
+    `Removidos: ${count} arquivo(s) do Copilot coding agent (nuvem) (opt-out dos arquivos de nuvem)`,
+  removedCopilotCloudNotConfigured: (count: number) =>
+    `Removidos: ${count} arquivo(s) do Copilot coding agent (nuvem) (github-copilot não configurado)`,
+  copilotCloudAvailableHint:
+    "Os arquivos do Copilot coding agent (nuvem) do GitHub estão disponíveis (opt-in). Ative com 'openspec init --copilot-cloud'.",
+  copilotCloudSyncFailed: (message: string) =>
+    `Aviso: falha ao sincronizar os arquivos do Copilot coding agent (nuvem): ${message}`,
   gettingStarted: 'Início rápido:',
   learnMore: (url: string) => `Saiba mais: ${url}`,
   restartIDE: 'Reinicie sua IDE para que as alterações tenham efeito.',
@@ -1409,6 +1437,159 @@ export const PROJECT_CONFIG_MESSAGES = {
   unknownOperationFields: (operationId: string, fields: string) => `Campo(s) desconhecido(s) em 'operations.${operationId}': ${fields}. Campos suportados: guidance`,
   operationGuidanceMustBeArray: (operationId: string) => `A orientação da operação '${operationId}' deve ser um array de strings, ignorando a orientação desta operação`,
   emptyGuidanceForOperation: (operationId: string) => `Algumas orientações da operação '${operationId}' são strings vazias, ignorando-as`,
+  invalidGithubCopilotCloudAgentField: "Campo 'githubCopilot.cloudAgent' inválido na configuração (deve ser booleano)",
+  invalidGithubCopilotField: "Campo 'githubCopilot' inválido na configuração (deve ser um objeto)",
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// Core — Copilot coding agent (nuvem) (src/core/github-copilot/cloud-agent.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const COPILOT_CLOUD_AGENT_MESSAGES = {
+  cannotBuildContent: (label: string) =>
+    `Não foi possível montar o conteúdo do arquivo do Copilot coding agent: falta ${label}`,
+  parentNotDirectory: (candidate: string) => `O caminho pai não é um diretório: ${candidate}`,
+  cannotResolveAncestor: (filePath: string) =>
+    `Não foi possível resolver um diretório ancestral para: ${filePath}`,
+  managedPathNotRegularFile: (filePath: string) =>
+    `O caminho gerenciado do Copilot não é um arquivo regular: ${filePath}`,
+  conflictingAgentProfiles: (alternatePath: string, agentPath: string) =>
+    `Perfis de agente do Copilot em conflito: preserve ${alternatePath} ou ${agentPath}`,
+  // Compartilhada por init e update: o arquivo do usuário nunca é sobrescrito,
+  // mas ele precisa saber que o passo de instalação não foi adicionado sozinho.
+  leftUntouched: (files: string[]) =>
+    `Mantido(s) sem alteração: ${files.join(' e ')} (já existia). Adicione manualmente o passo de ` +
+    `instalação do BR-OpenSpec para que o Copilot coding agent consiga executar openspec.`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Templates — Copilot coding agent (nuvem)
+// (src/core/github-copilot/cloud-agent.ts — conteúdo dos arquivos gerados)
+//
+// ATENÇÃO (regra de manutenção): o reconhecimento de arquivo gerenciado compara
+// o conteúdo INTEIRO por igualdade (com CRLF normalizado). Sempre que estes
+// textos mudarem, o corpo anterior precisa entrar na lista de legados em
+// `getLegacyCopilotCloudFileContents`, senão arquivos gerados por versões
+// anteriores do fork passam a ser tratados como "customizados" e nunca mais são
+// atualizados nem removidos.
+// ═══════════════════════════════════════════════════════════
+
+export const COPILOT_CLOUD_AGENT_TEMPLATE_MESSAGES = {
+  managedMarker: 'Gerado pelo BR-OpenSpec para suporte ao Copilot coding agent do GitHub.',
+
+  // Workflow do GitHub Actions. Chaves YAML, nome do job, `actions/checkout@v4`
+  // e o nome do workflow ("Copilot Setup Steps", convenção documentada pelo
+  // GitHub) ficam como no upstream; só os comentários e os `name:` dos steps
+  // são PT-BR.
+  setupStepsBody: `name: "Copilot Setup Steps"
+
+# Executa automaticamente quando alterado (para validação) e pode ser disparado manualmente.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # O job DEVE se chamar \`copilot-setup-steps\` para que o Copilot coding agent o reconheça.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Fazer checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar a CLI do BR-OpenSpec
+        run: npm install -g @dynamicworks/br-openspec
+
+      - name: Verificar a CLI do BR-OpenSpec
+        run: openspec --version
+`,
+
+  // Definição do agente customizado lida pelo Copilot coding agent do GitHub.
+  // `managedMarkerBlock` é '' ou o comentário HTML do marcador seguido de duas
+  // quebras de linha (o módulo monta as duas variantes).
+  agentFileBody: (managedMarkerBlock: string) => `---
+name: BR-OpenSpec
+description: "Gerencia changes, specs e workflows do BR-OpenSpec usando a CLI openspec. Use este agente para propor changes, explorar ideias, validar artifacts, verificar status e arquivar trabalho concluído."
+tools:
+  - "execute"
+  - "read"
+  - "search"
+  - "edit"
+---
+
+${managedMarkerBlock}# Agente BR-OpenSpec
+
+Você é um agente especializado em gerenciar workflows do BR-OpenSpec. Antes de usar a CLI \`openspec\`, execute \`openspec --version\`. Se ela não estiver disponível, instale com \`npm install -g @dynamicworks/br-openspec\`.
+
+## O que é o BR-OpenSpec?
+
+O BR-OpenSpec é um sistema estruturado de gestão de mudanças para bases de código. Ele organiza o trabalho em **changes** com artifacts de planejamento (proposals, specs, designs, tarefas) que orientam a implementação.
+
+## Comandos disponíveis
+
+### Comandos de CLI compatíveis com agentes (prefira \`--json\` para saída estruturada)
+
+| Command | Finalidade |
+|---------|------------|
+| \`openspec list [--json]\` | Lista todas as changes e specs |
+| \`openspec show <item> [--json]\` | Exibe uma change ou spec específica |
+| \`openspec validate [--all] [--json]\` | Valida changes e specs em busca de problemas |
+| \`openspec status [--change <name>] [--json]\` | Mostra o progresso dos artifacts de uma change |
+| \`openspec instructions [artifact] [--change <name>] [--json]\` | Obtém as instruções do próximo passo de uma change |
+| \`openspec templates [--json]\` | Lista os templates disponíveis |
+| \`openspec schemas [--json]\` | Lista os schemas de workflow disponíveis |
+| \`openspec archive <change> --json [--yes]\` | Arquiva uma change concluída; use \`--yes\` só depois de confirmar que todas as tarefas estão completas |
+
+### Comandos de CLI interativos (use quando o usuário pedir)
+
+| Command | Finalidade |
+|---------|------------|
+| \`openspec init\` | Inicializa o BR-OpenSpec no projeto |
+| \`openspec update\` | Atualiza a configuração e os artifacts do BR-OpenSpec |
+| \`openspec view\` | Painel interativo |
+| \`openspec config\` | Exibe ou altera configurações |
+
+## Workflow
+
+Quando for solicitado a trabalhar com o BR-OpenSpec, siga este padrão:
+
+1. **Encontre a change**: execute \`openspec list --json\` para ver as changes ativas.
+2. **Verifique o progresso**: execute \`openspec status --change <name> --json\` para a change selecionada.
+3. **Siga as instruções**: execute \`openspec instructions [artifact] --change <name> --json\` para o próximo artifact.
+4. **Valide antes de concluir**: execute \`openspec validate <name> --json\`.
+
+## Criando novas changes
+
+Quando o usuário quiser propor uma nova change:
+
+1. Execute \`openspec new change <name>\`.
+2. Execute \`openspec status --change <name> --json\` para ver a sequência de artifacts.
+3. Use \`openspec instructions [artifact] --change <name> --json\` antes de criar cada artifact.
+4. Execute \`openspec validate <name> --json\` quando os artifacts estiverem completos.
+
+## Diretórios principais
+
+- \`openspec/\` — Diretório raiz do BR-OpenSpec
+- \`openspec/changes/\` — Changes ativas com seus artifacts
+- \`openspec/config.yaml\` — Configuração do projeto
+
+## Boas práticas
+
+- Sempre use a flag \`--json\` quando precisar interpretar a saída programaticamente
+- Execute \`openspec validate\` após criar ou modificar artifacts
+- Verifique \`openspec status\` antes de começar o trabalho para entender o estado atual
+- Ao arquivar, garanta que todas as tarefas foram concluídas e validadas primeiro
+`,
 };
 
 

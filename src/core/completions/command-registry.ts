@@ -49,6 +49,14 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
         name: 'no-animation',
         description: CLI_DESCRIPTIONS.noAnimation,
       },
+      {
+        name: 'copilot-cloud',
+        description: CLI_DESCRIPTIONS.copilotCloudCompletion,
+      },
+      {
+        name: 'no-copilot-cloud',
+        description: CLI_DESCRIPTIONS.noCopilotCloudCompletion,
+      },
     ],
   },
   {

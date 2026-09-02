@@ -24,6 +24,14 @@ import {
   shouldReconcileCommandFilesForTool,
   shouldRemoveSkillsForTool,
 } from './command-surface.js';
+import {
+  includesGitHubCopilot,
+  writeCopilotCloudFiles,
+  removeCopilotCloudFiles,
+  isCopilotCloudEnabled,
+  readCopilotCloudOptIn,
+  findUnmanagedCloudFiles,
+} from './github-copilot/cloud-agent.js';
 import { writeSharedSkillTarget } from './shared-skill-target.js';
 import { AI_TOOLS, OPENSPEC_DIR_NAME } from './config.js';
 import {
@@ -57,7 +65,12 @@ import {
 } from './legacy-cleanup.js';
 import { isInteractive } from '../utils/interactive.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
-import { MIGRATION_MESSAGES, ONBOARDING_MESSAGES, UPDATE_MESSAGES } from '../messages/index.js';
+import {
+  COPILOT_CLOUD_AGENT_MESSAGES,
+  MIGRATION_MESSAGES,
+  ONBOARDING_MESSAGES,
+  UPDATE_MESSAGES,
+} from '../messages/index.js';
 import { getProfileWorkflows, ALL_WORKFLOWS, CORE_WORKFLOWS } from './profiles.js';
 import { getOnboardingCommands } from './onboarding-commands.js';
 import { getAvailableTools } from './available-tools.js';
@@ -167,6 +180,7 @@ export class UpdateCommand {
 
     // 5. Find configured tools
     const configuredTools = getConfiguredToolsForProfileSync(resolvedProjectPath);
+    const configuredAndNewTools = [...new Set([...configuredTools, ...newlyConfiguredTools])];
 
     if (configuredTools.length === 0 && newlyConfiguredTools.length === 0) {
       if (deferredGlobalCleanup) {
@@ -181,6 +195,7 @@ export class UpdateCommand {
         }
         return;
       }
+      await this.syncCopilotCloudFiles(resolvedProjectPath, configuredAndNewTools);
       console.log(chalk.yellow(UPDATE_MESSAGES.noConfiguredTools));
       console.log(chalk.dim(UPDATE_MESSAGES.runInitHint));
       return;
@@ -227,6 +242,7 @@ export class UpdateCommand {
       }
       // All tools are up to date
       this.displayUpToDateMessage(toolStatuses);
+      await this.syncCopilotCloudFiles(resolvedProjectPath, configuredAndNewTools);
 
       // Still check for new tool directories and extra workflows
       this.detectNewTools(resolvedProjectPath, configuredTools);
@@ -446,7 +462,7 @@ export class UpdateCommand {
       console.log(UPDATE_MESSAGES.learnMore(chalk.cyan('https://github.com/dynamicworks-com-br/BR-OpenSpec')));
     }
 
-    const configuredAndNewTools = [...new Set([...configuredTools, ...newlyConfiguredTools])];
+    await this.syncCopilotCloudFiles(resolvedProjectPath, configuredAndNewTools);
 
     // 13. Detect new tool directories not currently configured
     this.detectNewTools(resolvedProjectPath, configuredAndNewTools);
@@ -465,6 +481,48 @@ export class UpdateCommand {
     console.log(chalk.dim(UPDATE_MESSAGES.restartIDE));
     if (failedTools.length > 0) {
       throw new Error(UPDATE_MESSAGES.updateFailedFor(failedTools.map((tool) => tool.name).join(', ')));
+    }
+  }
+
+  private async syncCopilotCloudFiles(projectPath: string, configuredTools: string[]): Promise<void> {
+    try {
+      if (includesGitHubCopilot(configuredTools)) {
+        // Cloud files are opt-in (see cloud-agent.ts). `update` never prompts,
+        // so it only refreshes files the user has already opted into (via
+        // `openspec init` or a `githubCopilot.cloudAgent: true` config), or that
+        // a pre-opt-in project already has. Opting in is a deliberate init/config
+        // step, never a silent side effect of running update.
+        if (await isCopilotCloudEnabled(projectPath)) {
+          await writeCopilotCloudFiles(projectPath);
+          const collisions = await findUnmanagedCloudFiles(projectPath);
+          if (collisions.length > 0) {
+            console.log(chalk.dim(COPILOT_CLOUD_AGENT_MESSAGES.leftUntouched(collisions)));
+          }
+          return;
+        }
+
+        // Explicit opt-out (githubCopilot.cloudAgent: false) means "not here":
+        // remove any managed files a prior opt-in left behind (customized files
+        // are preserved). If the user simply never decided, stay quiet unless
+        // we're at an interactive terminal, where a one-line hint aids discovery.
+        if (readCopilotCloudOptIn(projectPath) === false) {
+          const removed = await removeCopilotCloudFiles(projectPath);
+          if (removed > 0) {
+            console.log(chalk.dim(UPDATE_MESSAGES.removedCopilotCloudOptOut(removed)));
+          }
+        } else if (isInteractive()) {
+          console.log(chalk.dim(UPDATE_MESSAGES.copilotCloudAvailableHint));
+        }
+        return;
+      }
+
+      const removed = await removeCopilotCloudFiles(projectPath);
+      if (removed > 0) {
+        console.log(chalk.dim(UPDATE_MESSAGES.removedCopilotCloudNotConfigured(removed)));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(UPDATE_MESSAGES.copilotCloudSyncFailed(message));
     }
   }
 

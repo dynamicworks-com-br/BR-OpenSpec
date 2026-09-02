@@ -61,6 +61,16 @@ export const ProjectConfigSchema = z.object({
     })
     .optional()
     .describe('Per-operation advisory guidance'),
+
+  // Optional: GitHub Copilot integration preferences. `cloudAgent` is the
+  // opt-in for generating the Copilot cloud coding-agent files (a GitHub
+  // Actions workflow + agent file); absent means "not yet decided".
+  githubCopilot: z
+    .object({
+      cloudAgent: z.boolean().optional(),
+    })
+    .optional()
+    .describe('GitHub Copilot integration preferences'),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
@@ -175,13 +185,9 @@ const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
  * @returns Parsed config or null if file doesn't exist
  */
 export function readProjectConfig(projectRoot: string): ProjectConfig | null {
-  // Try both .yaml and .yml, prefer .yaml
-  let configPath = path.join(projectRoot, 'openspec', 'config.yaml');
-  if (!existsSync(configPath)) {
-    configPath = path.join(projectRoot, 'openspec', 'config.yml');
-    if (!existsSync(configPath)) {
-      return null; // No config is OK
-    }
+  const configPath = resolveConfigFilePath(projectRoot);
+  if (configPath === null) {
+    return null; // No config is OK
   }
 
   try {
@@ -273,12 +279,44 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
       config.operations = operations;
     }
 
+    // Parse githubCopilot preferences (only cloudAgent is recognized today).
+    if (raw.githubCopilot !== undefined) {
+      if (
+        typeof raw.githubCopilot === 'object' &&
+        raw.githubCopilot !== null &&
+        !Array.isArray(raw.githubCopilot)
+      ) {
+        const cloudAgent = (raw.githubCopilot as Record<string, unknown>).cloudAgent;
+        if (typeof cloudAgent === 'boolean') {
+          config.githubCopilot = { cloudAgent };
+        } else if (cloudAgent !== undefined) {
+          console.warn(PROJECT_CONFIG_MESSAGES.invalidGithubCopilotCloudAgentField);
+        }
+      } else {
+        console.warn(PROJECT_CONFIG_MESSAGES.invalidGithubCopilotField);
+      }
+    }
+
     // Return partial config even if some fields failed
     return Object.keys(config).length > 0 ? (config as ProjectConfig) : null;
   } catch (error) {
     console.warn(PROJECT_CONFIG_SUGGEST_MESSAGES.configFailedToParse, error);
     return null;
   }
+}
+
+/**
+ * Shared .yaml/.yml probe: the single source of truth for which config file a
+ * project actually uses (`.yaml` wins over `.yml`). Used by readProjectConfig
+ * and by any writer that must edit the very file the reader consumed.
+ */
+export function resolveConfigFilePath(projectRoot: string): string | null {
+  const yamlPath = path.join(projectRoot, 'openspec', 'config.yaml');
+  if (existsSync(yamlPath)) {
+    return yamlPath;
+  }
+  const ymlPath = path.join(projectRoot, 'openspec', 'config.yml');
+  return existsSync(ymlPath) ? ymlPath : null;
 }
 
 /**

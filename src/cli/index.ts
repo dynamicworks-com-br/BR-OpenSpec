@@ -115,7 +115,9 @@ program
   .option('--force', CLI_DESCRIPTIONS.force)
   .option('--profile <profile>', CLI_DESCRIPTIONS.profile)
   .option('--no-animation', CLI_DESCRIPTIONS.noAnimation)
-  .action(async (targetPath = '.', options?: { tools?: string; force?: boolean; profile?: string; animation?: boolean }) => {
+  .option('--copilot-cloud', CLI_DESCRIPTIONS.copilotCloud)
+  .option('--no-copilot-cloud', CLI_DESCRIPTIONS.noCopilotCloud)
+  .action(async (targetPath = '.', options?: { tools?: string; force?: boolean; profile?: string; animation?: boolean; copilotCloud?: boolean }) => {
     try {
       // Validate that the path is a valid directory
       const resolvedPath = path.resolve(targetPath);
@@ -142,6 +144,7 @@ program
         force: options?.force,
         profile: options?.profile,
         animation: options?.animation,
+        copilotCloud: options?.copilotCloud,
       });
       await initCommand.execute(targetPath);
     } catch (error) {
