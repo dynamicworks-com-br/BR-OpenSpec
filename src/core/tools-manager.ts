@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
 import { getTransformerForTool } from '../utils/command-references.js';
-import { AI_TOOLS, type AIToolOption } from './config.js';
+import { type AIToolOption } from './config.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
@@ -31,8 +31,17 @@ import {
 import {
   getToolStates,
   getToolsWithSkillsDir,
+  getSkillCapableTools,
+  hasGlobalSkillTarget,
+  resolveToolSkillsDir,
+  toolSupportsSkills,
   type ToolSkillStatus,
 } from './shared/index.js';
+import {
+  clearSharedSkillTarget,
+  resolveSharedSkillTargetOwner,
+  writeSharedSkillTarget,
+} from './shared-skill-target.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { getProfileWorkflows, ALL_WORKFLOWS } from './profiles.js';
 
@@ -65,10 +74,13 @@ const WORKFLOW_TO_SKILL_DIR: Record<string, string> = {
  * Only directories whose names match known workflow skill dir names are removed.
  * Other files and directories are left intact.
  *
+ * `skillsRoot` is the directory the removal may never escape: the project root
+ * for skills local to the project, or the global skills target itself.
+ *
  * @returns Number of directories removed
  */
 export async function removeOpenSpecSkillDirs(
-  projectPath: string,
+  skillsRoot: string,
   skillsDir: string
 ): Promise<number> {
   let removed = 0;
@@ -80,8 +92,8 @@ export async function removeOpenSpecSkillDirs(
     const skillDir = path.join(skillsDir, dirName);
     if (!fs.existsSync(skillDir)) continue;
     // Nunca apaga através de um diretório de ferramenta vinculado para fora
-    // do projeto (mesma guarda de init/update).
-    FileSystemUtils.assertProjectArtifactPath(projectPath, skillDir);
+    // da raiz permitida (mesma guarda de init/update).
+    FileSystemUtils.assertPathWithin(skillsRoot, skillDir);
     try {
       await fs.promises.rm(skillDir, { recursive: true, force: true });
       removed++;
@@ -138,9 +150,12 @@ export async function addTool(
   projectPath: string,
   tool: AIToolOption
 ): Promise<void> {
-  if (!tool.skillsDir) {
+  if (!toolSupportsSkills(tool)) {
     throw new Error(TOOLS_MANAGER_MESSAGES.toolDoesNotSupportSkills(tool.value));
   }
+
+  const skillsPath = resolveToolSkillsDir(projectPath, tool);
+  const skillsRoot = hasGlobalSkillTarget(tool) ? skillsPath : projectPath;
 
   const globalConfig = getGlobalConfig();
   const profile: Profile = globalConfig.profile ?? 'core';
@@ -154,11 +169,10 @@ export async function addTool(
 
   // Write skill files
   if (shouldGenerateSkills) {
-    const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
     const skillTemplates = getSkillTemplates(workflows);
 
     for (const { template, dirName } of skillTemplates) {
-      const skillDir = path.join(skillsDir, dirName);
+      const skillDir = path.join(skillsPath, dirName);
       const skillFile = path.join(skillDir, 'SKILL.md');
       const transformer = getTransformerForTool(
         tool.value,
@@ -167,9 +181,14 @@ export async function addTool(
         resolveCommandInvocation(tool.value)
       );
       const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
-      FileSystemUtils.assertProjectArtifactPath(projectPath, skillFile);
+      FileSystemUtils.assertPathWithin(skillsRoot, skillFile);
       await FileSystemUtils.writeFile(skillFile, skillContent);
     }
+    // Uma raiz compartilhada (ex.: `.agents/skills`, usada por codex e agents)
+    // guarda uma única variante de cada skill: registrar o dono aqui — como
+    // fazem `init` e `update` — impede que o próximo `update` reescreva a
+    // árvore com as referências da ferramenta anterior.
+    writeSharedSkillTarget(projectPath, tool.value);
   }
 
   // Write command files
@@ -187,6 +206,26 @@ export async function addTool(
   }
 }
 
+/** Whether an OpenSpec-owned skill directory still exists under `skillsDir`. */
+function hasManagedSkillDirs(skillsDir: string): boolean {
+  return ALL_WORKFLOWS.some((workflow) => {
+    const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
+    return Boolean(dirName) && fs.existsSync(path.join(skillsDir, dirName));
+  });
+}
+
+/** Drops the `skills/` directory left empty by a complete removal. */
+function removeSkillsDirIfEmpty(skillsRoot: string, skillsDir: string): void {
+  try {
+    FileSystemUtils.assertPathWithin(skillsRoot, skillsDir);
+    if (fs.readdirSync(skillsDir).length === 0) {
+      fs.rmdirSync(skillsDir);
+    }
+  } catch {
+    // Diretório ausente, não vazio ou fora da raiz permitida: nada a fazer.
+  }
+}
+
 /**
  * Removes OpenSpec-owned skill and command files for the given tool.
  * The tool's configuration directory itself is left intact; only files and
@@ -197,14 +236,48 @@ export async function addTool(
 export async function removeTool(
   projectPath: string,
   tool: AIToolOption
-): Promise<{ removedSkillCount: number; removedCommandCount: number }> {
-  if (!tool.skillsDir) {
+): Promise<{
+  removedSkillCount: number;
+  removedCommandCount: number;
+  keptGlobalSkillsDir?: string;
+  keptSharedSkillsDir?: string;
+  keptSharedSkillsOwner?: string;
+}> {
+  if (!toolSupportsSkills(tool)) {
     return { removedSkillCount: 0, removedCommandCount: 0 };
   }
 
-  const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
+  const skillsDir = resolveToolSkillsDir(projectPath, tool);
+
+  // Skills em alvo global (fora do projeto) são compartilhadas por todos os
+  // projetos: removê-las daqui apagaria as skills usadas em outro lugar.
+  if (hasGlobalSkillTarget(tool)) {
+    const removedCommandCount = await removeOpenSpecCommandFiles(projectPath, tool.value);
+    return { removedSkillCount: 0, removedCommandCount, keptGlobalSkillsDir: skillsDir };
+  }
+
+  // Uma raiz compartilhada tem exatamente um dono: só ele escreve e remove.
+  // Sem esta guarda, `--remove codex` apagaria as skills que pertencem a
+  // `agents` (e vice-versa), já que ambos apontam para `.agents/skills`.
+  const sharedOwner = resolveSharedSkillTargetOwner(projectPath, tool.value);
+  if (sharedOwner !== undefined && sharedOwner !== tool.value) {
+    const removedCommandCount = await removeOpenSpecCommandFiles(projectPath, tool.value);
+    return hasManagedSkillDirs(skillsDir)
+      ? {
+          removedSkillCount: 0,
+          removedCommandCount,
+          keptSharedSkillsDir: skillsDir,
+          keptSharedSkillsOwner: sharedOwner,
+        }
+      : { removedSkillCount: 0, removedCommandCount };
+  }
+
   const removedSkillCount = await removeOpenSpecSkillDirs(projectPath, skillsDir);
   const removedCommandCount = await removeOpenSpecCommandFiles(projectPath, tool.value);
+  // Sem largar o marcador, a ferramenta continuaria "configurada" (só-marcador
+  // conta como configurado) e o próximo `update` recriaria as skills.
+  clearSharedSkillTarget(projectPath, tool.value);
+  removeSkillsDirIfEmpty(projectPath, skillsDir);
 
   return { removedSkillCount, removedCommandCount };
 }
@@ -226,10 +299,10 @@ export function getCurrentToolIds(projectPath: string): Set<string> {
 }
 
 /**
- * Returns all tools eligible for skill generation (those with a skillsDir).
+ * Returns all tools eligible for skill generation (project-local or global).
  */
 export function getEligibleTools(): AIToolOption[] {
-  return AI_TOOLS.filter((t) => !!t.skillsDir);
+  return getSkillCapableTools();
 }
 
 /**

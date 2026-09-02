@@ -14,6 +14,7 @@ import { FileSystemUtils } from '../utils/file-system.js';
 import {
   getSkillReferenceTransformer,
   getTransformerForTool,
+  usesNaturalLanguageSkillReferences,
 } from '../utils/command-references.js';
 import {
   resolveCommandSurfaceCapability,
@@ -61,11 +62,15 @@ import {
   getSkillTemplates,
   getCommandContents,
   generateSkillContent,
+  hasGlobalSkillTarget,
+  resolveToolSkillsDir,
+  toolSupportsSkills,
   type ToolSkillStatus,
 } from './shared/index.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { getProfileWorkflows, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
+import { writeSharedSkillTarget } from './shared-skill-target.js';
 import {
   migrateIfNeeded,
   migrateLegacyToolDirs,
@@ -101,6 +106,16 @@ type InitCommandOptions = {
   profile?: string;
   /** Commander's --no-animation flag: false disables the welcome animation. */
   animation?: boolean;
+};
+
+type ValidatedInitTool = {
+  value: string;
+  name: string;
+  skillsDir?: string;
+  skillsPath: string;
+  skillsRoot: string;
+  isGlobalSkillTarget: boolean;
+  wasConfigured: boolean;
 };
 
 /**
@@ -173,7 +188,7 @@ export class InitCommand {
     const selectedToolIds = await this.getSelectedTools(toolStates, extendMode, detectedTools, projectPath);
 
     // Validate selected tools
-    const validatedTools = this.validateTools(selectedToolIds, toolStates);
+    const validatedTools = this.validateTools(selectedToolIds, toolStates, projectPath);
 
     // Selecting a renamed tool is consent to leave its former directory:
     // init is about to write the current one, and leaving OpenSpec content
@@ -568,11 +583,19 @@ export class InitCommand {
 
   private validateTools(
     toolIds: string[],
-    toolStates: Map<string, ToolSkillStatus>
-  ): Array<{ value: string; name: string; skillsDir: string; wasConfigured: boolean }> {
-    const validatedTools: Array<{ value: string; name: string; skillsDir: string; wasConfigured: boolean }> = [];
+    toolStates: Map<string, ToolSkillStatus>,
+    projectPath: string
+  ): ValidatedInitTool[] {
+    const validatedTools: ValidatedInitTool[] = [];
 
-    for (const toolId of toolIds) {
+    const reconciledToolIds = toolIds.includes('codex') && toolIds.includes('agents')
+      ? toolIds.filter((toolId) => toolId !== 'agents')
+      : toolIds;
+    if (reconciledToolIds.length !== toolIds.length) {
+      console.log(chalk.dim(INIT_MESSAGES.sharedSkillsRootOneTree('Codex e agents', '.agents', 'Codex')));
+    }
+
+    for (const toolId of reconciledToolIds) {
       const tool = AI_TOOLS.find((t) => t.value === toolId);
       if (!tool) {
         const validToolIds = getToolsWithSkillsDir();
@@ -581,7 +604,7 @@ export class InitCommand {
         );
       }
 
-      if (!tool.skillsDir) {
+      if (!toolSupportsSkills(tool)) {
         const validToolsWithSkills = getToolsWithSkillsDir();
         throw new Error(
           INIT_MESSAGES.toolNoSkillSupport(toolId, validToolsWithSkills.join('\n  '))
@@ -589,10 +612,15 @@ export class InitCommand {
       }
 
       const preState = toolStates.get(tool.value);
+      const skillsPath = resolveToolSkillsDir(projectPath, tool);
+      const isGlobalSkillTarget = hasGlobalSkillTarget(tool);
       validatedTools.push({
         value: tool.value,
         name: tool.name,
         skillsDir: tool.skillsDir,
+        skillsPath,
+        skillsRoot: isGlobalSkillTarget ? skillsPath : projectPath,
+        isGlobalSkillTarget,
         wasConfigured: preState?.configured ?? false,
       });
     }
@@ -647,7 +675,7 @@ export class InitCommand {
 
   private async generateSkillsAndCommands(
     projectPath: string,
-    tools: Array<{ value: string; name: string; skillsDir: string; wasConfigured: boolean }>
+    tools: ValidatedInitTool[]
   ): Promise<{
     createdTools: typeof tools;
     refreshedTools: typeof tools;
@@ -686,12 +714,9 @@ export class InitCommand {
 
         // Generate skill files if the selected delivery and tool capability allow skills
         if (shouldGenerateSkills) {
-          // Use tool-specific skillsDir
-          const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
-
           // Create skill directories and SKILL.md files
           for (const { template, dirName } of skillTemplates) {
-            const skillDir = path.join(skillsDir, dirName);
+            const skillDir = path.join(tool.skillsPath, dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
 
             // Generate SKILL.md content with YAML frontmatter including generatedBy
@@ -704,13 +729,18 @@ export class InitCommand {
             const skillContent = generateSkillContent(template, OPENSPEC_VERSION, transformer);
 
             // Write the skill file
-            FileSystemUtils.assertProjectArtifactPath(projectPath, skillFile);
+            FileSystemUtils.assertPathWithin(tool.skillsRoot, skillFile);
             await FileSystemUtils.writeFile(skillFile, skillContent);
           }
+          writeSharedSkillTarget(projectPath, tool.value);
         }
-        if (shouldRemoveSkillsForTool(tool.value, delivery)) {
-          const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
-          removedSkillCount += await this.removeSkillDirs(projectPath, skillsDir);
+        // Skills em alvo global são compartilhadas entre projetos: a entrega de
+        // um projeto nunca remove as skills que outro projeto usa.
+        if (shouldRemoveSkillsForTool(tool.value, delivery) && !tool.isGlobalSkillTarget) {
+          removedSkillCount += await this.removeSkillDirs(tool.skillsRoot, tool.skillsPath);
+          // Retain an explicit selection even when this delivery mode produces
+          // no skills, so a divergent legacy sibling cannot reclaim ownership.
+          writeSharedSkillTarget(projectPath, tool.value);
         }
 
         // Generate commands if delivery includes commands
@@ -745,6 +775,20 @@ export class InitCommand {
       } catch (error) {
         spinner.fail(INIT_MESSAGES.setupFailed(tool.name));
         failedTools.push({ name: tool.name, error: error as Error });
+      }
+    }
+
+    for (const tool of [...createdTools, ...refreshedTools]) {
+      for (const migration of migrateLegacyToolDirs(
+        projectPath,
+        [tool.value],
+        'after-generation'
+      )) {
+        if (hasMovableContent(migration)) {
+          console.log(chalk.dim(MIGRATION_MESSAGES.migratedToolContent(describeLegacyMigration(migration), migration.from, migration.to)));
+        }
+        const kept = keptInPlaceNotice(migration);
+        if (kept) console.log(chalk.dim(kept));
       }
     }
 
@@ -794,7 +838,7 @@ export class InitCommand {
 
   private displaySuccessMessage(
     projectPath: string,
-    tools: Array<{ value: string; name: string; skillsDir: string; wasConfigured: boolean }>,
+    tools: ValidatedInitTool[],
     results: {
       createdTools: typeof tools;
       refreshedTools: typeof tools;
@@ -831,19 +875,65 @@ export class InitCommand {
       const profile: Profile = (this.profileOverride as Profile) ?? globalConfig.profile ?? 'core';
       const delivery: Delivery = globalConfig.delivery ?? 'both';
       const workflows = getProfileWorkflows(profile, globalConfig.workflows);
-      const toolDirs = [...new Set(successfulTools.map((t) => t.skillsDir))].join(', ');
-      const skillCount = successfulTools.some((tool) => shouldGenerateSkillsForTool(tool.value, delivery))
-        ? getSkillTemplates(workflows).length
-        : 0;
-      const commandCount = successfulTools.some((tool) => shouldGenerateCommandsForTool(tool.value, delivery))
-        ? getCommandContents(workflows).length
-        : 0;
-      if (skillCount > 0 && commandCount > 0) {
-        console.log(INIT_MESSAGES.skillsAndCommandsCount(skillCount, commandCount, toolDirs));
-      } else if (skillCount > 0) {
-        console.log(INIT_MESSAGES.skillsCount(skillCount, toolDirs));
-      } else if (commandCount > 0) {
-        console.log(INIT_MESSAGES.commandsCount(commandCount, toolDirs));
+      const usesGlobalSkillTarget = successfulTools.some((tool) => tool.isGlobalSkillTarget);
+
+      if (!usesGlobalSkillTarget) {
+        const toolDirs = [
+          ...new Set(
+            successfulTools
+              .map((tool) => tool.skillsDir)
+              .filter((skillsDir): skillsDir is string => Boolean(skillsDir))
+          ),
+        ].join(', ');
+        const skillCount = successfulTools.some((tool) => shouldGenerateSkillsForTool(tool.value, delivery))
+          ? getSkillTemplates(workflows).length
+          : 0;
+        const commandCount = successfulTools.some((tool) => shouldGenerateCommandsForTool(tool.value, delivery))
+          ? getCommandContents(workflows).length
+          : 0;
+        if (skillCount > 0 && commandCount > 0) {
+          console.log(INIT_MESSAGES.skillsAndCommandsCount(skillCount, commandCount, toolDirs));
+        } else if (skillCount > 0) {
+          console.log(INIT_MESSAGES.skillsCount(skillCount, toolDirs));
+        } else if (commandCount > 0) {
+          console.log(INIT_MESSAGES.commandsCount(commandCount, toolDirs));
+        }
+      } else {
+        // Com um alvo global em jogo os diretórios deixam de ser relativos ao
+        // projeto: skills e comandos são resumidos em linhas separadas, com os
+        // caminhos absolutos de cada um.
+        const skillTools = successfulTools.filter((tool) =>
+          shouldGenerateSkillsForTool(tool.value, delivery)
+        );
+        const skillCount = skillTools.length * getSkillTemplates(workflows).length;
+        if (skillCount > 0) {
+          const skillDirs = [...new Set(skillTools.map((tool) => tool.skillsPath))];
+          console.log(INIT_MESSAGES.skillsInDirs(skillCount, skillDirs.join(', ')));
+        }
+
+        const commandContents = getCommandContents(workflows);
+        const commandTools = successfulTools.filter((tool) =>
+          shouldGenerateCommandsForTool(tool.value, delivery)
+        );
+        const commandCount = commandTools.length * commandContents.length;
+        if (commandCount > 0) {
+          const commandDirs = [
+            ...new Set(
+              commandTools.flatMap((tool) => {
+                const adapter = CommandAdapterRegistry.get(tool.value);
+                if (!adapter) return [];
+                return commandContents.map((command) => {
+                  const commandPath = adapter.getFilePath(command.id);
+                  const absolutePath = path.isAbsolute(commandPath)
+                    ? commandPath
+                    : path.join(projectPath, commandPath);
+                  return path.dirname(absolutePath);
+                });
+              })
+            ),
+          ];
+          console.log(INIT_MESSAGES.commandsInDirs(commandCount, commandDirs.join(', ')));
+        }
       }
     }
 
@@ -908,7 +998,13 @@ export class InitCommand {
           );
           hint = INIT_MESSAGES.startFirstChange(`${transformer ? transformer(command) : command} "sua ideia"`);
         } else if (shouldGenerateSkillsForTool(tool.value, activeDelivery)) {
-          hint = INIT_MESSAGES.startFirstChange(`${getSkillReferenceTransformer(tool.value)(command)} "sua ideia"`);
+          const skillReference = getSkillReferenceTransformer(tool.value)(command);
+          // Tools with no slash surface (e.g. Rovo Dev) reference skills as
+          // prose ("a skill openspec-propose"); phrase the hint so it reads
+          // as an instruction rather than a dead command with an argument.
+          hint = usesNaturalLanguageSkillReferences(tool.value)
+            ? INIT_MESSAGES.startFirstChangeAskTool(tool.name, skillReference)
+            : INIT_MESSAGES.startFirstChange(`${skillReference} "sua ideia"`);
         } else {
           continue;
         }
@@ -987,8 +1083,8 @@ export class InitCommand {
     }).start();
   }
 
-  private async removeSkillDirs(projectPath: string, skillsDir: string): Promise<number> {
-    return removeOpenSpecSkillDirs(projectPath, skillsDir);
+  private async removeSkillDirs(skillsRoot: string, skillsDir: string): Promise<number> {
+    return removeOpenSpecSkillDirs(skillsRoot, skillsDir);
   }
 
   private async removeCommandFiles(projectPath: string, toolId: string): Promise<number> {

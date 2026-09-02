@@ -15,6 +15,8 @@ import {
   formatCommandInvocation,
   needsInvocationRewrite,
 } from '../core/command-generation/invocation.js';
+// O catálogo de mensagens não importa nada, então não fecha ciclo.
+import { ONBOARDING_MESSAGES } from '../messages/index.js';
 
 /**
  * Rewrites the canonical `/opsx:<command>` references that command bodies and
@@ -78,10 +80,49 @@ const SKILL_INVOCATION_PREFIX: Record<string, string> = {
   codex: '$',
 };
 
+/**
+ * Tools that have no slash-command surface at all: skills are matched
+ * automatically or invoked by natural-language prompts, never by typing a
+ * `/<name>` command. Rovo Dev CLI is such a tool — `/skills` only manages
+ * skills, and any `/openspec-*` form would be a dead command (see
+ * docs/supported-tools.md). References for these tools are spelled as prose
+ * ("a skill openspec-propose") so generated content never tells the user to
+ * type a command their CLI does not register.
+ */
+const NATURAL_LANGUAGE_SKILL_TOOLS = new Set<string>(['rovodev']);
+
+/**
+ * Whether a tool references skills by natural language rather than a slash
+ * command (see NATURAL_LANGUAGE_SKILL_TOOLS).
+ */
+export function usesNaturalLanguageSkillReferences(toolId: string): boolean {
+  return NATURAL_LANGUAGE_SKILL_TOOLS.has(toolId);
+}
+
+function replaceCommandsWithNaturalLanguageSkillReferences(text: string): string {
+  return text.replace(/\/opsx:([a-z-]+)/g, (match, commandId: string) => {
+    const skillName = COMMAND_TO_SKILL_NAME[commandId];
+    return skillName === undefined ? match : ONBOARDING_MESSAGES.skillReference(skillName);
+  });
+}
+
 function replaceCommandsWithSkillReferences(text: string, prefix: string): string {
   return text.replace(/\/opsx:([a-z-]+)/g, (match, commandId: string) => {
     const skillName = COMMAND_TO_SKILL_NAME[commandId];
     return skillName === undefined ? match : `${prefix}${skillName}`;
+  });
+}
+
+/**
+ * Keeps Codex's `$<name>` spelling first while making its canonical shared
+ * `.agents` tree usable by agents that invoke the same skills with `/<name>`.
+ */
+export function transformToCodexCompatibleSkillReferences(text: string): string {
+  return text.replace(/\/opsx:([a-z-]+)/g, (match, commandId: string) => {
+    const skillName = COMMAND_TO_SKILL_NAME[commandId];
+    return skillName === undefined
+      ? match
+      : ONBOARDING_MESSAGES.codexDualSkillReference(skillName);
   });
 }
 
@@ -109,12 +150,17 @@ export function transformToSkillReferences(text: string): string {
 /**
  * Returns the skill-reference transformer for a specific tool, honoring the
  * tool's documented skill invocation syntax (e.g. Kimi Code's
- * `/skill:openspec-propose`). Falls back to the default `/openspec-*` form.
+ * `/skill:openspec-propose`). Tools with no slash surface (e.g. Rovo Dev) get
+ * natural-language references ("a skill openspec-propose"); everything else
+ * falls back to the default `/openspec-*` form.
  *
- * @param toolId - The AI tool identifier (e.g. 'kimi', 'vibe')
+ * @param toolId - The AI tool identifier (e.g. 'kimi', 'vibe', 'rovodev')
  * @returns A transformer converting `/opsx:*` references to skill invocations
  */
 export function getSkillReferenceTransformer(toolId: string): (text: string) => string {
+  if (usesNaturalLanguageSkillReferences(toolId)) {
+    return replaceCommandsWithNaturalLanguageSkillReferences;
+  }
   const prefix = SKILL_INVOCATION_PREFIX[toolId];
   if (prefix === undefined) {
     return transformToSkillReferences;
@@ -166,7 +212,9 @@ export function getTransformerForTool(
   invocation: CommandInvocation | undefined
 ): ((text: string) => string) | undefined {
   if (delivery === 'skills' || capability !== 'adapter-backed') {
-    return getSkillReferenceTransformer(toolId);
+    return toolId === 'codex'
+      ? transformToCodexCompatibleSkillReferences
+      : getSkillReferenceTransformer(toolId);
   }
   if (toolId === 'devin' && delivery === 'both') {
     return getSkillReferenceTransformer(toolId);

@@ -515,6 +515,11 @@ export const INIT_MESSAGES = {
   settingUp: (name: string) => `Configurando ${name}...`,
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   setupFailed: (name: string) => `Falha na configuração de ${name}`,
+  // Aviso (dim) quando duas ferramentas selecionadas juntas compartilham a mesma
+  // árvore física de skills (hoje `codex` + `agents` em `.agents/skills`):
+  // só o dono escreve, com referências que servem aos dois consumidores.
+  sharedSkillsRootOneTree: (names: string, root: string, owner: string) =>
+    `${names} compartilham ${root}/skills; escrevendo uma única árvore com as referências de skill do ${owner} e genéricas.`,
   setupCompleteTitle: 'Configuração do BR-OpenSpec Concluída',
   setupIncompleteTitle: 'Configuração do BR-OpenSpec Incompleta',
   // Lançado após o resumo quando alguma ferramenta falhou (exit ≠ 0 para automação).
@@ -530,11 +535,19 @@ export const INIT_MESSAGES = {
   skillsAndCommandsCount: (skills: number, commands: number, dirs: string) => `${skills} skills e ${commands} commands em ${dirs}/`,
   skillsCount: (skills: number, dirs: string) => `${skills} skills em ${dirs}/`,
   commandsCount: (commands: number, dirs: string) => `${commands} commands em ${dirs}/`,
+  // Variantes para alvos de skills globais (fora do projeto): `dirs` já são caminhos
+  // absolutos completos, então não recebem a barra final das chaves acima.
+  skillsInDirs: (skills: number, dirs: string) => `${skills} skills em ${dirs}`,
+  commandsInDirs: (commands: number, dirs: string) => `${commands} commands em ${dirs}`,
   configCreated: (schema: string) => `Config: openspec/config.yaml (schema: ${schema})`,
   configExists: (name: string) => `Config: openspec/${name} (existe)`,
   configSkipped: 'Config: ignorado (modo não interativo)',
   gettingStarted: 'Início rápido:',
   startFirstChange: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
+  // Ferramentas sem superfície de slash (Rovo Dev): a dica vira instrução,
+  // já que não há comando a digitar.
+  startFirstChangeAskTool: (toolName: string, skillRef: string) =>
+    `Inicie sua primeira alteração: peça ao ${toolName} para usar ${skillRef} com "sua ideia"`,
   startFirstChangeWithSkill: (skillRef: string) => `Inicie sua primeira alteração com ${skillRef}`,
   noSkillsOrCommandsGenerated: (names: string, singular: boolean) =>
     `Nenhuma skill nem comando foi gerado para ${names}: a entrega está definida como 'commands', mas ${singular ? 'ela suporta' : 'elas suportam'} apenas skills. ` +
@@ -569,6 +582,14 @@ export const TOOLS_MESSAGES = {
   failedToRemove: (name: string) => `Falha ao remover ${name}`,
   removedList: (names: string) => `Removidos: ${names}`,
   removedCounts: (skills: number, commands: number) => `  ${skills} diretório(s) de skill e ${commands} arquivo(s) de comando removidos`,
+  // Ferramentas com alvo de skills global (fora do projeto): as skills são
+  // compartilhadas entre projetos e não são removidas a partir de um deles.
+  globalSkillsKept: (name: string, dir: string) =>
+    `  Skills globais de ${name} mantidas em ${dir} (compartilhadas entre projetos); remova-as manualmente se não usar em outros projetos.`,
+  // Raiz de skills compartilhada por mais de uma ferramenta (ex.: `.agents/skills`,
+  // usada por Codex e agents): só a ferramenta dona da árvore pode removê-la.
+  sharedSkillsKept: (name: string, dir: string, owner: string) =>
+    `  Skills mantidas em ${dir}: essa raiz é compartilhada e pertence a ${owner}, não a ${name}.`,
   currentlyConfigured: (names: string) => `Configurados atualmente: ${names}`,
   noToolsConfigured: 'Nenhuma ferramenta configurada atualmente.',
   selectToolsToConfigure: (count: number) => `Selecione as ferramentas para configurar (${count} disponíveis)`,
@@ -962,6 +983,12 @@ export const ONBOARDING_MESSAGES = {
   // Forma neutra que nomeia a skill quando não há uma invocação de comando
   // utilizável (ou quando as ferramentas divergem na sintaxe).
   skillReference: (skillName: string) => `a skill ${skillName}`,
+  // Referência dupla gravada dentro dos SKILL.md do Codex: a mesma árvore
+  // `.agents/skills` serve ao Codex (`$nome`) e a agentes genéricos (`/nome`).
+  // ATENÇÃO: manter em sincronia com a regex de `toLegacyCodexReferences` em
+  // src/core/shared/skill-content-equivalence.ts.
+  codexDualSkillReference: (skillName: string) =>
+    `$${skillName} (Codex) ou /${skillName} (outros agentes)`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1306,6 +1333,14 @@ export const MIGRATION_MESSAGES = {
     `O Windsurf agora é Devin Desktop, e seu diretório de configuração mudou de ${from}/ para ${to}/. ` +
     `O Devin Desktop lê ${from}/ apenas como fallback, e o Devin Local não o lê.`,
   legacyMigrationNoticeGeneric: (from: string, to: string) => `${from}/ é o local anterior desta ferramenta; ${to}/ é o atual.`,
+  // Avisos (console.warn) quando um caminho legado resolve para fora do projeto
+  // (por link simbólico): nada é movido nem apagado.
+  skippingLegacyRootOutsideProject: (root: string) =>
+    `Ignorando a migração do diretório legado ${root}/ porque ele resolve para fora deste projeto.`,
+  skippingLegacySkillOutsideProject: (legacyRoot: string, dirName: string) =>
+    `Ignorando a migração da skill legada ${legacyRoot}/skills/${dirName} porque ela resolve para fora deste projeto.`,
+  skippingLegacyCommandOutsideProject: (legacyPath: string) =>
+    `Ignorando a migração do arquivo legado ${legacyPath} porque ele resolve para fora deste projeto.`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2696,6 +2731,14 @@ export const PROJECT_CONFIG_SUGGEST_MESSAGES = {
   projectLocalSchemas: (schemas: string) => `  Locais do projeto: ${schemas}\n`,
   noProjectLocalSchemas: '  Locais do projeto: (nenhum encontrado)\n',
   fixSuggestion: (invalidName: string) => `\nCorreção: Edite openspec/config.yaml e altere 'schema: ${invalidName}' para um nome de schema válido`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Shared / skill-paths (src/core/shared/skill-paths.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const SKILL_PATHS_MESSAGES = {
+  toolDoesNotSupportSkills: (toolValue: string) => `A ferramenta '${toolValue}' não suporta geração de skills.`,
 };
 
 // ═══════════════════════════════════════════════════════════

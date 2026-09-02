@@ -19,7 +19,7 @@ import {
   getEligibleTools,
   resolveToolsArg,
 } from '../core/tools-manager.js';
-import { AI_TOOLS } from '../core/config.js';
+import { AI_TOOLS, type AIToolOption } from '../core/config.js';
 import { getToolStates } from '../core/shared/index.js';
 import { isInteractive } from '../utils/interactive.js';
 import { TOOLS_MESSAGES, CLI_MESSAGES } from '../messages/index.js';
@@ -27,6 +27,34 @@ import { TOOLS_MESSAGES, CLI_MESSAGES } from '../messages/index.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Prints the dim notes explaining skills that a removal deliberately kept:
+ * a global target shared across projects, or a shared project root owned by
+ * another tool.
+ */
+function reportKeptSkills(
+  tool: AIToolOption,
+  counts: {
+    keptGlobalSkillsDir?: string;
+    keptSharedSkillsDir?: string;
+    keptSharedSkillsOwner?: string;
+  }
+): void {
+  if (counts.keptGlobalSkillsDir) {
+    console.log(chalk.dim(TOOLS_MESSAGES.globalSkillsKept(tool.name, counts.keptGlobalSkillsDir)));
+  }
+  if (counts.keptSharedSkillsDir && counts.keptSharedSkillsOwner) {
+    const ownerName =
+      AI_TOOLS.find((t) => t.value === counts.keptSharedSkillsOwner)?.name ??
+      counts.keptSharedSkillsOwner;
+    console.log(
+      chalk.dim(
+        TOOLS_MESSAGES.sharedSkillsKept(tool.name, counts.keptSharedSkillsDir, ownerName)
+      )
+    );
+  }
+}
 
 function requireInitialized(projectPath: string): void {
   if (!isProjectInitialized(projectPath)) {
@@ -109,6 +137,7 @@ async function runRemove(projectPath: string, toolsArg: string): Promise<void> {
           )
         );
       }
+      reportKeptSkills(tool, counts);
     } catch (err) {
       spinner.fail(TOOLS_MESSAGES.failedToRemove(tool.name));
       failed.push({ name: tool.name, error: err as Error });
@@ -209,9 +238,10 @@ async function runInteractive(projectPath: string): Promise<void> {
     if (!tool) continue;
     const spinner = ora(TOOLS_MESSAGES.removing(tool.name)).start();
     try {
-      await removeTool(projectPath, tool);
+      const counts = await removeTool(projectPath, tool);
       spinner.succeed(TOOLS_MESSAGES.removed(tool.name));
       removedNames.push(tool.name);
+      reportKeptSkills(tool, counts);
     } catch (err) {
       spinner.fail(TOOLS_MESSAGES.failedToRemove(tool.name));
       failed.push({ name: tool.name, error: err as Error });

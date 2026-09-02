@@ -41,6 +41,10 @@ describe('InitCommand', () => {
     // A limpeza de artefatos legados varre `<CODEX_HOME>/prompts`; manter o
     // diretório dentro do testDir para nunca tocar o `~/.codex` real.
     process.env.CODEX_HOME = path.join(testDir, 'codex-home');
+    // O alvo de skills do MiniMax Code é resolvido a partir do home do
+    // usuário: isolar para nunca escrever no `~/.minimax` real.
+    process.env.HOME = path.join(testDir, 'home');
+    process.env.USERPROFILE = path.join(testDir, 'home');
 
     // Mock console.log to suppress output during tests
     vi.spyOn(console, 'log').mockImplementation(() => { });
@@ -202,6 +206,30 @@ describe('InitCommand', () => {
       expect((await fs.lstat(skillFile)).isSymbolicLink()).toBe(true);
     });
 
+    it('should not write MiniMax skills through a linked directory outside the global skills root', async () => {
+      const outsideDir = path.join(configTempDir, 'outside-minimax');
+      const skillsRoot = path.join(testDir, 'home', '.minimax', 'skills');
+      const linkedSkillDir = path.join(skillsRoot, 'openspec-propose');
+      await fs.mkdir(outsideDir, { recursive: true });
+      await fs.mkdir(skillsRoot, { recursive: true });
+      await fs.symlink(
+        outsideDir,
+        linkedSkillDir,
+        process.platform === 'win32' ? 'junction' : 'dir'
+      );
+
+      const initCommand = new InitCommand({ tools: 'minimax-code', force: true });
+      await expect(initCommand.execute(testDir)).rejects.toThrow(
+        'A configuração do BR-OpenSpec falhou para: MiniMax Code'
+      );
+
+      expect(await fs.readdir(outsideDir)).toEqual([]);
+      expect((await fs.lstat(linkedSkillDir)).isSymbolicLink()).toBe(true);
+      expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+        'Configuração do BR-OpenSpec Incompleta'
+      );
+    });
+
     it('should generate safe Claude workflow guidance (#1493)', async () => {
       const initCommand = new InitCommand({ tools: 'claude', force: true });
 
@@ -297,6 +325,68 @@ describe('InitCommand', () => {
       ).toBe(false);
     });
 
+    it('should install MiniMax Code skills only in the user-home target', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      const initCommand = new InitCommand({ tools: 'minimax-code', force: true });
+      await initCommand.execute(testDir);
+
+      const skillFile = path.join(
+        testDir,
+        'home',
+        '.minimax',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
+      expect(await fileExists(skillFile)).toBe(true);
+      expect(await directoryExists(path.join(testDir, '.minimax'))).toBe(false);
+      expect(await directoryExists(path.join(testDir, '.mavis'))).toBe(false);
+
+      const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .flat()
+        .map(String);
+      expect(
+        logCalls.some(
+          (entry) =>
+            entry.includes('Comandos ignorados para: minimax-code') &&
+            entry.includes('(sem adaptador)')
+        )
+      ).toBe(true);
+      expect(
+        logCalls.some((entry) => entry.includes('commands em') && entry.includes('.minimax'))
+      ).toBe(false);
+    });
+
+    it('should preserve global MiniMax Code skills for commands-only delivery', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'commands',
+      });
+
+      const skillFile = path.join(
+        testDir,
+        'home',
+        '.minimax',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
+      await fs.mkdir(path.dirname(skillFile), { recursive: true });
+      await fs.writeFile(skillFile, 'existing global skill');
+
+      const initCommand = new InitCommand({ tools: 'minimax-code', force: true });
+      await initCommand.execute(testDir);
+
+      expect(await fs.readFile(skillFile, 'utf-8')).toBe('existing global skill');
+      expect(await directoryExists(path.join(testDir, '.minimax'))).toBe(false);
+    });
+
     it('should support Kimi Code as an adapterless skills-only tool', async () => {
       saveGlobalConfig({
         featureFlags: {},
@@ -345,6 +435,55 @@ describe('InitCommand', () => {
       ).toBe(true);
     });
 
+    it('should support Rovo Dev CLI as an adapterless skills-only tool', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      const initCommand = new InitCommand({ tools: 'rovodev', force: true });
+      await initCommand.execute(testDir);
+
+      const skillFile = path.join(testDir, '.rovodev', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      const commandsDir = path.join(testDir, '.rovodev', 'commands');
+      expect(await directoryExists(commandsDir)).toBe(false);
+
+      // Rovo has no slash-command surface: skills are invoked by natural
+      // language, so no generated skill may tell the user to type a
+      // `/openspec-*` or `/opsx…` command that its CLI never registers.
+      const skillsRoot = path.join(testDir, '.rovodev', 'skills');
+      const skillDirs = await fs.readdir(skillsRoot);
+      expect(skillDirs.length).toBeGreaterThan(0);
+      for (const dir of skillDirs) {
+        const body = await fs.readFile(path.join(skillsRoot, dir, 'SKILL.md'), 'utf-8');
+        expect(body, `${dir}/SKILL.md should not reference /openspec-* commands`).not.toMatch(/\/openspec-/);
+        expect(body, `${dir}/SKILL.md should not reference /opsx commands`).not.toMatch(/\/opsx[:-]/);
+      }
+      // The apply skill hands off to other workflows; confirm the handoff is
+      // spelled as a natural-language skill reference.
+      const applyBody = await fs.readFile(
+        path.join(skillsRoot, 'openspec-apply-change', 'SKILL.md'),
+        'utf-8',
+      );
+      expect(applyBody).toMatch(/a skill openspec-archive-change/);
+
+      const rovoLogCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+      expect(rovoLogCalls.some((entry) => entry.includes('Criados: Rovo Dev CLI'))).toBe(true);
+      expect(
+        rovoLogCalls.some(
+          (entry) => entry.includes('Comandos ignorados para: rovodev') && entry.includes('(sem adaptador)'),
+        ),
+      ).toBe(true);
+      // The getting-started hint must not advertise a dead slash command.
+      const hintLine = rovoLogCalls.find((entry) => entry.includes('Inicie sua primeira alteração'));
+      expect(hintLine).toBeDefined();
+      expect(hintLine).not.toMatch(/\/openspec-/);
+      expect(hintLine).toContain('a skill openspec-propose');
+    });
+
     it('should migrate OpenSpec skills from legacy .kimi to .kimi-code during init', async () => {
       const legacySkillDir = path.join(testDir, '.kimi', 'skills', 'openspec-explore');
       await fs.mkdir(legacySkillDir, { recursive: true });
@@ -378,13 +517,58 @@ describe('InitCommand', () => {
         const initCommand = new InitCommand({ tools: 'codex', force: true });
         await initCommand.execute(testDir);
 
-        const skillFile = path.join(testDir, '.codex', 'skills', 'openspec-explore', 'SKILL.md');
+        const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
         expect(await fileExists(skillFile)).toBe(true);
+        expect(
+          await fileExists(path.join(testDir, '.codex', 'skills', 'openspec-explore', 'SKILL.md'))
+        ).toBe(false);
 
         const promptFile = path.join(process.env.CODEX_HOME!, 'prompts', 'opsx-explore.md');
         expect(await fileExists(promptFile)).toBe(false);
       }
     );
+
+    it('should reconcile Codex and agents to one tree both consumers can invoke', async () => {
+      const initCommand = new InitCommand({ tools: 'codex,agents', force: true });
+      await initCommand.execute(testDir);
+
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      const proposeSkill = await fs.readFile(
+        path.join(skillsDir, 'openspec-propose', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(proposeSkill).toContain('$openspec-apply-change');
+      expect(proposeSkill).toContain('/openspec-apply-change');
+      expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe('codex\n');
+
+      const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .flat()
+        .map(String);
+      expect(logCalls.some((entry) => entry.includes('Criados: Codex'))).toBe(true);
+      expect(logCalls.some((entry) => entry.includes('Shared .agents skills'))).toBe(false);
+      expect(
+        logCalls.some((entry) => entry.includes('compartilham .agents/skills'))
+      ).toBe(true);
+    });
+
+    it('should migrate legacy Codex skills only after init writes their replacements', async () => {
+      await new InitCommand({ tools: 'codex', force: true }).execute(testDir);
+      await fs.rename(path.join(testDir, '.agents'), path.join(testDir, '.codex'));
+      await fs.rm(path.join(testDir, '.codex', 'skills', '.openspec-target'));
+      const customSkill = path.join(testDir, '.codex', 'skills', 'custom', 'SKILL.md');
+      await fs.mkdir(path.dirname(customSkill), { recursive: true });
+      await fs.writeFile(customSkill, 'user skill');
+
+      await new InitCommand({ tools: 'codex', force: true }).execute(testDir);
+
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'))
+      ).toBe(true);
+      expect(
+        await fileExists(path.join(testDir, '.codex', 'skills', 'openspec-propose', 'SKILL.md'))
+      ).toBe(false);
+      expect(await fs.readFile(customSkill, 'utf-8')).toBe('user skill');
+    });
 
     it('should create skills for multiple tools at once', async () => {
       const initCommand = new InitCommand({ tools: 'claude,cursor', force: true });
@@ -415,7 +599,7 @@ describe('InitCommand', () => {
         path.join(testDir, '.cursor', 'commands', 'opsx-propose.md'),
         path.join(testDir, '.kilocode', 'workflows', 'opsx-propose.md'),
         path.join(testDir, '.pi', 'prompts', 'opsx-propose.md'),
-        path.join(testDir, '.codex', 'skills', 'openspec-propose', 'SKILL.md'),
+        path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'),
       ];
 
       for (const proposeFile of proposeFiles) {
@@ -449,6 +633,13 @@ describe('InitCommand', () => {
       expect(await fileExists(claudeSkill)).toBe(true);
       expect(await fileExists(cursorSkill)).toBe(true);
       expect(await fileExists(devinSkill)).toBe(true);
+
+      const sharedPropose = await fs.readFile(
+        path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(sharedPropose).toContain('$openspec-apply-change');
+      expect(sharedPropose).toContain('/openspec-apply-change');
     });
 
     it('should skip tool configuration with --tools none option', async () => {
@@ -765,6 +956,10 @@ describe('InitCommand - profile and detection features', () => {
     // A limpeza de artefatos legados varre `<CODEX_HOME>/prompts`; manter o
     // diretório dentro do testDir para nunca tocar o `~/.codex` real.
     process.env.CODEX_HOME = path.join(testDir, 'codex-home');
+    // O alvo de skills do MiniMax Code é resolvido a partir do home do
+    // usuário: isolar para nunca escrever no `~/.minimax` real.
+    process.env.HOME = path.join(testDir, 'home');
+    process.env.USERPROFILE = path.join(testDir, 'home');
     vi.spyOn(console, 'log').mockImplementation(() => {});
     confirmMock.mockReset();
     confirmMock.mockResolvedValue(true);
@@ -854,8 +1049,24 @@ describe('InitCommand - profile and detection features', () => {
 
     expect(await fileExists(legacyPrompt)).toBe(false);
     expect(await fileExists(
-      path.join(testDir, '.codex', 'skills', 'openspec-apply-change', 'SKILL.md')
+      path.join(testDir, '.agents', 'skills', 'openspec-apply-change', 'SKILL.md')
     )).toBe(true);
+  });
+
+  it('should preserve global Codex prompts when only generic agents skills are installed', async () => {
+    const promptDir = path.join(process.env.CODEX_HOME!, 'prompts');
+    const legacyPrompt = path.join(promptDir, 'opsx-apply.md');
+    await fs.mkdir(promptDir, { recursive: true });
+    await fs.writeFile(legacyPrompt, 'legacy apply prompt');
+
+    const initCommand = new InitCommand({ tools: 'agents' });
+    await initCommand.execute(testDir);
+
+    expect(await fileExists(legacyPrompt)).toBe(true);
+    expect(await fs.readFile(
+      path.join(testDir, '.agents', 'skills', '.openspec-target'),
+      'utf-8'
+    )).toBe('agents\n');
   });
 
   it('should preserve legacy Codex prompts without replacement skills during non-interactive init', async () => {
@@ -869,10 +1080,10 @@ describe('InitCommand - profile and detection features', () => {
 
     expect(await fileExists(legacyPrompt)).toBe(true);
     expect(await fileExists(
-      path.join(testDir, '.codex', 'skills', 'openspec-explore', 'SKILL.md')
+      path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md')
     )).toBe(true);
     expect(await fileExists(
-      path.join(testDir, '.codex', 'skills', 'openspec-onboard', 'SKILL.md')
+      path.join(testDir, '.agents', 'skills', 'openspec-onboard', 'SKILL.md')
     )).toBe(false);
   });
 
@@ -1297,7 +1508,7 @@ describe('InitCommand - profile and detection features', () => {
     const initCommand = new InitCommand({ tools: 'codex', force: true });
     await initCommand.execute(testDir);
 
-    const skillFile = path.join(testDir, '.codex', 'skills', 'openspec-apply-change', 'SKILL.md');
+    const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-apply-change', 'SKILL.md');
     const skillContent = await fs.readFile(skillFile, 'utf-8');
     expect(skillContent).not.toContain('/opsx:');
     expect(skillContent).toContain('$openspec-');

@@ -101,7 +101,9 @@ program.hook('postAction', async () => {
   await shutdown();
 });
 
-const availableToolIds = AI_TOOLS.filter((tool) => tool.skillsDir).map((tool) => tool.value);
+const availableToolIds = AI_TOOLS
+  .filter((tool) => tool.skillsDir || tool.globalSkillsDir)
+  .map((tool) => tool.value);
 const toolAliasNote = Object.entries(TOOL_ID_ALIASES)
   .map(([retired, current]) => CLI_DESCRIPTIONS.toolAlias(retired, current))
   .join(', ');

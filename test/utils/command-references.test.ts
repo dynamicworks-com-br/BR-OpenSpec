@@ -235,6 +235,17 @@ describe('getSkillReferenceTransformer', () => {
     expect(transformer('/opsx:propose')).toBe('$openspec-propose');
     expect(transformer('Run /opsx:apply next')).toBe('Run $openspec-apply-change next');
   });
+
+  it('uses natural-language references for Rovo Dev, which has no slash surface', () => {
+    const transformer = getSkillReferenceTransformer('rovodev');
+    expect(transformer('/opsx:propose')).toBe('a skill openspec-propose');
+    expect(transformer('Run `/opsx:apply` then /opsx:archive')).toBe(
+      'Run `a skill openspec-apply-change` then a skill openspec-archive-change'
+    );
+    // No `/openspec-*` or other slash-command form is ever emitted.
+    expect(transformer('/opsx:propose')).not.toMatch(/\/openspec-/);
+    expect(transformer('/opsx:unknown-command')).toBe('/opsx:unknown-command');
+  });
 });
 
 describe('getTransformerForTool', () => {
@@ -246,20 +257,25 @@ describe('getTransformerForTool', () => {
     for (const toolId of ['bob', 'opencode', 'pi', 'qwen'] as const) {
       expect(getTransformerForTool(toolId, 'skills', 'adapter-backed', FLAT_SLASH)).toBe(transformToSkillReferences);
     }
-    // codex skills are invoked as $<name>, so the default / form is wrong there
+    // As skills do Codex ficam na árvore compartilhada `.agents/skills`, lida
+    // também por agentes genéricos: a referência traz as duas grafias.
     expect(getTransformerForTool('codex', 'skills', 'skills-invocable', undefined)?.('/opsx:propose')).toBe(
-      '$openspec-propose'
+      '$openspec-propose (Codex) ou /openspec-propose (outros agentes)'
     );
   });
 
-  it('selects $-prefixed skill references for Codex under every delivery mode', () => {
-    // O Codex é somente skills: não recebe arquivos de comando sob nenhuma
-    // entrega, então suas skills sempre se referenciam como $openspec-*.
+  it('selects shared-tree-safe Codex skill references in every delivery mode', () => {
+    // O Codex precisa de $<nome>; os consumidores genéricos da mesma árvore
+    // canônica `.agents` precisam de /<nome>. As duas formas ficam explícitas
+    // para que nenhum dos dois alvos quebre.
     for (const delivery of ['both', 'skills', 'commands'] as const) {
-      expect(
-        getTransformerForTool('codex', delivery, 'skills-invocable', undefined)?.('/opsx:propose'),
-        delivery
-      ).toBe('$openspec-propose');
+      const transformer = getTransformerForTool('codex', delivery, 'skills-invocable', undefined);
+      expect(transformer?.('/opsx:propose'), delivery).toBe(
+        '$openspec-propose (Codex) ou /openspec-propose (outros agentes)'
+      );
+      expect(transformer?.('Run /opsx:apply next'), delivery).toBe(
+        'Run $openspec-apply-change (Codex) ou /openspec-apply-change (outros agentes) next'
+      );
     }
   });
 
