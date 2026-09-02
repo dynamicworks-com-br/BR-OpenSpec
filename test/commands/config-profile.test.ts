@@ -212,12 +212,20 @@ describe('config profile interactive flow', () => {
     expect(checkbox).toHaveBeenCalledTimes(1);
     const checkboxCall = checkbox.mock.calls[0][0];
     expect(checkboxCall.pageSize).toBe(ALL_WORKFLOWS.length);
-    expect(checkboxCall.theme).toEqual({
-      icon: {
-        checked: '[x]',
-        unchecked: '[ ]',
-      },
+    // `instructions` foi removida no @inquirer/checkbox v5; a dica de teclas
+    // localizada entra por theme.style.keysHelpTip.
+    expect(checkboxCall).not.toHaveProperty('instructions');
+    expect(checkboxCall.theme.icon).toEqual({
+      checked: '[x]',
+      unchecked: '[ ]',
     });
+    expect(typeof checkboxCall.theme.style.keysHelpTip).toBe('function');
+    const keysHelpTip = checkboxCall.theme.style.keysHelpTip([
+      ['space', 'select'],
+      ['⏎', 'submit'],
+    ]);
+    expect(keysHelpTip).toContain('espaço');
+    expect(keysHelpTip).toContain('alternar');
     const proposeChoice = checkboxCall.choices.find((choice: { value: string }) => choice.value === 'propose');
     const onboardChoice = checkboxCall.choices.find((choice: { value: string }) => choice.value === 'onboard');
     expect(proposeChoice.checked).toBe(true);

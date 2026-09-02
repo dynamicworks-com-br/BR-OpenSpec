@@ -25,6 +25,7 @@ import { OPENSPEC_DIR_NAME } from '../core/config.js';
 import { hasProjectConfigDrift } from '../core/profile-sync-drift.js';
 import { UpdateCommand } from '../core/update.js';
 import { CONFIG_MESSAGES, CLI_MESSAGES } from '../messages/index.js';
+import { ptBrKeysHelpTip } from '../prompts/keys-help-tip.js';
 
 type ProfileAction = 'both' | 'delivery' | 'workflows' | 'keep';
 
@@ -598,13 +599,18 @@ export function registerConfigCommand(program: Command): void {
           };
 
           const selectedWorkflows = await checkbox<string>({
+            // A opção `instructions` foi removida no @inquirer/checkbox v5. A
+            // dica de teclas embutida (`theme.style.keysHelpTip`) cobre o mesmo
+            // conteúdo, mas em inglês — por isso é localizada aqui.
             message: CONFIG_MESSAGES.selectWorkflows,
-            instructions: CONFIG_MESSAGES.spaceToToggle,
             pageSize: ALL_WORKFLOWS.length,
             theme: {
               icon: {
                 checked: '[x]',
                 unchecked: '[ ]',
+              },
+              style: {
+                keysHelpTip: ptBrKeysHelpTip,
               },
             },
             choices: ALL_WORKFLOWS.map(formatWorkflowChoice),

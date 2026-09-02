@@ -15,6 +15,7 @@ import { parseSchema, SchemaValidationError } from '../core/artifact-graph/schem
 import type { SchemaYaml, Artifact } from '../core/artifact-graph/types.js';
 import { FileSystemUtils } from '../utils/file-system.js';
 import { SCHEMA_MESSAGES, CLI_MESSAGES, CONFIG_MESSAGES } from '../messages/index.js';
+import { ptBrKeysHelpTip } from '../prompts/keys-help-tip.js';
 
 /**
  * Schema source location type
@@ -833,6 +834,10 @@ export function registerSchemaCommand(program: Command): void {
               icon: {
                 checked: '[x]',
                 unchecked: '[ ]',
+              },
+              // Localiza a dica de teclas embutida do @inquirer/checkbox v5.
+              style: {
+                keysHelpTip: ptBrKeysHelpTip,
               },
             },
             choices: artifactChoices,

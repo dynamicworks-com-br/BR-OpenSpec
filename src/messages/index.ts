@@ -1033,6 +1033,7 @@ export const ONBOARDING_MESSAGES = {
 
 // ═══════════════════════════════════════════════════════════
 // Prompts — Seleção múltipla com busca (src/prompts/searchable-multi-select.ts)
+// e dica de teclas dos prompts do inquirer (src/prompts/keys-help-tip.ts)
 // ═══════════════════════════════════════════════════════════
 
 export const PROMPT_MESSAGES = {
@@ -1051,6 +1052,13 @@ export const PROMPT_MESSAGES = {
   detected: '(detectado)',
   refresh: '(atualizar)',
   selectedLabel: '(selecionado)',
+  // Rótulos da dica de teclas do @inquirer/{checkbox,select} v5
+  // (theme.style.keysHelpTip). As ações `navigate`/`select`/`submit`
+  // reaproveitam `navigate`, `toggle` e `confirm` acima — a tecla espaço
+  // alterna a marcação, como já indicava a dica anterior do checkbox.
+  keySpace: 'espaço',
+  keyActionAll: 'todos',
+  keyActionInvert: 'inverter',
 };
 
 // ═══════════════════════════════════════════════════════════
