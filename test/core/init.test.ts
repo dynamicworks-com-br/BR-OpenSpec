@@ -464,6 +464,49 @@ describe('InitCommand', () => {
       ).toBe(true);
     });
 
+    it('should support Command Code with both skills and generated commands', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      const initCommand = new InitCommand({ tools: 'command-code', force: true });
+      await initCommand.execute(testDir);
+
+      // Skills install under .commandcode/skills (Command Code's native skill surface)
+      const skillFile = path.join(testDir, '.commandcode', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      // Adapter-backed: Command Code reads custom slash commands from
+      // .commandcode/commands/opsx-<id>.md, invoked as /opsx-<id>.
+      const commandFile = path.join(testDir, '.commandcode', 'commands', 'opsx-explore.md');
+      expect(await fileExists(commandFile)).toBe(true);
+      const commandContent = await fs.readFile(commandFile, 'utf-8');
+      expect(commandContent).toContain('**Argumentos fornecidos**: $ARGUMENTS');
+      expect(commandContent).not.toMatch(/^---\n/);
+    });
+
+    it('should generate Command Code commands and skip skills under delivery=commands', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'commands',
+      });
+
+      const initCommand = new InitCommand({ tools: 'command-code', force: true });
+      await initCommand.execute(testDir);
+
+      // commands-only delivery: the adapter still writes commands...
+      const commandFile = path.join(testDir, '.commandcode', 'commands', 'opsx-explore.md');
+      expect(await fileExists(commandFile)).toBe(true);
+      const commandContent = await fs.readFile(commandFile, 'utf-8');
+      expect(commandContent).toContain('**Argumentos fornecidos**: $ARGUMENTS');
+
+      // ...but no skills are installed
+      expect(await directoryExists(path.join(testDir, '.commandcode', 'skills'))).toBe(false);
+    });
+
     it('should support Rovo Dev CLI as an adapterless skills-only tool', async () => {
       saveGlobalConfig({
         featureFlags: {},
@@ -597,6 +640,54 @@ describe('InitCommand', () => {
         await fileExists(path.join(testDir, '.codex', 'skills', 'openspec-propose', 'SKILL.md'))
       ).toBe(false);
       expect(await fs.readFile(customSkill, 'utf-8')).toBe('user skill');
+    });
+
+    it('should not suggest an IDE restart for CLI-only tools', async () => {
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+
+      await initCommand.execute(testDir);
+
+      expect(getConsoleOutput()).not.toContain('Reinicie sua IDE');
+    });
+
+    it('should suggest an IDE restart for IDE-resident tools', async () => {
+      const initCommand = new InitCommand({ tools: 'cursor', force: true });
+
+      await initCommand.execute(testDir);
+
+      expect(getConsoleOutput()).toContain('Reinicie sua IDE');
+    });
+
+    it('should suggest an IDE restart when a mix of CLI and IDE tools is configured', async () => {
+      // One IDE-resident tool (cursor) among CLI tools (claude) is enough: the
+      // hint targets the tool that needs it, so the gate must not require every
+      // configured tool to be IDE-resident.
+      const initCommand = new InitCommand({ tools: 'claude,cursor', force: true });
+
+      await initCommand.execute(testDir);
+
+      expect(getConsoleOutput()).toContain('Reinicie sua IDE');
+    });
+
+    it('should word the restart hint for commands when an IDE tool gets a command surface', async () => {
+      // Default delivery generates commands for an adapter-backed IDE tool, so the
+      // hint must name commands, driven by the IDE tool's own generated surface.
+      const initCommand = new InitCommand({ tools: 'cursor', force: true });
+
+      await initCommand.execute(testDir);
+
+      expect(getConsoleOutput()).toContain('Reinicie sua IDE para que os novos comandos tenham efeito.');
+    });
+
+    it('should word the restart hint for skills when an IDE tool gets only a skill surface', async () => {
+      // Skills-only delivery generates no commands, so the same IDE tool must be
+      // told about skills, not commands.
+      saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'skills' });
+      const initCommand = new InitCommand({ tools: 'cursor', force: true });
+
+      await initCommand.execute(testDir);
+
+      expect(getConsoleOutput()).toContain('Reinicie sua IDE para que as novas skills tenham efeito.');
     });
 
     it('should create skills for multiple tools at once', async () => {
@@ -1711,6 +1802,12 @@ describe('InitCommand - profile and detection features', () => {
     const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
     const startHint = logCalls.find((entry) => entry.includes('Inicie sua primeira alteração'));
     expect(startHint).toContain('$openspec-propose');
+
+    // Codex é ferramenta CLI: as skills carregam assim que os arquivos existem,
+    // sem processo de IDE para reiniciar, então a linha de restart não deve
+    // aparecer (#1067).
+    const restartHint = logCalls.find((entry) => entry.includes('Reinicie sua IDE'));
+    expect(restartHint).toBeUndefined();
   });
 
   it('should print the @-prefixed prompt hint for amazon-q (prompt library, no slash surface)', async () => {
@@ -1793,4 +1890,11 @@ async function directoryExists(dirPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function getConsoleOutput(): string {
+  return (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+    .flat()
+    .map(String)
+    .join('\n');
 }

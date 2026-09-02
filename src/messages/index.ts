@@ -1117,6 +1117,12 @@ export const UPDATE_MESSAGES = {
   settingUp: (name: string) => `Configurando ${name}...`,
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   failedToSetup: (name: string) => `Falha ao configurar ${name}`,
+  // Upgrade legado: a raiz de skills compartilhada (ex.: `.agents`) já pertence
+  // a outra ferramenta, então nada é gerado para a ferramenta inferida dos
+  // artefatos legados. Os nomes vêm de AI_TOOLS[].name (rótulos de ferramenta,
+  // não traduzidos).
+  skippedSharedSkillRoot: (name: string, skillsDir: string, owner: string) =>
+    `${name} ignorado: ${skillsDir}/skills já é gerenciado por outra ferramenta (${owner}).`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -3015,4 +3021,16 @@ export const ID_MESSAGES = {
 
 export const COMPLETIONS_FACTORY_MESSAGES = {
   unsupportedShell: (shell: string) => `Shell não suportado: ${shell}`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Adaptadores de comando (src/core/command-generation/adapters/*)
+// ═══════════════════════════════════════════════════════════
+
+export const COMMAND_ADAPTER_MESSAGES = {
+  // Linha injetada no corpo do comando gerado logo após `**Entrada**:` para
+  // ferramentas que só substituem argumentos onde há um placeholder explícito
+  // (Command Code, Pi, OpenCode). O placeholder é literal da ferramenta
+  // (`$ARGUMENTS`, `$@`) e nunca é traduzido.
+  providedArguments: (placeholder: string) => `**Argumentos fornecidos**: ${placeholder}`,
 };
