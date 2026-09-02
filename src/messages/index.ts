@@ -96,6 +96,7 @@ export const CLI_DESCRIPTIONS = {
   changeShowJson: 'Saída como JSON',
   changeShowDeltasOnly: 'Exibe apenas deltas (somente JSON)',
   changeShowRequirementsOnly: 'Alias para --deltas-only (descontinuado)',
+  changeShowDiff: 'Exibe diffs por requisito dos specs de delta',
   changeShowNoInteractive: 'Desativa prompts interativos',
 
   // Opções — change validate
@@ -119,6 +120,8 @@ export const CLI_DESCRIPTIONS = {
   validateAll: 'Valida todas as alterações e especificações',
   validateChanges: 'Valida todas as alterações',
   validateSpecs: 'Valida todas as especificações',
+  validateArchived:
+    'Valida que as alterações arquivadas tenham todas as tarefas concluídas (para lint em pre-commit)',
   validateType: 'Especifica o tipo do item quando ambíguo: change|spec',
   validateStrict: 'Ativa modo de validação estrita',
   validateJson: 'Saída dos resultados de validação como JSON',
@@ -130,6 +133,7 @@ export const CLI_DESCRIPTIONS = {
   showType: 'Especifica o tipo do item quando ambíguo: change|spec',
   showDeltasOnly: 'Exibe apenas deltas (somente JSON, alteração)',
   showRequirementsOnly: 'Alias para --deltas-only (descontinuado, alteração)',
+  showDiff: 'Exibe diffs por requisito dos specs de delta (alteração)',
   showRequirements: 'Somente JSON: Exibe apenas requisitos (exclui cenários)',
   showNoScenarios: 'Somente JSON: Exclui conteúdo de cenários',
   showRequirement: 'Somente JSON: Exibe requisito específico pelo ID (base 1)',
@@ -143,6 +147,7 @@ export const CLI_DESCRIPTIONS = {
 
   // Opções — status
   statusChange: 'Nome da alteração para exibir o status',
+  statusAll: 'Exibe o status de todas as alterações ativas',
   statusSchema: 'Sobrescreve o esquema (auto-detectado do config.yaml)',
   statusJson: 'Saída como JSON',
 
@@ -223,6 +228,23 @@ export const CHANGE_MESSAGES = {
   noProposalYet: '(ainda sem proposal.md)',
   tasks: (completed: number, total: number) => `[tarefas ${completed}/${total}]`,
   deltas: (count: number) => `[deltas ${count}]`,
+  // show --diff (ADDED/REMOVED/RENAMED/MODIFIED são termos reservados do
+  // protocolo de deltas e não se traduzem)
+  specDiffsHeading: 'Especificações alteradas (diffs)',
+  noDeltaSpecsToDiff: (name: string) => `Nenhum spec de delta para comparar na alteração "${name}".`,
+  noTextualChanges: '(sem alterações textuais)',
+  diffHeaderNearMiss: (mainName: string) =>
+    `O cabeçalho difere de "${mainName}" no spec principal apenas em caixa ou espaços; ` +
+    `o archive casa nomes exatamente, então alinhe-os antes de arquivar`,
+  diffNoMatchingRequirement: (name: string, capability: string) =>
+    `Nenhum requisito correspondente encontrado para "${name}" no spec principal ${capability}`,
+  diffNoMainSpec: (capability: string, name: string) =>
+    `Não há spec principal em openspec/specs/${capability}/spec.md, ` +
+    `então o requisito MODIFIED "${name}" não tem contra o que ser comparado`,
+  diffLabelAdded: (name: string) => `  ADDED: ${name}`,
+  diffLabelRemoved: (name: string) => `  REMOVED: ${name}`,
+  diffLabelRenamed: (from: string, to: string) => `  RENAMED: ${from} → ${to}`,
+  diffLabelModified: (name: string) => `  MODIFIED: ${name}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -312,6 +334,12 @@ export const VALIDATE_MESSAGES = {
   totals: (passed: number, failed: number, total: number) => `Totais: ${passed} aprovado(s), ${failed} reprovado(s) (${total} itens)`,
   passed: 'aprovado',
   failed: 'reprovado',
+  // validate --archived
+  validatingArchived: 'Validando alterações arquivadas...',
+  noArchivedChangesFound: 'Nenhuma alteração arquivada encontrada.',
+  couldNotReadTaskFile: 'não foi possível ler o arquivo de tarefas',
+  incompleteTasks: (incomplete: number, completed: number, total: number) =>
+    `${incomplete} tarefa(s) incompleta(s) (${completed}/${total} concluída(s))`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1426,6 +1454,11 @@ export const WORKFLOW_MESSAGES = {
   allPlanningArtifactsComplete: 'Todos os artefatos de planejamento concluídos!',
   blockedBy: (deps: string) => ` (bloqueado por: ${deps})`,
   skippedDeclaresSkipSpecs: ' (ignorado: a alteração declara skip_specs)',
+  // status.ts — status --all
+  allAndChangeMutuallyExclusive: 'As opções --all e --change não podem ser usadas juntas.',
+  missingChangeOrAllOption: (available: string) =>
+    `Opção obrigatória --change ausente (ou --all para todas as alterações ativas). Alterações disponíveis:\n  ${available}`,
+  statusAllChangeFailed: (changeName: string, message: string) => `✗ ${changeName}: ${message}`,
   // templates.ts
   loadingTemplates: 'Carregando templates...',
   schemaLabel3: (name: string) => `Esquema: ${name}`,

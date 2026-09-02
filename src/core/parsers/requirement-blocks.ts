@@ -131,6 +131,11 @@ export interface DeltaPlan {
   added: RequirementBlock[];
   modified: RequirementBlock[];
   removed: string[]; // requirement names
+  // Blocos `### Requirement:` crus da seção REMOVED, quando o delta usou a
+  // forma de cabeçalho. Só os nomes descartariam o Reason/Migration escrito
+  // pelo autor, que quem lê a remoção precisa. Vazio na forma de lista, que
+  // não tem esse corpo.
+  removedBlocks: RequirementBlock[];
   renamed: Array<{ from: string; to: string }>;
   skippedHeaders: SkippedHeader[]; // non-canonical ### headers the reader skipped
   sectionPresence: {
@@ -182,12 +187,14 @@ export function parseDeltaSpec(content: string): DeltaPlan {
     sink: skippedHeaders,
   });
   const removedNames = parseRemovedNames(removedLookup.body);
+  const removedBlocks = parseRequirementBlocksFromSection(removedLookup.body);
   const renamedPairs = parseRenamedPairs(renamedLookup.body);
   skippedHeaders.sort((a, b) => a.line - b.line);
   return {
     added,
     modified,
     removed: removedNames,
+    removedBlocks,
     renamed: renamedPairs,
     skippedHeaders,
     sectionPresence: {

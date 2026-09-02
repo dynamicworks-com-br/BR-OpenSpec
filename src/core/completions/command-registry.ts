@@ -108,6 +108,10 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
         name: 'specs',
         description: CLI_DESCRIPTIONS.validateSpecs,
       },
+      {
+        name: 'archived',
+        description: CLI_DESCRIPTIONS.validateArchived,
+      },
       COMMON_FLAGS.type,
       COMMON_FLAGS.strict,
       COMMON_FLAGS.jsonValidation,
@@ -135,6 +139,10 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       {
         name: 'requirements-only',
         description: CLI_DESCRIPTIONS.showRequirementsOnly,
+      },
+      {
+        name: 'diff',
+        description: CLI_DESCRIPTIONS.showDiff,
       },
       {
         name: 'requirements',
@@ -204,6 +212,10 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
           {
             name: 'requirements-only',
             description: CLI_DESCRIPTIONS.changeShowRequirementsOnly,
+          },
+          {
+            name: 'diff',
+            description: CLI_DESCRIPTIONS.changeShowDiff,
           },
           COMMON_FLAGS.noInteractive,
         ],

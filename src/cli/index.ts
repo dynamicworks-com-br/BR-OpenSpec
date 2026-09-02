@@ -362,8 +362,9 @@ changeCmd
   .option('--json', CLI_DESCRIPTIONS.changeShowJson)
   .option('--deltas-only', CLI_DESCRIPTIONS.changeShowDeltasOnly)
   .option('--requirements-only', CLI_DESCRIPTIONS.changeShowRequirementsOnly)
+  .option('--diff', CLI_DESCRIPTIONS.changeShowDiff)
   .option('--no-interactive', CLI_DESCRIPTIONS.changeShowNoInteractive)
-  .action(async (changeName?: string, options?: { json?: boolean; requirementsOnly?: boolean; deltasOnly?: boolean; noInteractive?: boolean }) => {
+  .action(async (changeName?: string, options?: { json?: boolean; requirementsOnly?: boolean; deltasOnly?: boolean; diff?: boolean; noInteractive?: boolean }) => {
     try {
       const changeCommand = new ChangeCommand();
       await changeCommand.show(changeName, options);
@@ -439,12 +440,13 @@ program
   .option('--all', CLI_DESCRIPTIONS.validateAll)
   .option('--changes', CLI_DESCRIPTIONS.validateChanges)
   .option('--specs', CLI_DESCRIPTIONS.validateSpecs)
+  .option('--archived', CLI_DESCRIPTIONS.validateArchived)
   .option('--type <type>', CLI_DESCRIPTIONS.validateType)
   .option('--strict', CLI_DESCRIPTIONS.validateStrict)
   .option('--json', CLI_DESCRIPTIONS.validateJson)
   .option('--concurrency <n>', CLI_DESCRIPTIONS.validateConcurrency)
   .option('--no-interactive', CLI_DESCRIPTIONS.validateNoInteractive)
-  .action(async (itemName?: string, options?: { all?: boolean; changes?: boolean; specs?: boolean; type?: string; strict?: boolean; json?: boolean; noInteractive?: boolean; concurrency?: string }) => {
+  .action(async (itemName?: string, options?: { all?: boolean; changes?: boolean; specs?: boolean; archived?: boolean; type?: string; strict?: boolean; json?: boolean; noInteractive?: boolean; concurrency?: string }) => {
     try {
       const validateCommand = new ValidateCommand();
       await validateCommand.execute(itemName, options);
@@ -465,6 +467,7 @@ program
   // change-only flags
   .option('--deltas-only', CLI_DESCRIPTIONS.showDeltasOnly)
   .option('--requirements-only', CLI_DESCRIPTIONS.showRequirementsOnly)
+  .option('--diff', CLI_DESCRIPTIONS.showDiff)
   // spec-only flags
   .option('--requirements', CLI_DESCRIPTIONS.showRequirements)
   .option('--no-scenarios', CLI_DESCRIPTIONS.showNoScenarios)
@@ -570,6 +573,7 @@ program
   .command('status')
   .description(CLI_DESCRIPTIONS.status)
   .option('--change <id>', CLI_DESCRIPTIONS.statusChange)
+  .option('--all', CLI_DESCRIPTIONS.statusAll)
   .option('--schema <name>', CLI_DESCRIPTIONS.statusSchema)
   .option('--json', CLI_DESCRIPTIONS.statusJson)
   .action(async (options: StatusOptions) => {
