@@ -396,6 +396,11 @@ export const ARCHIVE_MESSAGES = {
     `Atualizar ${count} especificação(ões) requer confirmação, e não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
   blockedChangeNameRequired: (rerun: string) =>
     `Um nome de alteração é obrigatório: não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
+  // Seletor de alteração sem terminal (stdin ou stdout não-TTY, #1526): recusa
+  // antes de renderizar o menu do @inquirer, que escreveria escapes ANSI num
+  // pipe ou arquivo.
+  blockedChangeNameRequiredNoTerminal: (rerun: string) =>
+    `Um nome de alteração é obrigatório: não há terminal disponível para escolher uma da lista.\nCorreção: ${rerun}`,
   // Limites de caminho (raízes gerenciadas e fallback copy-then-remove)
   unsupportedFilesystemEntry: (srcPath: string) => `Não é possível arquivar uma entrada de sistema de arquivos não suportada: ${srcPath}`,
   pathOutsideRoot: (managedDir: string) => `Recusando arquivar por um caminho fora da raiz do BR-OpenSpec: ${managedDir}`,

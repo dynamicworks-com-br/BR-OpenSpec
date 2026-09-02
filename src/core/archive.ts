@@ -21,7 +21,7 @@ import {
   readRetireCapabilitiesMarker,
   readSkipSpecsMarker,
 } from '../utils/change-metadata.js';
-import { isNonInteractivePromptError } from '../utils/interactive.js';
+import { confirmPrompt, isNonInteractivePromptError } from '../utils/interactive.js';
 import { FileSystemUtils } from '../utils/file-system.js';
 import { folderStyleNameProblem } from './id.js';
 
@@ -240,9 +240,8 @@ async function confirmOrBlock(
   prompt: { message: string; default: boolean },
   blocked: () => string
 ): Promise<boolean> {
-  const { confirm } = await import('@inquirer/prompts');
   try {
-    return await confirm(prompt);
+    return await confirmPrompt(prompt);
   } catch (error) {
     if (isNonInteractivePromptError(error)) {
       throw new Error(blocked());
@@ -1822,6 +1821,20 @@ export class ArchiveCommand {
     if (changeDirs.length === 0) {
       console.log(ARCHIVE_MESSAGES.noActiveChanges);
       return null;
+    }
+
+    // O seletor precisa de um terminal real, e o `select` do @inquirer
+    // escreve escapes ANSI de cursor no stdout mesmo quando redirecionado — o
+    // mesmo mecanismo do #1526 corrigido nos prompts de confirmação. Quando
+    // qualquer um dos streams não é TTY, recusa de antemão com a orientação
+    // que o ExitPromptError capturado daria, em vez de renderizar um menu
+    // cheio de escapes dentro de um pipe ou arquivo.
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error(
+        ARCHIVE_MESSAGES.blockedChangeNameRequiredNoTerminal(
+          `openspec archive <nome-da-alteração> ${rerunFlags(options).join(' ')}`
+        )
+      );
     }
 
     // Build choices with progress inline to avoid duplicate lists

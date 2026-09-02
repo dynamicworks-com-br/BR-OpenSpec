@@ -364,11 +364,14 @@ export async function buildUpdatedSpec(
   for (const block of parts.bodyBlocks) {
     nameToBlock.set(normalizeRequirementName(block.name), block);
   }
+  // Mantém os blocos de origem imutáveis para a atribuição de perda. Esta
+  // lista paralela de chaves carrega só a identidade posicional, já que
+  // renames mudam as chaves de lookup.
+  const orderedKeys = parts.bodyBlocks.map((block) => normalizeRequirementName(block.name));
 
   // Apply operations in order: RENAMED → REMOVED → MODIFIED → ADDED
   // RENAMED
   let renamedApplied = 0;
-  const renamedTargets = new Map<string, string>();
   for (const r of plan.renamed) {
     const from = normalizeRequirementName(r.from);
     const to = normalizeRequirementName(r.to);
@@ -406,7 +409,13 @@ export async function buildUpdatedSpec(
     };
     nameToBlock.delete(from);
     nameToBlock.set(to, renamedBlock);
-    renamedTargets.set(from, to);
+    // Um delete+set no Map move o bloco renomeado para o fim da ordem de
+    // inserção. Em vez disso, carrega a nova chave no slot de origem; renames
+    // encadeados a atualizam de novo.
+    const orderIndex = orderedKeys.indexOf(from);
+    if (orderIndex >= 0) {
+      orderedKeys[orderIndex] = to;
+    }
     renamedApplied++;
   }
 
@@ -490,8 +499,9 @@ export async function buildUpdatedSpec(
   // Recompose requirements section preserving original ordering where possible
   const keptOrder: RequirementBlock[] = [];
   const seen = new Set<string>();
-  for (const block of parts.bodyBlocks) {
-    const key = normalizeRequirementName(block.name);
+  for (let index = 0; index < parts.bodyBlocks.length; index++) {
+    const block = parts.bodyBlocks[index];
+    const key = orderedKeys[index];
     const replacement = nameToBlock.get(key);
     if (replacement) {
       keptOrder.push(replacement);
@@ -503,9 +513,7 @@ export async function buildUpdatedSpec(
     // original descarta o sufixo absorvido inteiro. RENAMED carrega o raw
     // original sob uma nova chave, e MODIFIED pode repetir o sufixo
     // deliberadamente; nenhum dos dois é perda de dados.
-    const renamedTarget = renamedTargets.get(key);
-    const replacementFromOriginal =
-      replacement ?? (renamedTarget ? nameToBlock.get(renamedTarget) : undefined);
+    const replacementFromOriginal = replacement;
     if (replacementFromOriginal !== block) {
       const foreign = firstForeignTail(block.raw);
       const replacementRaw = replacementFromOriginal?.raw;
@@ -533,10 +541,18 @@ export async function buildUpdatedSpec(
     .join('\n\n')
     .trimEnd();
 
-  const rebuilt = [parts.before.trimEnd(), parts.headerLine, reqBody, parts.after]
-    .filter((s, idx) => !(idx === 0 && s === ''))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n');
+  // As linhas em branco ao redor de `## Requirements` não pertencem a fatia
+  // nenhuma: `before` e `after` carregam no máximo um '\n' final/inicial por
+  // construção, e o corpo é trimEnd(). Unir as fatias com um '\n' simples
+  // colava o cabeçalho ao parágrafo do Purpose e ao primeiro requisito, então
+  // todo archive reescrevia um spec bem formatado nesse formato. Em vez disso,
+  // separa as fatias não vazias com uma linha em branco. O resultado termina
+  // sempre com exatamente um '\n' (EOF canônico, #1528).
+  const rebuilt = [parts.before.trimEnd(), parts.headerLine, reqBody, parts.after.trim()]
+    .filter((s) => s !== '')
+    .join('\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd() + '\n';
 
   return {
     rebuilt,

@@ -22,6 +22,15 @@ vi.mock('@inquirer/prompts', () => ({
   confirm: vi.fn()
 }));
 
+// O archive agora lê sim/não via confirmPrompt (que evita a renderização ANSI
+// do @inquirer num stdout não-TTY, #1526). Mocka esse seam em vez de confirm,
+// mantendo o isNonInteractivePromptError real para que os testes do caminho
+// bloqueado (#1479) continuem classificando ExitPromptError como em produção.
+vi.mock('../../src/utils/interactive.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/utils/interactive.js')>();
+  return { ...actual, confirmPrompt: vi.fn() };
+});
+
 describe('ArchiveCommand', () => {
   let tempDir: string;
   let archiveCommand: ArchiveCommand;
@@ -2282,7 +2291,7 @@ The system will log all events.
     });
 
     it('should proceed with archive when user declines spec updates', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       
       const changeName = 'decline-specs-feature';
@@ -2335,7 +2344,7 @@ Then expected result happens`;
     });
 
     it('warns about absorbed content before asking to apply the destructive spec update', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       const changeName = 'warn-before-spec-update';
       const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
@@ -2399,7 +2408,7 @@ The system SHALL survive.
     });
 
     it('does not apply a stale retirement decision when discarded content changes at the prompt', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       const changeName = 'retirement-changed-at-prompt';
       const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
@@ -2463,7 +2472,7 @@ The system SHALL preserve legacy behavior.
     });
 
     it('does not use retirement authorization that changed at the prompt', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       const changeName = 'retirement-marker-changed-at-prompt';
       const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
@@ -2675,6 +2684,130 @@ content D`;
       expect(updated).toContain('### Requirement: D');
       expect(updated).not.toContain('### Requirement: A');
       expect(updated).not.toContain('### Requirement: B');
+    });
+
+    it('should preserve source order and lineage when renaming requirements', async () => {
+      const changeName = 'rename-order';
+      const renamed = (pairs: Array<[string, string]>): string =>
+        `## RENAMED Requirements\n\n${pairs
+          .map(
+            ([from, to]) =>
+              `- FROM: \`### Requirement: ${from}\`\n- TO: \`### Requirement: ${to}\``
+          )
+          .join('\n\n')}`;
+      const cases = [
+        { capability: 'first', names: ['A', 'B', 'C'], delta: renamed([['A', 'A2']]), expected: ['A2', 'B', 'C'] },
+        { capability: 'middle', names: ['A', 'B', 'C'], delta: renamed([['B', 'B2']]), expected: ['A', 'B2', 'C'] },
+        { capability: 'last', names: ['A', 'B', 'C'], delta: renamed([['C', 'C2']]), expected: ['A', 'B', 'C2'] },
+        {
+          capability: 'multiple',
+          names: ['A', 'B', 'C'],
+          delta: renamed([['B', 'B2'], ['A', 'A2']]),
+          expected: ['A2', 'B2', 'C'],
+        },
+        {
+          capability: 'chained',
+          names: ['X', 'A', 'Y'],
+          delta: renamed([['A', 'B'], ['B', 'C']]),
+          expected: ['X', 'C', 'Y'],
+        },
+        {
+          capability: 'modified',
+          names: ['A', 'B', 'C'],
+          delta: `${renamed([['B', 'B2']])}\n\n## MODIFIED Requirements\n\n### Requirement: B2\nModified body.`,
+          expected: ['A', 'B2', 'C'],
+          expectedContent: '### Requirement: B2\nModified body.',
+        },
+        {
+          capability: 'readded',
+          names: ['X', 'A', 'Y'],
+          delta: `${renamed([['A', 'B']])}\n\n## ADDED Requirements\n\n### Requirement: A\nNew body A.`,
+          expected: ['X', 'B', 'Y', 'A'],
+        },
+        {
+          capability: 'foreign-tail',
+          names: ['A', 'B', 'C'],
+          delta: renamed([['B', 'B2']]),
+          expected: ['A', 'B2', 'C'],
+          foreignTail: '### Notes\nAuthored note travels with B.',
+          expectedContent: '### Requirement: B2\nBody B.\n\n### Notes\nAuthored note travels with B.',
+        },
+      ];
+
+      for (const item of cases) {
+        const mainSpecDir = path.join(tempDir, 'openspec', 'specs', item.capability);
+        const changeSpecDir = path.join(
+          tempDir,
+          'openspec',
+          'changes',
+          changeName,
+          'specs',
+          item.capability
+        );
+        await fs.mkdir(mainSpecDir, { recursive: true });
+        await fs.mkdir(changeSpecDir, { recursive: true });
+        const blocks = item.names.map(
+          (name) =>
+            `### Requirement: ${name}\nBody ${name}.` +
+            (name === 'B' && item.foreignTail ? `\n\n${item.foreignTail}` : '')
+        );
+        await fs.writeFile(
+          path.join(mainSpecDir, 'spec.md'),
+          `# ${item.capability} Specification\n\n## Purpose\nOrdering fixture.\n\n## Requirements\n\n${blocks.join('\n\n')}\n`
+        );
+        await fs.writeFile(
+          path.join(changeSpecDir, 'spec.md'),
+          `# ${item.capability} - Changes\n\n${item.delta}\n`
+        );
+      }
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true });
+
+      for (const item of cases) {
+        const updated = await fs.readFile(
+          path.join(tempDir, 'openspec', 'specs', item.capability, 'spec.md'),
+          'utf-8'
+        );
+        const names = [...updated.matchAll(/^### Requirement:\s*(.+?)\s*$/gm)].map(
+          (match) => match[1]
+        );
+        expect(names).toEqual(item.expected);
+        if (item.expectedContent) expect(updated).toContain(item.expectedContent);
+      }
+      const output = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .flat()
+        .map(String)
+        .join('\n');
+      expect(output).not.toContain('está dentro do requisito "B"');
+    });
+
+    it('should keep the target and change untouched when a later rename collides', async () => {
+      const changeName = 'late-rename-collision';
+      const changeDir = path.join(tempDir, 'openspec', 'changes', changeName);
+      const changeSpecDir = path.join(changeDir, 'specs', 'demo');
+      const mainSpecDir = path.join(tempDir, 'openspec', 'specs', 'demo');
+      const mainSpecPath = path.join(mainSpecDir, 'spec.md');
+      const changeSpecPath = path.join(changeSpecDir, 'spec.md');
+      const mainContent = `# demo Specification\n\n## Purpose\nTransaction fixture.\n\n## Requirements\n\n### Requirement: A\nBody A.\n\n### Requirement: B\nBody B.\n\n### Requirement: C\nBody C.\n`;
+      const changeContent = `# demo - Changes\n\n## RENAMED Requirements\n\n- FROM: \`### Requirement: A\`\n- TO: \`### Requirement: A2\`\n\n- FROM: \`### Requirement: A2\`\n- TO: \`### Requirement: C\`\n`;
+      await fs.mkdir(changeSpecDir, { recursive: true });
+      await fs.mkdir(mainSpecDir, { recursive: true });
+      await fs.writeFile(mainSpecPath, mainContent);
+      await fs.writeFile(changeSpecPath, changeContent);
+
+      await archiveCommand.execute(changeName, { yes: true, noValidate: true });
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'RENAMED falhou para cabeçalho "### Requirement: C" - destino já existe'
+        )
+      );
+      expect(process.exitCode).toBe(1);
+      await expect(fs.readFile(mainSpecPath, 'utf-8')).resolves.toBe(mainContent);
+      await expect(fs.readFile(changeSpecPath, 'utf-8')).resolves.toBe(changeContent);
+      await expect(fs.access(changeDir)).resolves.not.toThrow();
+      const archives = await fs.readdir(path.join(tempDir, 'openspec', 'changes', 'archive'));
+      expect(archives.some((entry) => entry.includes(changeName))).toBe(false);
     });
 
     it('should abort with error when MODIFIED references non-existent requirements', async () => {
@@ -3461,36 +3594,49 @@ The system SHALL do the thing differently.
     it('should use select prompt for change selection', async () => {
       const { select } = await import('@inquirer/prompts');
       const mockSelect = select as unknown as ReturnType<typeof vi.fn>;
-      
-      // Create test changes
-      const change1 = 'feature-a';
-      const change2 = 'feature-b';
-      await fs.mkdir(path.join(tempDir, 'openspec', 'changes', change1), { recursive: true });
-      await fs.mkdir(path.join(tempDir, 'openspec', 'changes', change2), { recursive: true });
-      
-      // Mock select to return first change
-      mockSelect.mockResolvedValueOnce(change1);
-      
-      // Execute without change name
-      await archiveCommand.execute(undefined, { yes: true });
-      
-      // Verify select was called with correct options (values matter, names may include progress)
-      expect(mockSelect).toHaveBeenCalledWith(expect.objectContaining({
-        message: 'Selecione uma alteração para arquivar',
-        choices: expect.arrayContaining([
-          expect.objectContaining({ value: change1 }),
-          expect.objectContaining({ value: change2 })
-        ])
-      }));
-      
-      // Verify the selected change was archived
-      const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
-      const archives = await fs.readdir(archiveDir);
-      expect(archives[0]).toContain(change1);
+
+      // O seletor interativo só roda num terminal real (os dois streams TTY);
+      // caso contrário o archive recusa de antemão em vez de renderizar um
+      // menu dentro de um pipe.
+      const originalStdinIsTty = process.stdin.isTTY;
+      const originalStdoutIsTty = process.stdout.isTTY;
+      Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true, writable: true });
+      Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true, writable: true });
+
+      try {
+        // Create test changes
+        const change1 = 'feature-a';
+        const change2 = 'feature-b';
+        await fs.mkdir(path.join(tempDir, 'openspec', 'changes', change1), { recursive: true });
+        await fs.mkdir(path.join(tempDir, 'openspec', 'changes', change2), { recursive: true });
+
+        // Mock select to return first change
+        mockSelect.mockResolvedValueOnce(change1);
+
+        // Execute without change name
+        await archiveCommand.execute(undefined, { yes: true });
+
+        // Verify select was called with correct options (values matter, names may include progress)
+        expect(mockSelect).toHaveBeenCalledWith(expect.objectContaining({
+          message: 'Selecione uma alteração para arquivar',
+          choices: expect.arrayContaining([
+            expect.objectContaining({ value: change1 }),
+            expect.objectContaining({ value: change2 })
+          ])
+        }));
+
+        // Verify the selected change was archived
+        const archiveDir = path.join(tempDir, 'openspec', 'changes', 'archive');
+        const archives = await fs.readdir(archiveDir);
+        expect(archives[0]).toContain(change1);
+      } finally {
+        Object.defineProperty(process.stdin, 'isTTY', { value: originalStdinIsTty, configurable: true, writable: true });
+        Object.defineProperty(process.stdout, 'isTTY', { value: originalStdoutIsTty, configurable: true, writable: true });
+      }
     });
 
     it('should use confirm prompt for task warnings', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       
       const changeName = 'incomplete-interactive';
@@ -3515,7 +3661,7 @@ The system SHALL do the thing differently.
     });
 
     it('should cancel when user declines task warning', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       
       const changeName = 'cancel-test';
@@ -3545,7 +3691,7 @@ The system SHALL do the thing differently.
       // The other half of the gate: without --yes the user is asked, and
       // declining leaves the change in place. Before the fix there was no
       // question to answer - the sub-task was invisible and archive ran.
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
 
       const changeName = 'subtask-prompt';
@@ -4760,7 +4906,7 @@ The system SHALL do the thing differently.
 
 
     it('deletes nothing when the user declines the spec update', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       vi.mocked(confirm).mockResolvedValue(false);
       const changeName = 'retire-declined';
       await createChange(changeName, 'legacy-layer', REMOVE_ALL);
@@ -6462,7 +6608,7 @@ The system SHALL provide a new behavior.
         `${formatLocalDate()}-${changeName}`
       );
       // Claim the destination while the confirmation prompt is open.
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       onTestFinished(() => vi.mocked(confirm).mockReset());
       vi.mocked(confirm).mockImplementation(async () => {
         await fs.mkdir(archived, { recursive: true });
@@ -6557,9 +6703,18 @@ The system SHALL provide a new behavior.
     // na própria mensagem do Error ("...\nCorreção: <comando>"), então as
     // asserções aqui verificam o conteúdo da mensagem.
     const originalIsTty = process.stdin.isTTY;
+    const originalStdoutIsTty = process.stdout.isTTY;
 
     function setStdinIsTty(value: boolean | undefined): void {
       Object.defineProperty(process.stdin, 'isTTY', {
+        value,
+        configurable: true,
+        writable: true,
+      });
+    }
+
+    function setStdoutIsTty(value: boolean | undefined): void {
+      Object.defineProperty(process.stdout, 'isTTY', {
         value,
         configurable: true,
         writable: true,
@@ -6574,16 +6729,22 @@ The system SHALL provide a new behavior.
 
     beforeEach(async () => {
       setStdinIsTty(false);
+      // Um stdout redirecionado/capturado é a outra metade de "ninguém
+      // consegue responder"; por padrão estes testes o assumem, para que a
+      // classificação bata com a de um stdin fechado.
+      setStdoutIsTty(false);
       // vi.clearAllMocks() limpa chamadas registradas mas deixa respostas
       // `...Once` enfileiradas de testes anteriores para trás; drena-as para
       // que cada prompt aqui rejeite do jeito que um stdin fechado o faz rejeitar.
-      const { confirm, select } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
+      const { select } = await import('@inquirer/prompts');
       (confirm as unknown as ReturnType<typeof vi.fn>).mockReset();
       (select as unknown as ReturnType<typeof vi.fn>).mockReset();
     });
 
     afterEach(() => {
       setStdinIsTty(originalIsTty);
+      setStdoutIsTty(originalStdoutIsTty);
     });
 
     async function createChangeWithDeltaSpec(changeName: string): Promise<string> {
@@ -6615,7 +6776,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
     }
 
     it('names the flag when the spec-update confirmation cannot be answered', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       mockConfirm.mockRejectedValueOnce(exitPromptError());
 
@@ -6634,7 +6795,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
     });
 
     it('names the flag when the incomplete-task confirmation cannot be answered', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       mockConfirm.mockRejectedValueOnce(exitPromptError());
 
@@ -6653,7 +6814,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
       // Sugerir uma reexecução com `--yes` puro para `archive x --skip-specs`
       // mesclaria deltas nos specs principais - exatamente o que o
       // --skip-specs foi passado para impedir.
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       mockConfirm.mockRejectedValue(exitPromptError());
 
@@ -6691,7 +6852,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
     // diretório necessário não pode existir lá - que também é por que o furo
     // que ele cobre é só-POSIX.
     it.skipIf(process.platform === 'win32')('cannot let a change directory forge its own Fix line', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       mockConfirm.mockRejectedValue(exitPromptError());
 
@@ -6716,7 +6877,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
     });
 
     it('quotes a change name that would not paste back as one argument', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       mockConfirm.mockRejectedValue(exitPromptError());
 
@@ -6765,7 +6926,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
       // Só a falha de "ninguém podia responder" ganha a orientação. Qualquer
       // outra - um erro de IO, um bug num refactor futuro do prompt - deve
       // aparecer como ela mesma em vez de ser rotulada "reexecute com --yes".
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       mockConfirm.mockRejectedValueOnce(new Error('EACCES: permission denied'));
 
@@ -6780,7 +6941,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
     });
 
     it('names the flag when the skip-validation confirmation cannot be answered', async () => {
-      const { confirm } = await import('@inquirer/prompts');
+      const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
       const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
       mockConfirm.mockRejectedValueOnce(exitPromptError());
 
@@ -6806,10 +6967,33 @@ This change exists to document greeting behavior thoroughly for the team, which 
         recursive: true,
       });
 
+      // Nota de porte: sem terminal (stdin/stdout não-TTY, o padrão deste
+      // bloco) o gate do #1526 recusa antes de o `select` rodar, então a
+      // orientação vem de blockedChangeNameRequiredNoTerminal; a mensagem
+      // "não foi possível ler uma resposta do stdin" fica para um terminal
+      // presente com CI/OPEN_SPEC_INTERACTIVE=0 (ver o teste de pty + CI).
       await expect(archiveCommand.execute(undefined, { yes: true })).rejects.toThrow(
-        'Um nome de alteração é obrigatório: não foi possível ler uma resposta do stdin.\nCorreção: openspec archive <nome-da-alteração> --yes'
+        ARCHIVE_MESSAGES.blockedChangeNameRequiredNoTerminal('openspec archive <nome-da-alteração> --yes')
       );
       expect(console.log).not.toHaveBeenCalledWith(ARCHIVE_MESSAGES.noChangeSelected);
+    });
+
+    it('never renders the picker into a non-terminal, asking for a name instead (#1526)', async () => {
+      // O seletor de alteração usa o select do @inquirer, que escreve escapes
+      // ANSI no stdout mesmo redirecionado. Uma execução sem terminal precisa
+      // recusar antes de qualquer render — o select nunca pode ser alcançado —
+      // para que um stdout capturado fique limpo em vez de encher de
+      // sequências de movimento de cursor.
+      const { select } = await import('@inquirer/prompts');
+      const mockSelect = select as unknown as ReturnType<typeof vi.fn>;
+      await fs.mkdir(path.join(tempDir, 'openspec', 'changes', 'some-change'), {
+        recursive: true,
+      });
+
+      await expect(archiveCommand.execute(undefined, { yes: true })).rejects.toThrow(
+        'Um nome de alteração é obrigatório: não há terminal disponível para escolher uma da lista.'
+      );
+      expect(mockSelect).not.toHaveBeenCalled();
     });
 
     it('carries the caller\'s flags into the change-name request too', async () => {
@@ -6831,8 +7015,9 @@ This change exists to document greeting behavior thoroughly for the team, which 
     it('leaves a prompt that failed at a usable terminal alone', async () => {
       // O terminal é o que prova que uma resposta era possível. Perder essa
       // perna rotularia como não-interativa uma falha que um humano podia
-      // ter respondido.
+      // ter respondido. Um terminal usável significa os dois streams TTY.
       setStdinIsTty(true);
+      setStdoutIsTty(true);
       const originalCi = process.env.CI;
       const originalOpenSpecInteractive = process.env.OPEN_SPEC_INTERACTIVE;
       delete process.env.CI;
@@ -6865,7 +7050,7 @@ This change exists to document greeting behavior thoroughly for the team, which 
       process.env.CI = 'true';
 
       try {
-        const { confirm } = await import('@inquirer/prompts');
+        const { confirmPrompt: confirm } = await import('../../src/utils/interactive.js');
         const mockConfirm = confirm as unknown as ReturnType<typeof vi.fn>;
         mockConfirm.mockRejectedValueOnce(exitPromptError());
 
