@@ -91,6 +91,43 @@ describe('propose preamble', () => {
   });
 });
 
+describe('default task guidance', () => {
+  // #345 (upstream #1660): a vague trailing "each task should be verifiable"
+  // let agents emit unverifiable tasks plus one generic "Verify" item at the
+  // end. The guideline is now a MUST with the verification inside each
+  // checkbox. The fork keeps the schema's `Example:` block in English (same
+  // convention as the `specs` artifact), so those assertions stay verbatim.
+  it('requires a concrete verification method in each task (#345)', () => {
+    const tasks = defaultSchema.artifacts.find(artifact => artifact.id === 'tasks');
+    expect(tasks).toBeDefined();
+    // The YAML literal block keeps line breaks and 2-space continuations;
+    // normalize so whole PT-BR sentences can be matched across the wraps.
+    const guidance = tasks!.instruction.replace(/\s+/g, ' ');
+    expect(guidance).toContain('Cada tarefa MUST indicar como verificar sua conclusão');
+    expect(guidance).toContain(
+      'um teste, comando, comportamento observável ou artifact entregue'
+    );
+    expect(guidance).toContain(
+      'Coloque a verificação na descrição do checkbox da própria tarefa'
+    );
+    expect(guidance).toContain(
+      'Use uma tarefa de verificação separada apenas quando ela checar integração mais ampla ou comportamento do sistema que atravessa múltiplas tarefas de implementação'
+    );
+    expect(guidance).not.toContain('Cada tarefa deve ser verificável');
+
+    const example = tasks!.instruction.match(/```\s*([\s\S]*?)```/)?.[1];
+    expect(example).toBeDefined();
+    const numberedTasks = example!.split('\n').filter(line => /^- \[ \] \d+\.\d+ /.test(line));
+    expect(numberedTasks).toHaveLength(4);
+    expect(numberedTasks.every(line => /\bverify\b/i.test(line))).toBe(true);
+    expect(numberedTasks[0]).toContain('expected files are present');
+    expect(numberedTasks[1]).toContain('package installation succeeds');
+    expect(numberedTasks[2]).toContain('export test passes');
+    expect(numberedTasks[3]).toContain('unit tests cover quoting and delimiters');
+    expect(example).not.toMatch(/^- \[ \] \d+\.\d+ (?:verify|run (?:the )?verification)\b/im);
+  });
+});
+
 describe('propose implementation boundary', () => {
   it('makes the planning-only boundary prominent (#232, #258, #262)', () => {
     for (const [label, body] of proposeBodies) {

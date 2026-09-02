@@ -1870,12 +1870,12 @@ Aqui estão as tarefas de implementação:
 
 ## 1. [Categoria ou arquivo]
 
-- [ ] 1.1 [Tarefa específica]
-- [ ] 1.2 [Tarefa específica]
+- [ ] 1.1 [Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]
+- [ ] 1.2 [Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]
 
-## 2. Verificar
+## 2. Verificação de Integração
 
-- [ ] 2.1 [Etapa de verificação]
+- [ ] 2.1 Verificar [integração mais ampla ou comportamento do sistema] com [teste de ponta a ponta ou resultado observável]
 
 ---
 

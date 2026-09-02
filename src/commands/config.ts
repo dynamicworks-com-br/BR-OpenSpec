@@ -44,7 +44,7 @@ interface WorkflowPromptMeta {
   description: string;
 }
 
-const WORKFLOW_PROMPT_META: Record<string, WorkflowPromptMeta> = {
+export const WORKFLOW_PROMPT_META: Record<string, WorkflowPromptMeta> = {
   propose: {
     name: CONFIG_MESSAGES.workflowProposeName,
     description: CONFIG_MESSAGES.workflowProposeDesc,

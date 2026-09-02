@@ -182,22 +182,26 @@ artifacts:
       - Cada tarefa MUST ser um checkbox: `- [ ] X.Y Descrição da tarefa`
       - As tarefas devem ser pequenas o suficiente para serem concluídas em uma sessão
       - Ordene as tarefas por dependência (o que precisa ser feito primeiro?)
+      - Cada tarefa MUST indicar como verificar sua conclusão (um teste, comando,
+        comportamento observável ou artifact entregue). Coloque a verificação na
+        descrição do checkbox da própria tarefa. Use uma tarefa de verificação
+        separada apenas quando ela checar integração mais ampla ou comportamento
+        do sistema que atravessa múltiplas tarefas de implementação.
 
       Example:
       ```
       ## 1. Setup
 
-      - [ ] 1.1 Create new module structure
-      - [ ] 1.2 Add dependencies to package.json
+      - [ ] 1.1 Create new module structure and verify expected files are present
+      - [ ] 1.2 Add dependencies to package.json and verify package installation succeeds
 
       ## 2. Core Implementation
 
-      - [ ] 2.1 Implement data export function
-      - [ ] 2.2 Add CSV formatting utilities
+      - [ ] 2.1 Implement data export function and verify the export test passes
+      - [ ] 2.2 Add CSV formatting utilities and verify unit tests cover quoting and delimiters
       ```
 
       Referencie as specs para o que precisa ser construído e o design para como construir.
-      Cada tarefa deve ser verificável - você sabe quando ela está concluída.
     requires:
       - specs
       - design

@@ -31,6 +31,32 @@ function occurrenceCount(body: string, value: string): number {
   return body.split(value).length - 1;
 }
 
+// Upstream matches `/[^\x00-\x7F]/` here. The fork's fenced examples are
+// narrated in PT-BR, so their prose legitimately carries Latin-1 accents
+// ("Usuário", "Coordenação", "Restrições-chave"). #983 is about *diagram*
+// glyphs whose rendered width is ambiguous, so match only those classes:
+// box-drawing U+2500-U+257F, blocks U+2580-U+259F, geometric shapes and
+// triangular arrowheads U+25A0-U+25FF, arrows U+2190-U+21FF, bullets
+// U+2022/U+2023/U+25E6 and check/cross dingbats U+2713-U+2718.
+const DIAGRAM_GLYPH = /[\u2190-\u21FF\u2500-\u25FF\u2022\u2023\u2713-\u2718]/;
+
+function fencedBlockLines(body: string): Array<[number, string]> {
+  const lines: Array<[number, string]> = [];
+  let inFence = false;
+
+  body.split('\n').forEach((line, index) => {
+    if (line.trimStart().startsWith('```')) {
+      inFence = !inFence;
+      return;
+    }
+    if (inFence) {
+      lines.push([index + 1, line]);
+    }
+  });
+
+  return lines;
+}
+
 describe('explore templates', () => {
   // Regression for #696: explore never loaded the project's declared
   // context, so it reasoned without the tech stack, conventions, and
@@ -78,6 +104,40 @@ describe('explore templates', () => {
       expect(body, label).toContain('restrições para você seguir');
       expect(body, label).toContain(
         'NÃO as copie para a conversa nem para nenhum artifact que você criar'
+      );
+    }
+  });
+
+  // Regression for #1715: explore treated answers to design questions as
+  // consent and started writing artifacts (or ran `openspec new change`)
+  // on its own. Read-only work stays free; the first write-capable action
+  // must be announced and confirmed in a separate user message.
+  it('requires separate confirmation before any file-writing action (#1715)', () => {
+    for (const [label, body] of bodies) {
+      expect(body, label).toContain('Antes da primeira ação capaz de escrever');
+      expect(body, label).toContain('nomeie os artifacts ou arquivos que você alteraria');
+      expect(body, label).toContain('faça uma pergunta direta de sim/não');
+      expect(body, label).toContain('aguarde a confirmação do usuário em uma mensagem separada');
+      expect(body, label).toContain(
+        'Responder a perguntas de design ou de esclarecimento nunca é consentimento para escrever'
+      );
+      expect(body, label).toContain('executar comandos ou ferramentas somente leitura sem confirmação');
+      expect(body, label).toContain(
+        'A confirmação cobre apenas o escopo que você descreveu; pergunte de novo antes de ampliá-lo'
+      );
+    }
+  });
+
+  it('treats workflow configuration and write-capable commands as changes (#1715)', () => {
+    for (const [label, body] of bodies) {
+      expect(body, label).toContain(
+        'criar ou editar schemas, templates ou `openspec/config.yaml` é uma change'
+      );
+      expect(body, label).toContain(
+        'incluindo `openspec new change` ou outro comando que escreva arquivos'
+      );
+      expect(body, label).toContain(
+        'Criar ou atualizar artifacts de change do BR-OpenSpec dentro do escopo confirmado está ok, escrever qualquer outra coisa não'
       );
     }
   });
@@ -170,6 +230,28 @@ describe('explore templates', () => {
         occurrenceCount(transition, 'Após criar cada artifact, reexecute `openspec status'),
         label
       ).toBe(1);
+    }
+  });
+
+  // Regression for #983: the worked examples drew boxes and tables with
+  // Unicode box-drawing, arrow, and marker glyphs. Agents copy those
+  // examples verbatim, and on terminals that render the glyphs
+  // double-width the right border of every padded box drifted loose.
+  it('draws every fenced example without Unicode diagram glyphs (#983)', () => {
+    for (const [label, body] of bodies) {
+      const offenders = fencedBlockLines(body)
+        .filter(([, line]) => DIAGRAM_GLYPH.test(line))
+        .map(([lineNumber, line]) => `${lineNumber}: ${line}`);
+
+      expect(offenders, `${label} fenced examples must not use Unicode diagram glyphs`).toEqual([]);
+    }
+  });
+
+  it('tells the agent to draw with ASCII and says why (#983)', () => {
+    for (const [label, body] of bodies) {
+      expect(body, label).toContain('**Desenhe apenas com ASCII puro**');
+      expect(body, label).toContain('renderizados com larguras diferentes');
+      expect(body, label).toContain('Mantenha todo caractere de diagrama em ASCII');
     }
   });
 

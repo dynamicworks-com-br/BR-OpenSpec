@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type SkillTemplate,
+  getApplyInstructions,
   getApplyChangeSkillTemplate,
   getArchiveChangeSkillTemplate,
   getBulkArchiveChangeSkillTemplate,
@@ -406,5 +407,58 @@ describe('skill templates split parity', () => {
       expect(content, variant).toContain('/specs/billing/invoices/spec.md');
       expect(content, variant).not.toContain('sincronize só o delta billing');
     }
+  });
+
+  // #345 (upstream #1660): the onboarding task skeleton showed unverifiable
+  // checkboxes plus one generic "Verify" item, and agents copied it. Every
+  // implementation checkbox now names its verification inline, and the closing
+  // group is explicitly about integration.
+  it('keeps onboarding task examples aligned with concrete verification guidance (#345)', () => {
+    const variants: Array<[string, string]> = [
+      ['onboard skill', generateSkillContent(getOnboardSkillTemplate(), 'PARITY-BASELINE')],
+      ['onboard command', getOpsxOnboardCommandTemplate().content],
+    ];
+
+    for (const [label, content] of variants) {
+      const taskBlock = content.match(
+        /Aqui estão as tarefas de implementação:([\s\S]*?)Cada checkbox se torna uma unidade de trabalho/
+      )?.[1];
+      expect(taskBlock, label).toBeDefined();
+      const checkboxes = taskBlock!
+        .split('\n')
+        .filter(line => /^- \[ \] \d+\.\d+ /.test(line));
+      expect(checkboxes, label).toHaveLength(3);
+      expect(
+        checkboxes.every(
+          line =>
+            line.endsWith(
+              '[Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]'
+            ) || / Verificar .+ com \[.+\]$/.test(line)
+        ),
+        label
+      ).toBe(true);
+      expect(content, label).toContain(
+        '[Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]'
+      );
+      expect(content, label).toContain(
+        'Verificar [integração mais ampla ou comportamento do sistema] com [teste de ponta a ponta ou resultado observável]'
+      );
+      expect(content, label).toContain('## 2. Verificação de Integração');
+      expect(content, label).not.toContain('[Etapa de verificação]');
+    }
+  });
+});
+
+describe('apply skill/command shared instruction core', () => {
+  // The apply skill and command are intentionally distinct surfaces, but they
+  // differ only in how they are invoked — the generation transformers rewrite
+  // the canonical `/opsx:<id>` tokens per surface downstream (asserted in
+  // test/utils/command-references.test.ts). The instruction text itself is
+  // shared, so this pins the contract: both surfaces render the one canonical
+  // core and cannot silently drift apart at the template level.
+  it('renders both apply surfaces from the shared instruction core', () => {
+    const core = getApplyInstructions();
+    expect(getApplyChangeSkillTemplate().instructions).toBe(core);
+    expect(getOpsxApplyCommandTemplate().content).toBe(core);
   });
 });
