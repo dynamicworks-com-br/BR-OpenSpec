@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { createRequire } from 'module';
 import ora from 'ora';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { promises as fs } from 'fs';
 import { AI_TOOLS, TOOL_ID_ALIASES } from '../core/config.js';
 import { CLI_DESCRIPTIONS, CLI_MESSAGES, CONFIG_MESSAGES } from '../messages/index.js';
@@ -54,7 +55,7 @@ const { version } = require('../../package.json');
  * Get the full command path for nested commands.
  * For example: 'change show' -> 'change:show'
  */
-function getCommandPath(command: Command): string {
+export function getCommandPath(command: Command): string {
   const names: string[] = [];
   let current: Command | null = command;
 
@@ -68,6 +69,31 @@ function getCommandPath(command: Command): string {
   }
 
   return names.join(':') || 'openspec';
+}
+
+/**
+ * True when the executing command asked for JSON output — used to suppress the
+ * first-run telemetry notice so stdout stays a single valid JSON document.
+ *
+ * `--json` reaches commands three ways, so a single parsed option is not enough:
+ * - declared on the leaf (`openspec status --json`) → `opts().json`
+ * - declared on a parent group and read via globals (upstream's
+ *   `openspec workset --json list`) → `optsWithGlobals().json`
+ * - a residual arg on a permissive group that never declares the option
+ *   (upstream's `openspec store --json`) → `args`
+ *
+ * This fork does not expose `store`/`workset` yet (stores/workset are still
+ * deferred); the last two branches are kept for parity so the guard already
+ * covers those permissive groups when they land.
+ *
+ * Suppressing is always safe: the disclosure is only deferred to the next
+ * non-JSON run, never lost, whereas printing it on a JSON run corrupts stdout.
+ */
+export function isJsonRun(command: Command): boolean {
+  return (
+    command.optsWithGlobals().json === true ||
+    command.args.includes('--json')
+  );
 }
 
 program
@@ -88,8 +114,10 @@ program.hook('preAction', async (thisCommand, actionCommand) => {
     process.env.NO_COLOR = '1';
   }
 
-  // Show first-run telemetry notice (if not seen)
-  await maybeShowTelemetryNotice();
+  // Show first-run telemetry notice (if not seen). It's written to stderr, so it
+  // never pollutes stdout — but --json runs still defer it (see isJsonRun) so the
+  // very first invocation stays free of any incidental output on either stream.
+  await maybeShowTelemetryNotice({ silent: isJsonRun(actionCommand) });
 
   // Track command execution (use actionCommand to get the actual subcommand)
   const commandPath = getCommandPath(actionCommand);
@@ -586,4 +614,12 @@ newCmd
     }
   });
 
-program.parse();
+export { program };
+
+export function runCli(argv = process.argv): void {
+  program.parse(argv);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  runCli();
+}

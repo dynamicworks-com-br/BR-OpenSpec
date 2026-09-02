@@ -671,6 +671,8 @@ export const CONFIG_MESSAGES = {
   useConfigList: 'Use "openspec config list" para ver as chaves disponíveis.',
   passAllowUnknown: 'Passe --allow-unknown para ignorar esta verificação.',
   configKeySegmentNotAllowed: (segment: string) => `O segmento de chave "${segment}" não é permitido`,
+  telemetryRequiresNestedKey: 'Defina chaves aninhadas sob telemetry (ex.: telemetry.enabled)',
+  unknownTelemetryKey: (key: string) => `Chave de telemetria desconhecida "${key}" (permitidas: enabled)`,
   invalidConfiguration: (error: string) => `Configuração inválida - ${error}`,
   setKeyValue: (key: string, value: string) => `Definido ${key} = ${value}`,
   unsetKey: (key: string) => `Removido ${key} (revertido para o padrão)`,
@@ -979,6 +981,8 @@ export const FEEDBACK_MESSAGES = {
   issueUrl: (url: string) => `URL da Issue: ${url}\n`,
   labelNotApplied: 'Nota: issue criada sem o rótulo \'feedback\' porque o repositório não o define.\n',
   feedbackTitle: (message: string) => `Feedback: ${message}`,
+  bodySummaryHeading: '## Resumo',
+  bodyDetailsHeading: '## Detalhes',
   submittedVia: 'Enviado via BR-OpenSpec CLI',
   versionLabel: (version: string) => `- Versão: ${version}`,
   platformLabel: (platform: string) => `- Plataforma: ${platform}`,
@@ -2802,7 +2806,7 @@ Se não houver findings, diga claramente que nenhum problema foi encontrado e ai
 // ═══════════════════════════════════════════════════════════
 
 export const TELEMETRY_MESSAGES = {
-  firstRunNotice: 'Aviso: o BR-OpenSpec coleta estatísticas de uso anônimas. Para optar por não participar, defina OPENSPEC_TELEMETRY=0',
+  firstRunNotice: "Aviso: o BR-OpenSpec coleta estatísticas de uso anônimas. Para optar por não participar, defina OPENSPEC_TELEMETRY=0 ou execute 'openspec config set telemetry.enabled false'",
 };
 
 // ═══════════════════════════════════════════════════════════

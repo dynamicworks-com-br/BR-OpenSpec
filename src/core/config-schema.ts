@@ -23,6 +23,14 @@ export const GlobalConfigSchema = z
     workflows: z
       .array(z.string())
       .optional(),
+    // passthrough keeps runtime-managed fields (anonymousId, noticeSeen) valid
+    // under CLI validate when users only set telemetry.enabled.
+    telemetry: z
+      .object({
+        enabled: z.boolean().optional(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -37,7 +45,14 @@ export const DEFAULT_CONFIG: GlobalConfigType = {
   delivery: 'both',
 };
 
-const KNOWN_TOP_LEVEL_KEYS = new Set([...Object.keys(DEFAULT_CONFIG), 'workflows']);
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+  ...Object.keys(DEFAULT_CONFIG),
+  'workflows',
+  'telemetry',
+]);
+
+/** Nested keys users may set under `telemetry` via the CLI. */
+const TELEMETRY_SETTABLE_KEYS = new Set(['enabled']);
 
 /**
  * Key segments that would reach the prototype chain instead of the config object.
@@ -81,6 +96,19 @@ export function validateConfigKeyPath(path: string): { valid: boolean; reason?: 
   if (rootKey === 'featureFlags') {
     if (rawKeys.length > 2) {
       return { valid: false, reason: 'featureFlags values are booleans and do not support nested keys' };
+    }
+    return { valid: true };
+  }
+
+  if (rootKey === 'telemetry') {
+    if (rawKeys.length === 1) {
+      return { valid: false, reason: CONFIG_MESSAGES.telemetryRequiresNestedKey };
+    }
+    if (rawKeys.length !== 2 || !TELEMETRY_SETTABLE_KEYS.has(rawKeys[1])) {
+      return {
+        valid: false,
+        reason: CONFIG_MESSAGES.unknownTelemetryKey(rawKeys.slice(1).join('.')),
+      };
     }
     return { valid: true };
   }
