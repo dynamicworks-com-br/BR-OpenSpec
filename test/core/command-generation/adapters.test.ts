@@ -808,11 +808,37 @@ describe('command-generation/adapters', () => {
     it('should inject template arguments into the input section', () => {
       const contentWithInput: CommandContent = {
         ...sampleContent,
-        body: '**Input**: The argument after `/opsx:explore` is the topic.\n\n**Steps**\n1. Think.',
+        body: '**Entrada**: O argumento após `/opsx:explore` é o tema.\n\n**Passos**\n1. Pense.',
       };
 
       const output = piAdapter.formatFile(contentWithInput);
-      expect(output).toContain('**Provided arguments**: $@');
+      expect(output).toContain('**Argumentos fornecidos**: $@');
+    });
+
+    it.each(['$@', '$ARGUMENTS'])(
+      'should not duplicate an existing %s placeholder',
+      (placeholder) => {
+        const output = piAdapter.formatFile({
+          ...sampleContent,
+          body: `**Entrada**: Um nome de change.\n**Argumentos fornecidos**: ${placeholder}`,
+        });
+        expect(output.match(/\*\*Argumentos fornecidos\*\*:/g)).toHaveLength(1);
+      }
+    );
+
+    it('should preserve invocation arguments for every workflow that accepts them', () => {
+      // Tripwire com os templates reais (PT-BR): o marcador `**Entrada**` do
+      // adapter tem de casar de verdade — um regex em inglês devolveria os 13
+      // ids aqui em vez de apenas `onboard`.
+      const commandsWithoutArguments = getCommandContents()
+        .filter((content) => {
+          const output = generateCommand(content, piAdapter).fileContent;
+          return !output.includes('**Argumentos fornecidos**: $@');
+        })
+        .map((content) => content.id);
+
+      // Onboarding é deliberadamente interativo e não declara contrato de entrada.
+      expect(commandsWithoutArguments).toEqual(['onboard']);
     });
 
     it('should escape YAML special characters in description', () => {
