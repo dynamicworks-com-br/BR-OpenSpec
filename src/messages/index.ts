@@ -22,7 +22,9 @@
  *
  * Regra geral: qualquer palavra em CAIXA ALTA que represente uma regra, uma
  * operação de delta (ADD/REMOVE/RENAME) ou uma cláusula de cenário fica em
- * inglês. Traduzir esses termos quebra o parsing/validação dos specs.
+ * inglês. Omitir SHALL/MUST em um requisito gera WARNING no `openspec
+ * validate` (erro só com `--strict`); traduzir os marcadores estruturais
+ * quebra o parsing de specs e changes.
  * Ver também AGENTS.md ("Termos reservados em inglês").
  * ─────────────────────────────────────────────────────────────────────────
  */

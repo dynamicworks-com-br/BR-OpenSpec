@@ -59,7 +59,7 @@ Se `/opsx:propose` (ou o equivalente da sua ferramenta) não aparece ou não faz
 
 5. **Verifique que você inicializou este projeto.** Skills são escritas por projeto. Se você clonou um repo ou trocou de pasta, rode `openspec init` (ou `openspec update`) lá.
 
-6. **Confirme que sua ferramenta suporta arquivos de comando.** Kimi Code, ForgeCode, Mistral Vibe, Trae e o alvo `.agents` compartilhado não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills, então `/opsx` nunca vai autocompletar para elas. Digite `/skill:openspec-propose` no Kimi Code e `/openspec-propose` nas demais. O alvo `.agents` compartilhado é neutro em relação a fornecedores, então `/openspec-propose` é a forma comum, não uma garantida — se o seu assistente não responder a ela, consulte a documentação dele sobre como invocar uma skill. Os arquivos de comando do Codex ficam no diretório global do Codex (`$CODEX_HOME/prompts/opsx-*.md`), e suas skills são invocadas como `$openspec-propose`. O Amazon Q recebe arquivos de comando, mas os carrega na sua biblioteca de prompts em vez do menu de barra — digite `@opsx-propose` lá, não `/opsx`. A forma de cada ferramenta está listada em [Como Invocar](supported-tools.md#como-invocar).
+6. **Confirme que sua ferramenta suporta arquivos de comando.** Codex, Kimi Code, ForgeCode, MiniMax Code, Mistral Vibe, Trae, Zed Agent e o alvo `.agents` compartilhado não recebem arquivos de comando `opsx-*` gerados; elas usam invocações baseadas em skills, então `/opsx` nunca vai autocompletar para elas. Digite `$openspec-propose` no Codex, `/skill:openspec-propose` no Kimi Code e `/openspec-propose` nas demais. Para o Codex, confira `.agents/skills/openspec-*`. O alvo `.agents` compartilhado é neutro em relação a fornecedores, então `/openspec-propose` é a forma comum, não uma garantida — se o seu assistente não responder a ela, consulte a documentação dele sobre como invocar uma skill. O Amazon Q recebe arquivos de comando, mas os carrega na sua biblioteca de prompts em vez do menu de barra — digite `@opsx-propose` lá, não `/opsx`. A forma de cada ferramenta está listada em [Como Invocar](supported-tools.md#como-invocar).
 
 ## Trabalhando com mudanças
 
@@ -102,7 +102,7 @@ Uma mensagem merece uma nota própria:
 MODIFIED "<requisito>" omite cenário(s) que o spec atual ainda tem: "<cenário>"
 ```
 
-Um requisito `MODIFIED` substitui o bloco inteiro do requisito, então ele precisa carregar todos os cenários que sobrevivem à mudança, não apenas os que você editou. Copie os cenários nomeados de `openspec/specs/<capability>/spec.md` de volta para o delta. Isso costuma aparecer em uma mudança antiga depois que a mudança de outra pessoa adicionou um cenário ao mesmo requisito — o archive recusa essa mudança de qualquer forma, e a validação agora avisa antes de você implementá-la.
+Um requisito `MODIFIED` substitui o bloco inteiro do requisito, então ele precisa carregar todos os cenários que sobrevivem à mudança, não apenas os que você editou. Copie os cenários nomeados de `openspec/specs/<capability-path>/spec.md` de volta para o delta, preservando quaisquer diretórios de domínio no caminho. Isso costuma aparecer em uma mudança antiga depois que a mudança de outra pessoa adicionou um cenário ao mesmo requisito — o archive recusa essa mudança de qualquer forma, e a validação agora avisa antes de você implementá-la.
 
 ### A IA criou artefatos incompletos ou errados
 
@@ -128,6 +128,8 @@ openspec archive <nome-da-alteração> --yes
 ```
 
 Mantenha quaisquer flags que você já estava passando — `--skip-specs` e `--no-validate` mudam o que o arquivamento faz, então uma reexecução com `--yes` puro não é o mesmo comando. As versões atuais nomeiam a flag para você e imprimem uma linha `Correção:` que você pode colar. Se você pretendia escolher de uma lista, passe o nome da mudança explicitamente: o seletor também precisa de uma resposta.
+
+Se, em vez disso, você executou o arquivamento com a saída redirecionada para um arquivo ou capturada por uma ferramenta e *de fato* enviou uma resposta pelo pipe (`printf 'y\n' | openspec archive …`), versões antigas escreviam códigos de escape de terminal nessa captura ao desenhar o prompt — em alguns ambientes, o suficiente para inchar o arquivo de forma severa. As versões atuais leem os prompts de confirmação como texto puro sempre que a stdout não é um terminal, e um `openspec archive` sem argumentos (que de outro modo desenharia um seletor interativo de mudanças) pede que você passe o nome da mudança de antemão, em vez de renderizar um menu dentro da captura. De um jeito ou de outro, execuções redirecionadas e de agentes ficam limpas; passar `--yes` (com um nome de mudança) pula os prompts por completo.
 
 ## Configuração
 
@@ -173,7 +175,7 @@ Você está em CI ou num shell não interativo, e o BR-OpenSpec encontrou arquiv
 openspec init --force
 ```
 
-Para o Codex, o BR-OpenSpec pode detectar arquivos de prompt gerenciados antigos em `$CODEX_HOME/prompts` ou `~/.codex/prompts`. Essa limpeza é limitada aos nomes de arquivo de prompt legados do Codex na lista de permissões do BR-OpenSpec, e o `openspec init` não interativo remove apenas os arquivos cujas skills `.codex/skills/openspec-*` substitutas existem. O `openspec update` não interativo não toca em nenhuma limpeza de legado, a menos que você passe `--force`.
+Para o Codex, o BR-OpenSpec pode detectar arquivos de prompt gerenciados antigos em `$CODEX_HOME/prompts` ou `~/.codex/prompts`. Essa limpeza é limitada aos nomes de arquivo de prompt legados do Codex na lista de permissões do BR-OpenSpec, e o `openspec init` não interativo remove apenas os arquivos cujas skills `.agents/skills/openspec-*` substitutas existem. O `openspec update` não interativo não toca em nenhuma limpeza de legado, a menos que você passe `--force`.
 
 ### Comandos não apareceram depois de migrar
 

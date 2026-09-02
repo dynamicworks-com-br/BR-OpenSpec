@@ -47,6 +47,14 @@ Estes comandos suportam saída `--json` para uso programático por agentes de IA
 | `openspec templates` | Encontrar caminhos de templates | `--json` para resolução de caminhos |
 | `openspec schemas` | Listar schemas disponíveis | `--json` para descoberta de schemas |
 
+O formato do JSON é neutro de idioma e igual ao do upstream: nomes de campos,
+ids de artefatos, status e níveis de issue (`ERROR`, `WARNING`, `INFO`) são
+estáveis. Já o texto legível por humanos dentro desses campos está em português,
+porque o catálogo de mensagens do BR-OpenSpec é PT-BR — `issues[].message` do
+`openspec validate --json` e `warning` do `openspec instructions --json` são
+frases em PT-BR. Faça parsing pelas chaves e pelos códigos, nunca pelo texto da
+mensagem.
+
 ---
 
 ## Opções Globais
@@ -93,12 +101,14 @@ específicas do projeto.
 | `--force` | Limpar arquivos legados automaticamente sem solicitar confirmação |
 | `--profile <profile>` | Substituir o perfil global para esta execução do init (`core` ou `custom`) |
 | `--no-animation` | Exibir uma tela de boas-vindas estática em vez da animada |
+| `--copilot-cloud` | Configurar os [arquivos do Copilot coding agent (nuvem)](supported-tools.md#copilot-coding-agent-nuvem-do-github) do GitHub sem solicitar confirmação |
+| `--no-copilot-cloud` | Pular os arquivos do Copilot coding agent (nuvem) do GitHub sem solicitar confirmação |
 
 `--profile custom` usa os fluxos de trabalho atualmente selecionados na configuração global (`openspec config profile`).
 
 A animação de boas-vindas também é ignorada quando a variável de ambiente `OPENSPEC_NO_ANIMATION` está definida (qualquer valor, inclusive vazio), quando `NO_COLOR` está definida com um valor não vazio, ou quando a preferência de movimento reduzido do sistema operacional está ativada (Reduce Motion do macOS, animações desabilitadas do GNOME).
 
-**IDs de ferramentas suportados (`--tools`)** — `windsurf` também é aceito, como alias de `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `agents`
+**IDs de ferramentas suportados (`--tools`)** — `windsurf` também é aceito, como alias de `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `command-code`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `minimax-code`, `opencode`, `pi`, `qoder`, `qwen`, `rovodev`, `roocode`, `trae`, `zed`, `vibe`, `agents`
 
 > Esta lista espelha `AI_TOOLS` em `src/core/config.ts`. Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos de skill e comando de cada ferramenta.
 
@@ -113,6 +123,9 @@ openspec init ./my-project
 
 # Não interativo: configurar para Claude e Cursor
 openspec init --tools claude,cursor
+
+# Não interativo: configurar as skills globais do MiniMax Code
+openspec init --tools minimax-code
 
 # Configurar para todas as ferramentas suportadas
 openspec init --tools all
@@ -279,7 +292,7 @@ openspec show [item-name] [options]
 
 | Opção | Descrição |
 |-------|-----------|
-| `--deltas-only` | Exibir apenas specs delta (modo JSON) |
+| `--deltas-only` | Exibir apenas delta specs (modo JSON) |
 
 **Opções específicas para specs:**
 
@@ -396,7 +409,7 @@ Validando add-dark-mode...
 
 ### `openspec archive`
 
-Arquivar uma mudança concluída e mesclar as specs delta nas specs principais.
+Arquivar uma mudança concluída e mesclar as delta specs nas specs principais.
 
 ```
 openspec archive [change-name] [options]
@@ -414,7 +427,7 @@ openspec archive [change-name] [options]
 |-------|-----------|
 | `-y, --yes` | Ignorar prompts de confirmação. Obrigatório quando nada pode respondê-los — um agente de IA, um job de CI, ou qualquer execução com stdin fechado |
 | `--skip-specs` | Ignorar atualizações de specs em uma execução de archive. Uma mudança que permanentemente não tem deltas de spec deve declarar `skip_specs: true` em seu `.openspec.yaml` — ela é arquivada sem nenhuma flag |
-| `--no-validate` | Ignorar validação (requer confirmação) |
+| `--no-validate` | Ignorar validação (requer confirmação). Também desativa a aposentadoria de capabilities — sem veredito do validador, nada é aposentado |
 
 **Exemplos:**
 
@@ -432,12 +445,34 @@ openspec archive add-dark-mode --yes
 openspec archive update-ci-config --skip-specs
 ```
 
+**Aposentar uma capability:** Adicione o marcador de aposentadoria aos metadados da mudança:
+
+```yaml
+# openspec/changes/retire-legacy/.openspec.yaml
+schema: spec-driven
+retire_capabilities: true
+```
+
+Depois arquive a mudança normalmente:
+
+```bash
+openspec archive retire-legacy --yes
+```
+
+Quando a mudança remove o último requisito da capability, o BR-OpenSpec exclui o
+`spec.md` ativo dela. Os deltas de outras capabilities na mesma mudança continuam
+atualizando suas specs principais. Sem o marcador, o archive para antes de alterar
+qualquer arquivo e diz para você adicioná-lo.
+
 **O que é feito:**
 
 1. Valida a mudança (a menos que `--no-validate` seja informado)
 2. Solicita confirmação (a menos que `--yes` seja informado)
-3. Mescla as specs delta em `openspec/specs/`
-4. Move a pasta da mudança para `openspec/changes/archive/YYYY-MM-DD-<name>/`
+3. Reserva o destino do arquivamento antes de alterar qualquer spec principal
+4. Valida e mescla as delta specs ativas em `openspec/specs/` — uma capability cujo último requisito a mudança remove é aposentada, e o arquivo de spec dela é excluído, mas somente quando o `.openspec.yaml` da mudança declara `retire_capabilities: true` ao lado do `schema:`
+5. Move a pasta da mudança para `openspec/changes/archive/YYYY-MM-DD-<name>/`
+6. Se uma mutação de spec ou o move final falhar antes de um arquivamento completo estar garantido, restaura as specs e deixa (ou devolve) a mudança no caminho ativo dela
+7. Se uma cópia de fallback verificada for concluída mas a limpeza da origem preparada falhar, mantém o arquivamento completo e o estado de specs já confirmado para recuperação
 
 **Sem um terminal:** um agente de IA, um job de CI, ou qualquer execução com stdin
 fechado não consegue responder ao passo 2, então o arquivamento para antes de tocar
@@ -531,6 +566,7 @@ Uma mudança que declara `skip_specs: true` mostra seu estágio de specs como `[
 {
   "changeName": "add-dark-mode",
   "schemaName": "spec-driven",
+  "isPlanningComplete": false,
   "isComplete": false,
   "applyRequires": ["tasks"],
   "artifacts": [
@@ -541,6 +577,11 @@ Uma mudança que declara `skip_specs: true` mostra seu estágio de specs como `[
   ]
 }
 ```
+
+`isPlanningComplete` informa se todos os artefatos de planejamento não ignorados
+existem; artefatos ignorados contam como satisfeitos sem serem criados. Ele não
+informa se as tarefas de implementação estão concluídas. `isComplete` é mantido
+como alias de compatibilidade, com o mesmo valor.
 
 Os artefatos são listados em ordem de dependência — uma dependência nunca aparece
 depois de algo que a requer — e artefatos que ficam prontos ao mesmo tempo
