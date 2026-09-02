@@ -7,13 +7,26 @@ import {
   findMainSpecStructureIssues,
   stripFencedCodeBlocksPreservingLines,
 } from '../../src/core/parsers/spec-structure.js';
+import {
+  PURPOSE_PLACEHOLDER_PREFIX,
+  PURPOSE_PLACEHOLDER_SUFFIX,
+} from '../../src/core/validation/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..', '..');
 const specsRoot = path.join(projectRoot, 'openspec', 'specs');
 
-const PURPOSE_PLACEHOLDER_PATTERN = /TBD - created by archiving change .*?\. Update Purpose after archive\./;
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// The repo specs mirror upstream (EN), so the upstream placeholder is still
+// checked literally; the fork's own placeholder is built from the constants
+// archive writes with, so this guard cannot drift from the writer.
+const PURPOSE_PLACEHOLDER_PATTERN = new RegExp(
+  [
+    'TBD - created by archiving change .*?\\. Update Purpose after archive\\.',
+    `${escapeRegExp(PURPOSE_PLACEHOLDER_PREFIX)}.*?${escapeRegExp(PURPOSE_PLACEHOLDER_SUFFIX)}`,
+  ].join('|')
+);
 const REQUIREMENT_HEADER_PATTERN = /^###\s+Requirement:/gm;
 
 async function getSpecFiles(): Promise<string[]> {

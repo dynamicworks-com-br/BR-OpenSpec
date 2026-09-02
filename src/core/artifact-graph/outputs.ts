@@ -11,6 +11,17 @@ export function isGlobPattern(pattern: string): boolean {
   return pattern.includes('*') || pattern.includes('?') || pattern.includes('[');
 }
 
+/**
+ * Indica se um artefato gera arquivos sob a árvore specs/ da alteração.
+ * Normaliza para POSIX antes de testar o prefixo, então `./specs/…`,
+ * `.//specs/…` e separadores do Windows (`specs\**\*.md`) contam;
+ * `docs/specs/…` e `specs-note.md` não.
+ */
+export function isSpecsArtifactPath(generates: string): boolean {
+  const normalized = path.posix.normalize(FileSystemUtils.toPosixPath(generates));
+  return normalized.startsWith('specs/');
+}
+
 export function resolveArtifactOutputPath(changeDir: string, generates: string): string {
   const outputPath = path.join(changeDir, generates);
   FileSystemUtils.assertPathWithin(changeDir, outputPath);

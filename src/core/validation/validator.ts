@@ -26,6 +26,7 @@ import {
 } from '../../utils/change-metadata.js';
 import { resolveTaskFilesForChange } from '../../utils/task-progress.js';
 import { findTaskNumberingIssues } from './task-numbering.js';
+import { findPurposePlaceholderIssue } from './purpose-placeholder.js';
 import { getPackageSchemasDir, getSchemaDir } from '../artifact-graph/index.js';
 import { VALIDATOR_MESSAGES } from '../../messages/index.js';
 
@@ -641,7 +642,21 @@ export class Validator {
       });
     }
     
-    if (spec.overview.length < MIN_PURPOSE_LENGTH) {
+    // O placeholder é mais longo que MIN_PURPOSE_LENGTH, então a checagem de
+    // brevidade abaixo não o alcança; ele é reportado nos próprios termos. Vem
+    // primeiro porque um "TBD" escrito à mão é ao mesmo tempo placeholder e
+    // breve demais, e só um dos dois diz ao autor o que fazer. (Um "TODO" ou
+    // "A definir" abrindo o Purpose lê-se do mesmo jeito, então é a mesma
+    // finding.)
+    const placeholder = findPurposePlaceholderIssue(spec.overview, content);
+    if (placeholder) {
+      issues.push({
+        level: 'WARNING',
+        path: 'overview',
+        line: placeholder.line,
+        message: VALIDATION_MESSAGES.PURPOSE_IS_PLACEHOLDER,
+      });
+    } else if (spec.overview.length < MIN_PURPOSE_LENGTH) {
       issues.push({
         level: 'WARNING',
         path: 'overview',

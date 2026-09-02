@@ -2562,6 +2562,20 @@ export const SPEC_STRUCTURE_MESSAGES = {
 // Core — Specs Apply (src/core/specs-apply.ts)
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Metades do Purpose placeholder que o `openspec archive` grava no spec
+ * principal que cria quando o delta introduziu a capability sem um
+ * `## Purpose` utilizável. O nome da alteração vai entre as duas. Mantidas aqui
+ * (única definição) e re-exportadas por `src/core/validation/constants.ts`,
+ * para que o validador reconheça o placeholder pela mesma definição que o
+ * produz: uma segunda grafia copiada à mão deixaria de casar no dia em que o
+ * texto mudasse, e um check que não casa nada parece um check que não achou
+ * nada. Alterar este texto exige atualizar o marcador de abertura em
+ * `src/core/validation/purpose-placeholder.ts` (`A definir`).
+ */
+const SKELETON_PURPOSE_PREFIX = 'A definir - criado ao arquivar alteração ';
+const SKELETON_PURPOSE_SUFFIX = '. Atualize o Purpose após o arquivamento.';
+
 export const SPECS_APPLY_MESSAGES = {
   duplicateInSection: (specName: string, section: string, reqName: string) =>
     `${specName} validação falhou - requisito duplicado em ${section} para cabeçalho "### Requirement: ${reqName}"`,
@@ -2600,7 +2614,10 @@ export const SPECS_APPLY_MESSAGES = {
   countModified: (n: number) => `  ~ ${n} modificado(s)`,
   countRemoved: (n: number) => `  - ${n} removido(s)`,
   countRenamed: (n: number) => `  → ${n} renomeado(s)`,
-  skeletonPurpose: (changeName: string) => `A definir - criado ao arquivar alteração ${changeName}. Atualize o Purpose após o arquivamento.`,
+  skeletonPurposePrefix: SKELETON_PURPOSE_PREFIX,
+  skeletonPurposeSuffix: SKELETON_PURPOSE_SUFFIX,
+  skeletonPurpose: (changeName: string) =>
+    `${SKELETON_PURPOSE_PREFIX}${changeName}${SKELETON_PURPOSE_SUFFIX}`,
   warning: (message: string) => `⚠️  Aviso: ${message}`,
   deltaPurposeIgnoredExisting: (specName: string, targetPath: string) =>
     `${specName} - Purpose do delta ignorado; ${specName} já possui um. Edite ${targetPath} diretamente para alterá-lo.`,
