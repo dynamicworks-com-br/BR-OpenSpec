@@ -92,6 +92,7 @@ A validação verifica suas specs e mudanças quanto a problemas estruturais. Le
 openspec validate <nome>           # validar um item
 openspec validate --all            # validar tudo
 openspec validate --all --strict   # verificações mais estritas, boas para CI
+openspec validate --archived       # falhar se mudanças arquivadas tiverem tarefas desmarcadas
 ```
 
 Causas comuns são uma seção obrigatória faltando (como uma spec sem cenários) ou um cabeçalho de delta malformado. Corrija o arquivo e rode de novo. A [referência da CLI](cli.md#openspec-validate) documenta o formato da saída.
@@ -102,7 +103,7 @@ Uma mensagem merece uma nota própria:
 MODIFIED "<requisito>" omite cenário(s) que o spec atual ainda tem: "<cenário>"
 ```
 
-Um requisito `MODIFIED` substitui o bloco inteiro do requisito, então ele precisa carregar todos os cenários que sobrevivem à mudança, não apenas os que você editou. Copie os cenários nomeados de `openspec/specs/<capability-path>/spec.md` de volta para o delta, preservando quaisquer diretórios de domínio no caminho. Isso costuma aparecer em uma mudança antiga depois que a mudança de outra pessoa adicionou um cenário ao mesmo requisito — o archive recusa essa mudança de qualquer forma, e a validação agora avisa antes de você implementá-la.
+Um requisito `MODIFIED` substitui o bloco inteiro do requisito, então ele precisa carregar todos os cenários que sobrevivem à mudança, não apenas os que você editou. Copie os cenários nomeados de `openspec/specs/<capability-path>/spec.md` de volta para o delta, preservando quaisquer diretórios de domínio no caminho. Isso costuma aparecer em uma mudança antiga depois que a mudança de outra pessoa adicionou um cenário ao mesmo requisito — o archive recusa essa mudança de qualquer forma, e a validação agora avisa antes de você implementá-la. Todo cabeçalho de nível 4 (`####`) dentro de um requisito conta como cenário aqui, rotulado como `#### Scenario:` ou não, então um bloco `#### Edge case` descartado de um requisito MODIFIED é reportado da mesma forma.
 
 ### A IA criou artefatos incompletos ou errados
 

@@ -177,6 +177,7 @@ docs/            # Markdown documentation (English + pt-BR)
 - `NO_COLOR=1` — Disable colored output (also `--no-color` flag)
 - `OPENSPEC_NO_ANIMATION=1` — Disable the `openspec init` welcome animation (also `--no-animation` flag)
 - `OPENSPEC_NO_COMPLETIONS=1` — Suppress the shell-completions install tip (also suppressed in CI)
+- `CI` — Any value other than an explicit off-value (`false`, `0`, `no`, `off`, empty) disables telemetry, the `openspec update` version check, and the completions tip (`src/utils/ci.ts`)
 - `XDG_CONFIG_HOME` — Override global config directory
 
 ## Key Files for Agents

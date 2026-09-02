@@ -42,16 +42,19 @@ Estes comandos suportam saída `--json` para uso programático por agentes de IA
 | `openspec list` | Navegar mudanças/specs | `--json` para dados estruturados |
 | `openspec show <item>` | Ler conteúdo | `--json` para parsing |
 | `openspec validate` | Verificar problemas | `--all --json` para validação em massa |
-| `openspec status` | Ver progresso de artefatos | `--json` para status estruturado |
+| `openspec status` | Ver progresso de artefatos | `--json` para status estruturado; `--all --json` para todas as mudanças ativas em um único relatório |
 | `openspec instructions` | Obter próximos passos | `--json` para instruções do agente |
 | `openspec templates` | Encontrar caminhos de templates | `--json` para resolução de caminhos |
 | `openspec schemas` | Listar schemas disponíveis | `--json` para descoberta de schemas |
 
 O formato do JSON é neutro de idioma e igual ao do upstream: nomes de campos,
-ids de artefatos, status e níveis de issue (`ERROR`, `WARNING`, `INFO`) são
+ids de artefatos, status, códigos de diagnóstico (`change_error`,
+`severity: "error"`) e níveis de issue (`ERROR`, `WARNING`, `INFO`) são
 estáveis. Já o texto legível por humanos dentro desses campos está em português,
 porque o catálogo de mensagens do BR-OpenSpec é PT-BR — `issues[].message` do
-`openspec validate --json` e `warning` do `openspec instructions --json` são
+`openspec validate --json` e do `openspec validate --archived --json`,
+`status[].message` do `openspec status --all --json` e `warning` tanto do
+`openspec instructions --json` quanto do `openspec show --json --diff` são
 frases em PT-BR. Faça parsing pelas chaves e pelos códigos, nunca pelo texto da
 mensagem.
 
@@ -293,6 +296,7 @@ openspec show [item-name] [options]
 | Opção | Descrição |
 |-------|-----------|
 | `--deltas-only` | Exibir apenas delta specs (modo JSON) |
+| `--diff` | Acrescenta diffs por requisito das delta specs contra as specs principais (modo texto), ou anexa `diff`/`warning` aos deltas MODIFIED (modo JSON). Ignorada com aviso para specs |
 
 **Opções específicas para specs:**
 
@@ -316,7 +320,16 @@ openspec show auth --type spec
 
 # Saída JSON para parsing
 openspec show add-dark-mode --json
+
+# Proposta seguida dos diffs por requisito
+openspec show add-dark-mode --diff
 ```
+
+Para uma mudança, `--diff` imprime primeiro a proposta e depois uma seção `Especificações alteradas (diffs)`. Requisitos ADDED aparecem com o texto completo. Requisitos REMOVED preservam o Reason e o Migration escritos pelo autor. Requisitos RENAMED mostram FROM e TO. Requisitos MODIFIED mostram um diff unificado contra o requisito correspondente da spec principal.
+
+Se um cabeçalho MODIFIED só casa depois de normalizar caixa ou espaços, a saída inclui o diff e um aviso de que o archive casa nomes exatamente. Se a spec principal ou o requisito não existir, a saída avisa e imprime o bloco delta completo. Um bloco MODIFIED sem diferença textual imprime `(sem alterações textuais)`.
+
+`--json --diff` mantém a mesma forma de nível superior de `--json`. Um delta MODIFIED ganha uma string `diff`, uma string `warning`, ou ambas. As demais operações não mudam. Uma string `diff` vazia significa que os blocos da spec principal e do delta são textualmente idênticos. O código de saída é `1` se uma delta spec ou uma spec principal não puder ser lida.
 
 ---
 
@@ -345,11 +358,14 @@ Uma mudança com zero deltas de spec falha na validação, a menos que seu `.ope
 | `--all` | Validar todas as mudanças e specs |
 | `--changes` | Validar todas as mudanças |
 | `--specs` | Validar todas as specs |
+| `--archived` | Validar que as mudanças arquivadas têm todas as tarefas concluídas (para lint em pre-commit) |
 | `--type <type>` | Especificar tipo quando o nome for ambíguo: `change` ou `spec` |
-| `--strict` | Habilitar modo de validação estrita |
+| `--strict` | Habilitar modo de validação estrita: avisos passam a reprovar — um requisito sem `SHALL`/`MUST`, numeração ambígua de tarefas ou um `## Purpose` deixado como placeholder |
 | `--json` | Saída em formato JSON |
 | `--concurrency <n>` | Máximo de validações paralelas (padrão: 6, ou variável de ambiente `OPENSPEC_CONCURRENCY`) |
 | `--no-interactive` | Desabilitar prompts |
+
+`--archived` é um escopo próprio: ele não valida deltas de spec (já aplicados no momento do arquivamento); ele verifica que toda mudança sob `changes/archive/` tem todos os checkboxes do seu `tasks.md` marcados, saindo com código diferente de zero se algum estiver desmarcado. Isso captura mudanças que foram arquivadas com trabalho inacabado — útil em um hook de pre-commit.
 
 **Exemplos:**
 
@@ -368,6 +384,9 @@ openspec validate --all --json
 
 # Validação estrita com paralelismo aumentado
 openspec validate --all --strict --concurrency 12
+
+# Falhar se alguma mudança arquivada ainda tiver tarefas desmarcadas
+openspec validate --archived
 ```
 
 **Saída (texto):**
@@ -514,11 +533,13 @@ openspec new change add-billing-api
 openspec new change ticket-123-add-notifications --schema spec-driven
 ```
 
+Quando o schema selecionado não tem nenhum artefato que escreva sob `specs/` — um fluxo só com proposal e tasks, por exemplo — o `new change` grava `skip_specs: true` no `.openspec.yaml` da mudança para você, para que ela já nasça válida. O marcador só precisa ser acrescentado à mão para uma mudança cujo schema tem, sim, um artefato de specs.
+
 ---
 
 ### `openspec status`
 
-Exibir o status de conclusão dos artefatos de uma mudança.
+Exibir o status de conclusão dos artefatos de uma mudança ou de todas as mudanças ativas.
 
 ```
 openspec status [options]
@@ -528,21 +549,34 @@ openspec status [options]
 
 | Opção | Descrição |
 |-------|-----------|
-| `--change <id>` | Nome da mudança (solicita se omitido) |
-| `--schema <name>` | Substituição de schema (detectado automaticamente a partir da configuração da mudança) |
+| `--change <id>` | A mudança a reportar, pelo nome da pasta |
+| `--all` | Reportar todas as mudanças ativas, ordenadas por nome. Não pode ser combinada com `--change` |
+| `--schema <name>` | Substituição de schema (detectado automaticamente a partir da configuração da mudança). Um nome desconhecido é erro |
 | `--json` | Saída em formato JSON |
+
+Quando existem mudanças ativas, use exatamente uma das opções `--change` ou `--all`. Sem nenhuma delas, o status sai com código 1 e lista as mudanças disponíveis, mesmo quando só existe uma:
+
+```
+✖ Erro: Opção obrigatória --change ausente (ou --all para todas as alterações ativas). Alterações disponíveis:
+  add-dark-mode
+```
+
+Quando o projeto não tem mudanças ativas, o status imprime `Nenhuma alteração ativa. Crie uma com: openspec new change <nome>` e sai com código 0 mesmo sem nenhuma das opções. Com `--json` (com ou sem `--all`), o mesmo estado vazio é `{ "changes": [], "message": "..." }`.
 
 **Exemplos:**
 
 ```bash
-# Verificação interativa de status
-openspec status
-
-# Status para mudança específica
+# Status para uma mudança específica
 openspec status --change add-dark-mode
 
 # JSON para uso por agente
 openspec status --change add-dark-mode --json
+
+# Todas as mudanças ativas, um bloco de texto para cada
+openspec status --all
+
+# Um único relatório em lote com todas as mudanças ativas
+openspec status --all --json
 ```
 
 **Saída (texto):**
@@ -559,6 +593,8 @@ Progresso: 2/4 artefatos concluídos
 ```
 
 Uma mudança que declara `skip_specs: true` mostra seu estágio de specs como `[~] specs (ignorado: a alteração declara skip_specs)` e o exclui da contagem de progresso.
+
+Com `--all`, o mesmo bloco é impresso uma vez por mudança, separado por uma linha em branco. Uma mudança que falha ao carregar aparece como `✗ <mudança>: <erro>` e as demais continuam sendo exibidas.
 
 **Saída (JSON):**
 
@@ -588,6 +624,32 @@ depois de algo que a requer — e artefatos que ficam prontos ao mesmo tempo
 (os `specs` e `design` do spec-driven precisam apenas de `proposal`) mantêm a
 ordem em que o schema os declara, em vez de ordem alfabética. Assim, a primeira
 entrada `ready` é o artefato a ser escrito em seguida.
+
+**Saída (JSON, `--all`):**
+
+`changes` contém o mesmo objeto de status para cada mudança, ordenado pelo nome da mudança. Este exemplo omite os campos por mudança mostrados acima:
+
+```json
+{
+  "changes": [
+    {
+      "changeName": "add-dark-mode",
+      "schemaName": "spec-driven",
+      "isPlanningComplete": false,
+      "isComplete": false,
+      "applyRequires": ["tasks"],
+      "artifacts": []
+    }
+  ]
+}
+```
+
+Se uma mudança não puder ser carregada, o lote continua. A entrada dela contém `changeName` e um diagnóstico em `status` (`[{ "severity": "error", "code": "change_error", "message": "..." }]`), enquanto as outras entradas permanecem disponíveis. O comando sai com código 1, inclusive em modo JSON, para que a CI não aceite um relatório incompleto como sucesso. A saída JSON continua sendo um único documento parseável.
+
+**Códigos de saída:**
+
+- `0`: todos os status solicitados foram impressos; um relatório `--all` vazio também sai com 0.
+- `1`: uma mudança solicitada falhou ao carregar, faltou `--change` ou `--all`, as duas opções foram combinadas, a mudança não existe ou a substituição de schema é desconhecida.
 
 ---
 
@@ -764,10 +826,12 @@ openspec schema init <name> [options]
 |-------|-----------|
 | `--description <text>` | Descrição do schema |
 | `--artifacts <list>` | IDs de artefatos separados por vírgula (padrão: `proposal,specs,design,tasks`) |
-| `--default` | Definir como schema padrão do projeto |
+| `--default` | Definir como schema padrão do projeto: grava `schema: <name>` no `openspec/config.yaml` ou `openspec/config.yml` existente (cria `openspec/config.yaml` se nenhum existir). Novas mudanças passam a usar este schema |
 | `--no-default` | Não solicitar para definir como padrão |
 | `--force` | Sobrescrever schema existente |
 | `--json` | Saída em formato JSON |
+
+A criação do schema e a atualização do config feita por `--default` são uma única operação. Se o BR-OpenSpec não conseguir validar ou gravar o config, tanto o config quanto qualquer schema existente permanecem inalterados.
 
 **Exemplos:**
 
@@ -799,6 +863,7 @@ openspec/schemas/<name>/
 ### `openspec schema fork`
 
 Copiar um schema existente para o seu projeto para personalização.
+O `schema.yaml` copiado mantém os comentários e a formatação da origem; apenas `name` é atualizado.
 
 ```
 openspec schema fork <source> [name] [options]
@@ -938,7 +1003,7 @@ openspec config list
 # Obter um valor específico
 openspec config get telemetry.enabled
 
-# Definir um valor
+# Definir um valor (desabilita a telemetria de uso anônima)
 openspec config set telemetry.enabled false
 
 # Definir um valor de string explicitamente
@@ -959,6 +1024,13 @@ openspec config profile
 # Preset rápido: alternar fluxos de trabalho para core (mantém o modo de entrega)
 openspec config profile core
 ```
+
+**Desativação da telemetria:** `telemetry.enabled` fica ligada por padrão quando ausente (modelo opt-out).
+Defina-a como `false` para desabilitar as estatísticas de uso anônimas e a verificação de versão do `openspec update`.
+Variáveis de ambiente têm precedência sobre a configuração: `OPENSPEC_TELEMETRY=0`, `DO_NOT_TRACK=1`
+e um valor "ligado" em `CI` (ex.: `true`/`1`/`yes`) sempre desabilitam a telemetria, independentemente do valor configurado.
+O aviso único sobre a telemetria é impresso em stderr, nunca em stdout, e uma execução com `--json` o adia
+para a próxima execução legível, de modo que uma saída canalizada nunca é contaminada.
 
 `openspec config profile` começa com um resumo do estado atual e permite que você escolha:
 - Alterar entrega + fluxos de trabalho
@@ -1001,13 +1073,13 @@ openspec feedback <message> [options]
 
 | Argumento | Obrigatório | Descrição |
 |-----------|-------------|-----------|
-| `message` | Sim | Mensagem de feedback |
+| `message` | Sim | Resumo do feedback; textos longos são encurtados no título da issue e preservados no corpo |
 
 **Opções:**
 
 | Opção | Descrição |
 |-------|-----------|
-| `--body <text>` | Descrição detalhada |
+| `--body <text>` | Detalhes adicionais incluídos após o resumo |
 
 **Requisitos:** A CLI do GitHub (`gh`) deve estar instalada e autenticada.
 
@@ -1054,6 +1126,11 @@ openspec completion generate bash > ~/.bash_completion.d/openspec
 openspec completion uninstall
 ```
 
+As completions são opt-in. A CLI as menciona uma única vez, em stderr, na primeira
+vez que você executa um comando em um terminal interativo, e nunca mais — ela
+também fica em silêncio se você já tem completions instaladas. Defina
+`OPENSPEC_NO_COMPLETIONS=1` para suprimir essa dica por completo.
+
 ---
 
 ## Códigos de Saída
@@ -1069,12 +1146,13 @@ openspec completion uninstall
 
 | Variável | Descrição |
 |----------|-----------|
-| `OPENSPEC_TELEMETRY` | Definir como `0` para desabilitar telemetria e a verificação de versão do `openspec update` |
-| `DO_NOT_TRACK` | Definir como `1` para desabilitar telemetria e a verificação de versão do `openspec update` (sinal DNT padrão) |
+| `OPENSPEC_TELEMETRY` | Definir como `0` para desabilitar telemetria e a verificação de versão do `openspec update` (tem precedência sobre `telemetry.enabled` na configuração global) |
+| `DO_NOT_TRACK` | Definir como `1` para desabilitar telemetria e a verificação de versão do `openspec update` (sinal DNT padrão; tem precedência sobre a configuração) |
 | `OPENSPEC_CONCURRENCY` | Concorrência padrão para validação em massa (padrão: 6) |
 | `EDITOR` ou `VISUAL` | Editor para `openspec config edit` |
 | `NO_COLOR` | Desabilitar saída colorida quando definido |
 | `OPENSPEC_NO_ANIMATION` | Desabilitar a animação de boas-vindas do `openspec init` quando definido |
+| `OPENSPEC_NO_COMPLETIONS` | Definir como `1` para suprimir a dica única sobre completions do shell |
 | `OPENSPEC_NO_UPDATE_CHECK` | Desabilitar a verificação de CLI mais nova publicada do `openspec update` quando definido (qualquer valor, inclusive vazio). Também é pulada quando `CI` está definida (exceto `false`/`0`/`no`/`off`) ou `NODE_ENV=test` |
 | `npm_config_registry` | Registry que a verificação de versão do `openspec update` consulta. Precisa ser uma URL `http(s)` ou volta para `https://registry.npmjs.org`. Nenhum arquivo `.npmrc` é lido |
 

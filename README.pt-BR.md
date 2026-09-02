@@ -218,7 +218,7 @@ openspec tools --remove windsurf
 
 **Higiene de contexto**: O BR-OpenSpec se beneficia de uma janela de contexto limpa. Limpe seu contexto antes de iniciar a implementação e mantenha uma boa higiene de contexto ao longo da sua sessão.
 
-**Palavras-chave do formato de spec ficam em inglês**: O BR-OpenSpec é PT-BR first, mas o formato de spec é um protocolo lido pelas ferramentas. Os marcadores estruturais (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) e as palavras-chave normativas/de cenário (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — além de `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) são sempre escritas em inglês e em CAIXA ALTA; apenas o texto descritivo fica em português. Traduzir essas palavras-chave quebra o `openspec validate`. Veja a lista completa em [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
+**Palavras-chave do formato de spec ficam em inglês**: O BR-OpenSpec é PT-BR first, mas o formato de spec é um protocolo lido pelas ferramentas. Os marcadores estruturais (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) e as palavras-chave normativas/de cenário (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — além de `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) são sempre escritas em inglês e em CAIXA ALTA; apenas o texto descritivo fica em português. Omitir `SHALL`/`MUST` em um requisito faz o `openspec validate` emitir um WARNING (erro só com `--strict`); traduzir os marcadores estruturais quebra o parsing de specs e mudanças. Veja a lista completa em [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
 
 ## Contribuindo
 
@@ -247,7 +247,9 @@ O BR-OpenSpec coleta estatísticas de uso anônimas.
 
 Coletamos apenas nomes de comandos e versão para entender padrões de uso. Sem argumentos, caminhos, conteúdo ou PII. Desativado automaticamente em CI.
 
-**Desativar:** `export OPENSPEC_TELEMETRY=0` ou `export DO_NOT_TRACK=1`
+**Desativar (qualquer uma das opções basta):**
+- `openspec config set telemetry.enabled false` (configuração global; ausente significa ligado)
+- `export OPENSPEC_TELEMETRY=0` ou `export DO_NOT_TRACK=1` (o ambiente tem precedência sobre a configuração)
 
 </details>
 

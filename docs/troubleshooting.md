@@ -92,6 +92,7 @@ Validation checks your specs and changes for structural problems. Read the messa
 openspec validate <name>           # validate one item
 openspec validate --all            # validate everything
 openspec validate --all --strict   # stricter checks, good for CI
+openspec validate --archived       # fail if archived changes have unchecked tasks
 ```
 
 Common causes are a missing required section (like a spec with no scenarios) or a malformed delta header. Fix the file and re-run. The [CLI reference](cli.md#openspec-validate) documents the output format.
@@ -102,7 +103,7 @@ One message deserves its own note:
 MODIFIED "<requirement>" omits scenario(s) the current spec still has: "<scenario>"
 ```
 
-A `MODIFIED` requirement replaces the whole requirement block, so it has to carry every scenario that survives the change, not only the ones you edited. Copy the named scenarios from `openspec/specs/<capability-path>/spec.md` back into the delta, preserving any domain directories in the path. This often appears on an older change after someone else's change added a scenario to the same requirement — archive refuses that change either way, and validation now says so before you implement it.
+A `MODIFIED` requirement replaces the whole requirement block, so it has to carry every scenario that survives the change, not only the ones you edited. Copy the named scenarios from `openspec/specs/<capability-path>/spec.md` back into the delta, preserving any domain directories in the path. This often appears on an older change after someone else's change added a scenario to the same requirement — archive refuses that change either way, and validation now says so before you implement it. Every level-4 (`####`) header inside a requirement counts as a scenario here, labeled `#### Scenario:` or not, so a `#### Edge case` block dropped from a MODIFIED requirement is reported the same way.
 
 ### The AI created incomplete or wrong artifacts
 
