@@ -529,7 +529,7 @@ export function registerSchemaCommand(program: Command): void {
     .option('--all', SCHEMA_MESSAGES.listAllSchemasOption)
     .action(async (name?: string, options?: { json?: boolean; all?: boolean }) => {
       try {
-        const projectRoot = process.cwd();
+        const projectRoot = FileSystemUtils.canonicalProjectRoot();
 
         if (options?.all) {
           // List all schemas
@@ -631,7 +631,7 @@ export function registerSchemaCommand(program: Command): void {
     .option('--verbose', SCHEMA_MESSAGES.verboseOption)
     .action(async (name?: string, options?: { json?: boolean; verbose?: boolean }) => {
       try {
-        const projectRoot = process.cwd();
+        const projectRoot = FileSystemUtils.canonicalProjectRoot();
 
         if (!name) {
           // Validate all project schemas
@@ -779,7 +779,7 @@ export function registerSchemaCommand(program: Command): void {
       const spinner = options?.json ? null : ora();
 
       try {
-        const projectRoot = process.cwd();
+        const projectRoot = FileSystemUtils.canonicalProjectRoot();
         const destinationName = name || `${source}-custom`;
 
         // Validate destination name
@@ -1047,7 +1047,7 @@ export function registerSchemaCommand(program: Command): void {
       const spinner = options?.json ? null : ora();
 
       try {
-        const projectRoot = process.cwd();
+        const projectRoot = FileSystemUtils.canonicalProjectRoot();
 
         // Validate name
         if (!isValidSchemaName(name)) {

@@ -30,6 +30,7 @@ import {
 } from '../../core/project-config.js';
 import { parseTaskLines, type ParsedTask } from '../../utils/task-progress.js';
 import { WORKFLOW_MESSAGES } from '../../messages/index.js';
+import { FileSystemUtils } from '../../utils/file-system.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -60,7 +61,7 @@ export async function instructionsCommand(
   const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.generatingInstructions).start();
 
   try {
-    const projectRoot = process.cwd();
+    const projectRoot = FileSystemUtils.canonicalProjectRoot();
     const changeName = await validateChangeExists(options.change, projectRoot);
 
     // Validate schema if explicitly provided
@@ -392,7 +393,7 @@ export async function applyInstructionsCommand(options: ApplyInstructionsOptions
   const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.generatingApplyInstructions).start();
 
   try {
-    const projectRoot = process.cwd();
+    const projectRoot = FileSystemUtils.canonicalProjectRoot();
     const changeName = await validateChangeExists(options.change, projectRoot);
 
     // Validate schema if explicitly provided
@@ -502,7 +503,7 @@ export async function archiveInstructionsCommand(options: ArchiveInstructionsOpt
   const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.generatingArchiveInputs).start();
 
   try {
-    const projectRoot = process.cwd();
+    const projectRoot = FileSystemUtils.canonicalProjectRoot();
     const changeName = await validateChangeExists(options.change, projectRoot);
 
     const projectConfig = readProjectConfig(projectRoot);

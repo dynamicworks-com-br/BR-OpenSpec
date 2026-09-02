@@ -90,7 +90,7 @@ export class ValidateCommand {
    * Sorted to preserve the prior `getActiveChangeIds` ordering.
    */
   private async listChangeIds(): Promise<string[]> {
-    const ids = await getAvailableChanges(process.cwd());
+    const ids = await getAvailableChanges(FileSystemUtils.canonicalProjectRoot());
     return ids.sort();
   }
 
@@ -161,11 +161,11 @@ export class ValidateCommand {
   private async validateByType(type: ItemType, id: string, opts: { strict: boolean; json: boolean }): Promise<void> {
     const validator = new Validator(opts.strict);
     if (type === 'change') {
-      const changeDir = path.join(process.cwd(), 'openspec', 'changes', id);
+      const changeDir = path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'changes', id);
       const start = Date.now();
       const report = await validator.validateChangeDeltaSpecs(changeDir, {
-        mainSpecsDir: path.join(process.cwd(), 'openspec', 'specs'),
-        projectRoot: process.cwd(),
+        mainSpecsDir: path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'specs'),
+        projectRoot: FileSystemUtils.canonicalProjectRoot(),
       });
       const durationMs = Date.now() - start;
       this.printReport('change', id, report, durationMs, opts.json);
@@ -173,7 +173,7 @@ export class ValidateCommand {
       process.exitCode = report.valid ? 0 : 1;
       return;
     }
-    const file = path.join(process.cwd(), 'openspec', 'specs', id, 'spec.md');
+    const file = path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'specs', id, 'spec.md');
     const start = Date.now();
     const report = await validator.validateSpec(file);
     const durationMs = Date.now() - start;
@@ -247,10 +247,10 @@ export class ValidateCommand {
     for (const id of changeIds) {
       queue.push(async () => {
         const start = Date.now();
-        const changeDir = path.join(process.cwd(), 'openspec', 'changes', id);
+        const changeDir = path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'changes', id);
         const report = await validator.validateChangeDeltaSpecs(changeDir, {
-          mainSpecsDir: path.join(process.cwd(), 'openspec', 'specs'),
-          projectRoot: process.cwd(),
+          mainSpecsDir: path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'specs'),
+          projectRoot: FileSystemUtils.canonicalProjectRoot(),
         });
         const durationMs = Date.now() - start;
         return { id, type: 'change' as const, valid: report.valid, issues: report.issues, durationMs };
@@ -259,7 +259,7 @@ export class ValidateCommand {
     for (const id of specIds) {
       queue.push(async () => {
         const start = Date.now();
-        const file = path.join(process.cwd(), 'openspec', 'specs', id, 'spec.md');
+        const file = path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'specs', id, 'spec.md');
         const report = await validator.validateSpec(file);
         const durationMs = Date.now() - start;
         return { id, type: 'spec' as const, valid: report.valid, issues: report.issues, durationMs };
@@ -385,7 +385,7 @@ export class ValidateCommand {
   private async runArchivedTaskValidation(
     opts: { json: boolean; noInteractive?: boolean }
   ): Promise<void> {
-    const projectRoot = process.cwd();
+    const projectRoot = FileSystemUtils.canonicalProjectRoot();
     const archiveDir = path.join(projectRoot, 'openspec', 'changes', 'archive');
     // List first (may throw on a real archive-read failure), then start the
     // spinner so a thrown error never leaves a spinner spinning.

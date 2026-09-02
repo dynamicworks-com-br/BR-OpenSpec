@@ -19,6 +19,7 @@ import {
   getStatusColor,
 } from './shared.js';
 import { WORKFLOW_MESSAGES } from '../../messages/index.js';
+import { FileSystemUtils } from '../../utils/file-system.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -65,7 +66,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
   const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.loadingChangeStatus).start();
 
   try {
-    const projectRoot = process.cwd();
+    const projectRoot = FileSystemUtils.canonicalProjectRoot();
 
     // Single definition of "load one change's status" so the batch and
     // single-change payloads can never drift apart.

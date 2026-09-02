@@ -38,7 +38,7 @@ export async function templatesCommand(options: TemplatesOptions): Promise<void>
   const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.loadingTemplates).start();
 
   try {
-    const projectRoot = process.cwd();
+    const projectRoot = FileSystemUtils.canonicalProjectRoot();
     const schemaName = validateSchemaExists(options.schema ?? DEFAULT_SCHEMA, projectRoot);
     const schema = resolveSchema(schemaName, projectRoot);
     const graph = ArtifactGraph.fromSchema(schema);

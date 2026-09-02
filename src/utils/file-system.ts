@@ -92,6 +92,24 @@ export class FileSystemUtils {
    * Returns a canonical absolute path when the target exists.
    * Falls back to path.resolve() so callers can still produce a stable absolute path.
    */
+  /**
+   * Raiz do projeto na forma canônica do sistema de arquivos.
+   *
+   * Use isto — e não `process.cwd()` direto — sempre que a raiz for usada para
+   * derivar caminhos que depois entram numa comparação (`path.relative`,
+   * `assertPathWithin`, fingerprints). A descoberta de artefatos devolve
+   * caminhos já canonicalizados, então uma raiz na grafia que o `cwd` tiver
+   * faz `path.relative` comparar duas grafias do mesmo caminho e produzir um
+   * relativo que escapa da raiz.
+   *
+   * No Linux e no macOS o `cwd` já vem resolvido, então isto é um no-op. No
+   * Windows os caminhos curtos 8.3 (`RUNNER~1` × `runneradmin`) fazem as
+   * grafias divergirem de verdade.
+   */
+  static canonicalProjectRoot(): string {
+    return this.canonicalizeExistingPath(process.cwd());
+  }
+
   static canonicalizeExistingPath(targetPath: string): string {
     try {
       // Prefer the native resolver so Windows short-path aliases are expanded.

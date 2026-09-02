@@ -73,7 +73,7 @@ export class ChangeCommand {
    *   appended in text mode and attached to MODIFIED deltas in JSON mode
    */
   async show(changeName?: string, options?: { json?: boolean; requirementsOnly?: boolean; deltasOnly?: boolean; diff?: boolean; noInteractive?: boolean }): Promise<void> {
-    const changesPath = path.join(process.cwd(), 'openspec', 'changes');
+    const changesPath = path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'changes');
 
     if (!changeName) {
       const canPrompt = isInteractive(options);
@@ -393,7 +393,7 @@ export class ChangeCommand {
    * - JSON: array of { id, title, deltaCount, taskStatus }, sorted by id
    */
   async list(options?: { json?: boolean; long?: boolean }): Promise<void> {
-    const changesPath = path.join(process.cwd(), 'openspec', 'changes');
+    const changesPath = path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'changes');
     
     // Same directory-based resolution as `openspec list`, the command this
     // deprecated alias points users at. Every output path below already
@@ -410,7 +410,7 @@ export class ChangeCommand {
           // this deprecated noun-form list cannot re-fork the resolution
           // (#1202). Tasks are independent of the proposal: a change can carry
           // tasks before, or without, a proposal.md.
-          const taskStatus = await getTaskProgressForChange(changesPath, changeName, process.cwd());
+          const taskStatus = await getTaskProgressForChange(changesPath, changeName, FileSystemUtils.canonicalProjectRoot());
 
           // No proposal yet is an ordinary state (scaffolded change, or a
           // schema with no proposal artifact), so name the change rather than
@@ -456,7 +456,7 @@ export class ChangeCommand {
       for (const changeName of sorted) {
         const changeDir = path.join(changesPath, changeName);
         const proposalPath = path.join(changeDir, 'proposal.md');
-        const { total, completed } = await getTaskProgressForChange(changesPath, changeName, process.cwd());
+        const { total, completed } = await getTaskProgressForChange(changesPath, changeName, FileSystemUtils.canonicalProjectRoot());
         const taskStatusText = total > 0 ? ` ${CHANGE_MESSAGES.tasks(completed, total)}` : '';
         if (await isDefinitelyMissing(proposalPath)) {
           console.log(`${changeName}: ${CHANGE_MESSAGES.noProposalYet}${taskStatusText}`);
@@ -478,7 +478,7 @@ export class ChangeCommand {
   }
 
   async validate(changeName?: string, options?: { strict?: boolean; json?: boolean; noInteractive?: boolean }): Promise<void> {
-    const changesPath = path.join(process.cwd(), 'openspec', 'changes');
+    const changesPath = path.join(FileSystemUtils.canonicalProjectRoot(), 'openspec', 'changes');
     
     if (!changeName) {
       const canPrompt = isInteractive(options);
