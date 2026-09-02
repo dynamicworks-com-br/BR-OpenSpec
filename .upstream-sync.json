@@ -3,13 +3,16 @@
   "upstreamRepo": "Fission-AI/OpenSpec",
   "upstreamRemote": "upstream",
   "upstreamBranch": "main",
-  "lastSyncedCommit": "45cca5db6137ed209117cc70510eb3e057fb981b",
-  "lastSyncedVersion": "v1.7.0-7-g45cca5d",
-  "lastSyncedDate": "2026-07-31",
+  "lastSyncedCommit": "d0071d73",
+  "lastSyncedVersion": "v1.11.0-1-gd0071d7",
+  "lastSyncedDate": "2026-09-02",
   "deferred": [
-    "Subsistema workspace/stores beta (src/core/workspace, src/core/store, src/core/context-store, src/core/planning-home, src/commands/workspace, initiative, file-state.ts, root-selection, relationship-health) — inclui os STABLE 15ef3bcf, 93e27a75, 5199f41a, 520aa8c4, o hunk file-state.ts de 41ceebe2 e o 6b3623a3 (view --store) — ver §7 de PLANO-sync-upstream-20260719.md e D1 de PLANO-sync-upstream-20260731.md",
-    "website/ Cloudflare (65a7233f parcial + 0a99f410) e workflow de beta prerelease (8e9e457c) — adiados por decisão D4 (2026-07-19); bumps de website 11a301d5/2b503389/b976fc06 idem (D2, 2026-07-31)",
-    "Adapters zcode.ts, oh-my-pi.ts, trae.ts (criados antes de 596d6ba7, lacuna das syncs anteriores — as ferramentas operam como skills-only no fork); lacuna registrada em 2026-07-31 para avaliação futura"
+    "Subsistema workspace/stores beta (src/core/workspace, src/core/store, src/core/context-store, src/core/planning-home, src/core/root-selection.ts, src/core/file-state.ts, src/core/change-status-policy.ts, src/commands/workspace, initiative) — inclui os STABLE 15ef3bcf, 93e27a75, 5199f41a, 520aa8c4, 6b3623a3 e, desta sync, 83644286 (schemas --store), 137404b4 (allowImplicitRoot), 9643888a (planningHome.root no schema.yaml), d9bcc185 (docs/stores-beta) e os hunks de file-state.ts (9cd845fc) e change-status-policy.ts (afea111c); portados apenas os recortes de fd92ccc (runCli/guarda de módulo principal) e 7c3accc (tipos PositionalType/PositionalDefinition) exigidos por commits estáveis",
+    "website/ Cloudflare (65a7233f parcial, 0a99f410) e workflow de beta prerelease (8e9e457c); bumps de website 11a301d5/2b503389/b976fc06/80ad1fba/6d031f12/cfc74eeb/6926ccb1/b96b3e85 idem",
+    "docs-lab/** e install.md (f1b521df) + as skills de autoria de docs (.agents/skills/{write,draft,verify}-openspec-docs) — docs-lab é a fonte do website, adiado junto com ele (D4 de 2026-09-02); a informação de cada hunk foi levada para docs/ EN + docs/pt-BR/",
+    "docs/agent-contract.md — página inexistente no fork; hunks de a7353aea, 83644286, 137404b4, 521ee33e e afea111c não aplicados",
+    "Adapters zcode.ts, oh-my-pi.ts, trae.ts e as ferramentas CodeArts/Hermes (criados antes de 596d6ba7; as ferramentas operam como skills-only no fork) — lacuna registrada em 2026-07-31, reconfirmada em 2026-09-02",
+    "Registry de completions incompleto: sem as entradas status/instructions/templates/schemas/new (fd92ccc) e sem completion de nomes de schema (7c3accc); por isso `status --all` e as flags de init/update não são completáveis por shell"
   ],
   "history": [
     {
@@ -41,6 +44,16 @@
       "tag": "synced/upstream-v1.7.0",
       "scope": "Bloco A (62 commits portados em 18 commits temáticos + regen de skills): skip_specs, contexto de runtime + operation guidance (instructions archive), upgrade de CLI stale no update (version-check), alvo agents, Devin Desktop + Zoo Code (renames), archive/specs-apply (Purpose herdado, REMOVED no-op, aviso de nota absorvida, flag não-interativa), validate (scenario-loss, delta na raiz, prefixo numérico), schema (symlinks, init --force validado), templates (2 lotes + subconjunto de deltas do caller), init/onboarding (skill references, profile-aware, reduced-motion), adapters (escape YAML, invocação por ferramenta), telemetria sem posthog-node, hardening (SECURITY.md, dependabot, guards de config, CVEs), CI/deps (eslint 10, TS 6, ora 9, Node 22 no flake). Pulados: Version Packages, website (D2), CODEOWNERS (D4). Adiados: 6b3623a3 (stores).",
       "plan": "PLANO-sync-upstream-20260731.md"
+    },
+    {
+      "date": "2026-09-02",
+      "fromCommit": "45cca5db6137ed209117cc70510eb3e057fb981b",
+      "toCommit": "d0071d73",
+      "toVersion": "v1.11.0-1-gd0071d7",
+      "branch": "sync/upstream_20260901",
+      "tag": "synced/upstream-v1.11.0",
+      "scope": "Bloco A (84 commits novos: 60 portados — total ou parcialmente — em 24 commits temáticos, mais o 79f1dac6 resgatado de um falso positivo de 2026-07-19): guarda de caminhos de artefatos, aposentadoria de capabilities e archive transacional, SHALL/MUST como aviso (specs em PT-BR deixam de ser reprovadas), numeração de tasks, Purpose placeholder, templates de workflow (2 lotes), Codex skills-only em .agents, MiniMax Code, Rovo Dev, Command Code, Zed Agent, Antigravity em .agents, Copilot coding agent opt-in, init --language, telemetry.enabled, dica de completions na CLI (sem postinstall), fork de schema com fidelidade YAML, schema init --default, completions Fish, validate --archived, status --all, show --diff, inquirer v8, overrides de CVE e docs EN+PT-BR. Adiados: stores/workspace, website, docs-lab, agent-contract.md. Pulados: Version Packages e changesets do upstream.",
+      "plan": "PLANO-sync-upstream-20260901.md"
     }
   ]
 }
