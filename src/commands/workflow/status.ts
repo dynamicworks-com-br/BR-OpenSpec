@@ -115,8 +115,8 @@ export function printStatusText(status: ChangeStatus): void {
     console.log(line);
   }
 
-  if (status.isComplete) {
+  if (status.isPlanningComplete) {
     console.log();
-    console.log(chalk.green(WORKFLOW_MESSAGES.allArtifactsComplete));
+    console.log(chalk.green(WORKFLOW_MESSAGES.allPlanningArtifactsComplete));
   }
 }

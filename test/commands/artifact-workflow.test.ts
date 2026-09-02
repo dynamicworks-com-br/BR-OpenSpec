@@ -118,6 +118,7 @@ describe('artifact-workflow CLI commands', () => {
       const json = JSON.parse(result.stdout);
       expect(json.changeName).toBe('json-change');
       expect(json.schemaName).toBe('spec-driven');
+      expect(json.isPlanningComplete).toBe(false);
       expect(json.isComplete).toBe(false);
       expect(Array.isArray(json.artifacts)).toBe(true);
       expect(json.artifacts).toHaveLength(4);
@@ -144,13 +145,64 @@ describe('artifact-workflow CLI commands', () => {
       expect(readyIds).toEqual(['specs', 'design']);
     });
 
-    it('shows complete status when all artifacts are done', async () => {
+    it('shows planning completion when all artifacts exist', async () => {
       await createTestChange('complete-change', ['proposal', 'design', 'specs', 'tasks']);
 
       const result = await runCLI(['status', '--change', 'complete-change'], { cwd: tempDir });
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('4/4 artefatos concluídos');
-      expect(result.stdout).toContain('Todos os artefatos concluídos!');
+      expect(result.stdout).toContain('Todos os artefatos de planejamento concluídos!');
+      expect(result.stdout).not.toContain('Todos os artefatos concluídos!');
+    });
+
+    it('distinguishes planning completion from implementation task completion', async () => {
+      await createTestChange('planned-change', ['proposal', 'design', 'specs', 'tasks']);
+
+      const statusResult = await runCLI(['status', '--change', 'planned-change', '--json'], {
+        cwd: tempDir,
+      });
+      const applyResult = await runCLI(
+        ['instructions', 'apply', '--change', 'planned-change', '--json'],
+        { cwd: tempDir }
+      );
+
+      expect(statusResult.exitCode).toBe(0);
+      expect(applyResult.exitCode).toBe(0);
+
+      const status = JSON.parse(statusResult.stdout);
+      const apply = JSON.parse(applyResult.stdout);
+      expect(status.isPlanningComplete).toBe(true);
+      expect(status.isComplete).toBe(true);
+      // Upstream also pins the `nextSteps[0]` wording here; the fork has no
+      // nextSteps field (it lives in the deferred change-status-policy module),
+      // so the implementation frontier is read from `instructions apply`.
+      expect(apply.state).toBe('ready');
+      expect(apply.progress.remaining).toBe(1);
+    });
+
+    it('reports skipped planning artifacts as complete without creating them', async () => {
+      const changeDir = await createTestChange('skip-specs-change', [
+        'proposal',
+        'design',
+        'tasks',
+      ]);
+      await fs.writeFile(
+        path.join(changeDir, '.openspec.yaml'),
+        'schema: spec-driven\nskip_specs: true\n'
+      );
+
+      const result = await runCLI(['status', '--change', 'skip-specs-change', '--json'], {
+        cwd: tempDir,
+      });
+
+      expect(result.exitCode).toBe(0);
+      const status = JSON.parse(result.stdout);
+      expect(status.isPlanningComplete).toBe(true);
+      expect(status.isComplete).toBe(status.isPlanningComplete);
+      expect(status.artifacts.find((artifact: any) => artifact.id === 'specs')?.status).toBe(
+        'skipped'
+      );
+      await expect(fs.stat(path.join(changeDir, 'specs'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
     it('exits gracefully when no changes exist', async () => {

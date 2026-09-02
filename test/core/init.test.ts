@@ -198,6 +198,77 @@ describe('InitCommand', () => {
       expect((await fs.lstat(skillFile)).isSymbolicLink()).toBe(true);
     });
 
+    it('should generate safe Claude workflow guidance (#1493)', async () => {
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+
+      await initCommand.execute(testDir);
+
+      // Upstream also pins the sticky `--store <id>` guidance here; the stores
+      // subsystem is deferred in the fork (D1), so only the store-free half of
+      // the assertions is ported.
+      const updateVariants: Array<[string, string]> = [
+        [
+          await fs.readFile(
+            path.join(
+              testDir,
+              '.claude',
+              'skills',
+              'openspec-update-change',
+              'SKILL.md'
+            ),
+            'utf-8'
+          ),
+          '`/opsx:continue`',
+        ],
+        [
+          await fs.readFile(
+            path.join(testDir, '.claude', 'commands', 'opsx', 'update.md'),
+            'utf-8'
+          ),
+          '`/opsx:continue`',
+        ],
+      ];
+
+      for (const [content, continueReference] of updateVariants) {
+        const availabilityGuidance = content.indexOf(
+          `${continueReference} é um workflow opcional e pode não estar instalado`
+        );
+        const nextReference = content.indexOf(
+          continueReference,
+          availabilityGuidance + continueReference.length
+        );
+
+        expect(availabilityGuidance).toBeGreaterThanOrEqual(0);
+        expect(content.indexOf(continueReference)).toBe(availabilityGuidance);
+        expect(nextReference).toBeGreaterThan(availabilityGuidance);
+        expect(content).toContain('openspec status --change "<nome>" --json');
+        expect(content).toContain(
+          'openspec instructions "<artifact-id>" --change "<nome>" --json'
+        );
+      }
+
+      const syncFiles = [
+        path.join(testDir, '.claude', 'skills', 'openspec-sync-specs', 'SKILL.md'),
+        path.join(testDir, '.claude', 'commands', 'opsx', 'sync.md'),
+      ];
+
+      for (const file of syncFiles) {
+        const content = await fs.readFile(file, 'utf-8');
+        const mutationsComplete = content.indexOf(
+          'Siga a **Referência de Formato de Spec Principal** abaixo'
+        );
+        const validation = content.indexOf('openspec validate --specs');
+        const summary = content.indexOf('5. **Exiba o resumo**');
+
+        expect(mutationsComplete).toBeGreaterThanOrEqual(0);
+        expect(validation).toBeGreaterThan(mutationsComplete);
+        expect(summary).toBeGreaterThan(validation);
+        expect(content).toContain(
+          'Se a validação falhar, reporte os problemas e não afirme que o sync foi concluído com sucesso'
+        );
+      }
+    });
+
     it('should create skills in Cursor skills directory', async () => {
       const initCommand = new InitCommand({ tools: 'cursor', force: true });
 
@@ -301,6 +372,49 @@ describe('InitCommand', () => {
 
       expect(await fileExists(claudeSkill)).toBe(true);
       expect(await fileExists(cursorSkill)).toBe(true);
+    });
+
+    it('should deliver the propose boundary to tools named in the linked reports', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+      // The fork still registers the Codex command adapter, which writes to
+      // <CODEX_HOME>/prompts; keep it inside the test dir so the run never
+      // touches the developer's real ~/.codex.
+      process.env.CODEX_HOME = path.join(testDir, 'codex-home');
+
+      const initCommand = new InitCommand({
+        tools: 'factory,cursor,kilocode,pi,codex',
+        force: true,
+      });
+      await initCommand.execute(testDir);
+
+      const proposeFiles = [
+        path.join(testDir, '.factory', 'commands', 'opsx-propose.md'),
+        path.join(testDir, '.cursor', 'commands', 'opsx-propose.md'),
+        path.join(testDir, '.kilocode', 'workflows', 'opsx-propose.md'),
+        path.join(testDir, '.pi', 'prompts', 'opsx-propose.md'),
+        path.join(testDir, '.codex', 'skills', 'openspec-propose', 'SKILL.md'),
+      ];
+
+      for (const proposeFile of proposeFiles) {
+        expect(await fileExists(proposeFile), proposeFile).toBe(true);
+        const content = await fs.readFile(proposeFile, 'utf-8');
+        expect(content, proposeFile).toContain('**Fronteira de planejamento**');
+        expect(content, proposeFile).toContain(
+          'selecionou ou acionou este workflow autoriza apenas o planejamento'
+        );
+        expect(content, proposeFile).toContain('ambiguidade que afete de forma relevante o escopo');
+        expect(content, proposeFile).toContain('pergunte ao usuário antes de criar a change');
+        expect(content, proposeFile).toContain(
+          'Qualquer instrução de implementação ou de apply contida nessa solicitação não é levada adiante'
+        );
+        expect(content, proposeFile).toContain(
+          'aguarde uma nova solicitação do usuário para iniciar o workflow de apply'
+        );
+      }
     });
 
     it('should select all tools with --tools all option', async () => {

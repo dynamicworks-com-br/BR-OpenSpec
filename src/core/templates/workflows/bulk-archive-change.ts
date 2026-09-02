@@ -14,6 +14,8 @@ export function getBulkArchiveChangeSkillTemplate(): SkillTemplate {
 
 Esta skill permite arquivar changes em lote, tratando conflitos de specs de forma inteligente verificando a codebase para determinar o que está realmente implementado.
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Nenhuma necessária (solicita seleção)
 
 **Passos**
@@ -84,14 +86,14 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
 4. **Detecte conflitos de specs**
 
-   Construa um mapa de \`capability -> [changes que a tocam]\`:
+   Construa um mapa chaveado por \`<capability-path>\`, o caminho exato relativo a \`specs/\`:
 
    \`\`\`
-   auth -> [change-a, change-b]  <- CONFLITO (2+ changes)
-   api  -> [change-c]            <- OK (apenas 1 change)
+   identity/user-auth -> [change-a, change-b]  <- CONFLITO (2+ changes)
+   billing/user-auth  -> [change-c]            <- OK (caminho completo diferente)
    \`\`\`
 
-   Um conflito existe quando 2+ changes selecionadas têm delta specs para a mesma capability.
+   Um conflito existe quando 2+ changes selecionadas têm delta specs para exatamente o mesmo \`<capability-path>\`.
 
 5. **Resolva conflitos de forma agentica**
 
@@ -109,7 +111,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Se nenhuma está implementada -> ignore o sync de specs, avise o usuário
 
    d. **Registre a resolução** para cada conflito:
-      - Uma decisão de inclusão ou exclusão para cada delta spec, por change e capability
+      - Uma decisão de inclusão ou exclusão para cada delta spec, por change e \`<capability-path>\`
       - Quais delta specs incluídos aplicar e em qual ordem
       - Quais delta specs excluir do sync porque a implementação deles está ausente
       - Racional (o que foi encontrado na codebase)
@@ -119,18 +121,18 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    Exiba uma tabela resumindo todas as changes:
 
    \`\`\`
-   | Change              | Artifacts | Tarefas | Specs   | Conflitos | Status |
-   |---------------------|-----------|---------|---------|-----------|--------|
-   | schema-management   | Done      | 5/5     | 2 delta | Nenhum    | Pronto |
-   | project-config      | Done      | 3/3     | 1 delta | Nenhum    | Pronto |
-   | add-oauth           | Done      | 4/4     | 1 delta | auth (!)  | Pronto*|
-   | add-verify-skill    | 1 restante| 2/5     | Nenhum  | Nenhum    | Aviso  |
+   | Change              | Artifacts | Tarefas | Specs   | Conflitos              | Status |
+   |---------------------|-----------|---------|---------|------------------------|--------|
+   | schema-management   | Done      | 5/5     | 2 delta | Nenhum                 | Pronto |
+   | project-config      | Done      | 3/3     | 1 delta | Nenhum                 | Pronto |
+   | add-oauth           | Done      | 4/4     | 1 delta | identity/user-auth (!) | Pronto*|
+   | add-verify-skill    | 1 restante| 2/5     | Nenhum  | Nenhum                 | Aviso  |
    \`\`\`
 
    Para conflitos, mostre a resolução:
    \`\`\`
    * Resolução de conflito:
-     - auth spec: Aplicará add-oauth depois add-jwt (ambas implementadas, ordem cronológica)
+     - identity/user-auth spec: Aplicará add-oauth depois add-jwt (ambas implementadas, ordem cronológica)
    \`\`\`
 
    Para changes incompletas, mostre avisos:
@@ -203,7 +205,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    b. **Verifique os delta specs incluídos antes de mover a change**:
       - Refaça a comparação apenas para os delta specs em \`includedDeltas\`
-        contra o spec principal em \`openspec/specs/<capability>/spec.md\`.
+        contra o spec principal em \`openspec/specs/<capability-path>/spec.md\`.
       - Verifique que os specs principais foram atualizados:
         - Requisitos ADDED presentes
         - Requisitos MODIFIED carregando as alterações de cenário e descrição
@@ -235,7 +237,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Sucesso: arquivado com sucesso
       - Falha: erro durante o arquivamento ou na verificação de specs (registre o erro)
       - Ignorado: usuário escolheu não arquivar (se aplicável)
-      - Sync ignorado: para cada delta em \`excludedDeltas\`, reporte \`sync skipped\` com a change, a capability e a razão registrada. Isso é distinto de ignorar o arquivamento.
+      - Sync ignorado: para cada delta em \`excludedDeltas\`, reporte \`sync skipped\` com a change, o \`<capability-path>\` e a razão registrada. Isso é distinto de ignorar o arquivamento.
 
 9. **Exiba o resumo**
 
@@ -254,8 +256,8 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    Resumo de sync de specs:
    - 4 delta specs sincronizados com os specs principais
-   - 1 delta spec com sync ignorado (add-jwt/auth: implementação não encontrada)
-   - 1 conflito resolvido (auth: sincronizado add-oauth, ignorado add-jwt)
+   - 1 delta spec com sync ignorado (add-jwt, identity/user-auth: implementação não encontrada)
+   - 1 conflito resolvido (identity/user-auth: sincronizado add-oauth, ignorado add-jwt)
    \`\`\`
 
    Se houver falhas:
@@ -350,7 +352,7 @@ Nenhuma change ativa encontrada. Crie uma nova change para começar.
 - Se sync for solicitado, execute o workflow \`/opsx:sync\` inline (agent-driven) para cada change com delta specs incluídos
 - Carregue as decisões por delta de \`includedDeltas\` e \`excludedDeltas\` para a execução; sincronize e verifique apenas os deltas incluídos
 - Reporte cada delta excluído como \`sync skipped\` sem tratar o arquivamento em si como ignorado
-- Nunca arquive uma change enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais em \`openspec/specs/<capability>/spec.md\` antes de mover o diretório da change
+- Nunca arquive uma change enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais em \`openspec/specs/<capability-path>/spec.md\` antes de mover o diretório da change
 - Obtenha as entradas de arquivamento uma vez antes da inspeção de specs ou movimentações
 - Obtenha todos os snapshots de regras de specs necessários antes da primeira escrita de spec principal ou movimentação do lote
 - Uma consulta de entradas de arquivamento malsucedida nunca bloqueia o lote; ele prossegue sem contexto nem orientação
@@ -377,6 +379,8 @@ export function getOpsxBulkArchiveCommandTemplate(): CommandTemplate {
 
 Esta skill permite arquivar changes em lote, tratando conflitos de specs de forma inteligente verificando a codebase para determinar o que está realmente implementado.
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Nenhuma necessária (solicita seleção)
 
 **Passos**
@@ -447,14 +451,14 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
 4. **Detecte conflitos de specs**
 
-   Construa um mapa de \`capability -> [changes que a tocam]\`:
+   Construa um mapa chaveado por \`<capability-path>\`, o caminho exato relativo a \`specs/\`:
 
    \`\`\`
-   auth -> [change-a, change-b]  <- CONFLITO (2+ changes)
-   api  -> [change-c]            <- OK (apenas 1 change)
+   identity/user-auth -> [change-a, change-b]  <- CONFLITO (2+ changes)
+   billing/user-auth  -> [change-c]            <- OK (caminho completo diferente)
    \`\`\`
 
-   Um conflito existe quando 2+ changes selecionadas têm delta specs para a mesma capability.
+   Um conflito existe quando 2+ changes selecionadas têm delta specs para exatamente o mesmo \`<capability-path>\`.
 
 5. **Resolva conflitos de forma agentica**
 
@@ -472,7 +476,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Se nenhuma está implementada -> ignore o sync de specs, avise o usuário
 
    d. **Registre a resolução** para cada conflito:
-      - Uma decisão de inclusão ou exclusão para cada delta spec, por change e capability
+      - Uma decisão de inclusão ou exclusão para cada delta spec, por change e \`<capability-path>\`
       - Quais delta specs incluídos aplicar e em qual ordem
       - Quais delta specs excluir do sync porque a implementação deles está ausente
       - Racional (o que foi encontrado na codebase)
@@ -482,18 +486,18 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    Exiba uma tabela resumindo todas as changes:
 
    \`\`\`
-   | Change              | Artifacts | Tarefas | Specs   | Conflitos | Status |
-   |---------------------|-----------|---------|---------|-----------|--------|
-   | schema-management   | Done      | 5/5     | 2 delta | Nenhum    | Pronto |
-   | project-config      | Done      | 3/3     | 1 delta | Nenhum    | Pronto |
-   | add-oauth           | Done      | 4/4     | 1 delta | auth (!)  | Pronto*|
-   | add-verify-skill    | 1 restante| 2/5     | Nenhum  | Nenhum    | Aviso  |
+   | Change              | Artifacts | Tarefas | Specs   | Conflitos              | Status |
+   |---------------------|-----------|---------|---------|------------------------|--------|
+   | schema-management   | Done      | 5/5     | 2 delta | Nenhum                 | Pronto |
+   | project-config      | Done      | 3/3     | 1 delta | Nenhum                 | Pronto |
+   | add-oauth           | Done      | 4/4     | 1 delta | identity/user-auth (!) | Pronto*|
+   | add-verify-skill    | 1 restante| 2/5     | Nenhum  | Nenhum                 | Aviso  |
    \`\`\`
 
    Para conflitos, mostre a resolução:
    \`\`\`
    * Resolução de conflito:
-     - auth spec: Aplicará add-oauth depois add-jwt (ambas implementadas, ordem cronológica)
+     - identity/user-auth spec: Aplicará add-oauth depois add-jwt (ambas implementadas, ordem cronológica)
    \`\`\`
 
    Para changes incompletas, mostre avisos:
@@ -566,7 +570,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    b. **Verifique os delta specs incluídos antes de mover a change**:
       - Refaça a comparação apenas para os delta specs em \`includedDeltas\`
-        contra o spec principal em \`openspec/specs/<capability>/spec.md\`.
+        contra o spec principal em \`openspec/specs/<capability-path>/spec.md\`.
       - Verifique que os specs principais foram atualizados:
         - Requisitos ADDED presentes
         - Requisitos MODIFIED carregando as alterações de cenário e descrição
@@ -598,7 +602,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Sucesso: arquivado com sucesso
       - Falha: erro durante o arquivamento ou na verificação de specs (registre o erro)
       - Ignorado: usuário escolheu não arquivar (se aplicável)
-      - Sync ignorado: para cada delta em \`excludedDeltas\`, reporte \`sync skipped\` com a change, a capability e a razão registrada. Isso é distinto de ignorar o arquivamento.
+      - Sync ignorado: para cada delta em \`excludedDeltas\`, reporte \`sync skipped\` com a change, o \`<capability-path>\` e a razão registrada. Isso é distinto de ignorar o arquivamento.
 
 9. **Exiba o resumo**
 
@@ -617,8 +621,8 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    Resumo de sync de specs:
    - 4 delta specs sincronizados com os specs principais
-   - 1 delta spec com sync ignorado (add-jwt/auth: implementação não encontrada)
-   - 1 conflito resolvido (auth: sincronizado add-oauth, ignorado add-jwt)
+   - 1 delta spec com sync ignorado (add-jwt, identity/user-auth: implementação não encontrada)
+   - 1 conflito resolvido (identity/user-auth: sincronizado add-oauth, ignorado add-jwt)
    \`\`\`
 
    Se houver falhas:
@@ -713,7 +717,7 @@ Nenhuma change ativa encontrada. Crie uma nova change para começar.
 - Se sync for solicitado, execute o workflow \`/opsx:sync\` inline (agent-driven) para cada change com delta specs incluídos
 - Carregue as decisões por delta de \`includedDeltas\` e \`excludedDeltas\` para a execução; sincronize e verifique apenas os deltas incluídos
 - Reporte cada delta excluído como \`sync skipped\` sem tratar o arquivamento em si como ignorado
-- Nunca arquive uma change enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais em \`openspec/specs/<capability>/spec.md\` antes de mover o diretório da change
+- Nunca arquive uma change enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais em \`openspec/specs/<capability-path>/spec.md\` antes de mover o diretório da change
 - Obtenha as entradas de arquivamento uma vez antes da inspeção de specs ou movimentações
 - Obtenha todos os snapshots de regras de specs necessários antes da primeira escrita de spec principal ou movimentação do lote
 - Uma consulta de entradas de arquivamento malsucedida nunca bloqueia o lote; ele prossegue sem contexto nem orientação

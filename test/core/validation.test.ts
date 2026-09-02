@@ -279,9 +279,11 @@ The system SHALL do B.
       const report = await new Validator().validateSpec(specPath);
 
       expect(report.valid).toBe(false);
-      expect(
-        report.issues.some(i => i.level === 'ERROR' && i.message.includes('O spec principal contém o cabeçalho de delta'))
-      ).toBe(true);
+      const deltaHeaderIssue = report.issues.find(
+        i => i.level === 'ERROR' && i.message.includes('O spec principal contém o cabeçalho de delta')
+      );
+      expect(deltaHeaderIssue).toBeDefined();
+      expect(deltaHeaderIssue?.message).toContain('specs/<capability-path>/spec.md');
       expect(
         report.issues.some(i => i.level === 'ERROR' && i.message.includes('O cabeçalho de requisito "### Requirement: B" aparece fora'))
       ).toBe(true);
@@ -586,9 +588,11 @@ The system SHALL record request metrics.
       const report = await validator.validateChangeDeltaSpecs(changeDir);
 
       expect(report.valid).toBe(false);
-      expect(
-        report.issues.some(i => i.message.includes('Spec de delta encontrado em specs/spec.md'))
-      ).toBe(true);
+      const rootDeltaIssue = report.issues.find(
+        i => i.message.includes('Spec de delta encontrado em specs/spec.md')
+      );
+      expect(rootDeltaIssue).toBeDefined();
+      expect(rootDeltaIssue?.message).toContain('specs/<capability-path>/spec.md');
       // The precise error replaces the generic one, which would otherwise say
       // "No deltas found" about a file it just named.
       expect(report.issues.some(i => i.message.includes('A alteração deve ter pelo menos um delta'))).toBe(false);

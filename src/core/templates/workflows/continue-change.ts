@@ -40,16 +40,16 @@ export function getContinueChangeSkillTemplate(): SkillTemplate {
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
    - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
-   - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
+   - \`isPlanningComplete\`: Booleano indicando se todos os artifacts de planejamento estão completos. Versões mais antigas do CLI expõem o mesmo valor como \`isComplete\`.
 
 3. **Aja com base no status**:
 
    ---
 
-   **Se todos os artifacts estão completos (\`isComplete: true\`)**:
+   **Se todos os artifacts de planejamento estão completos (\`isPlanningComplete: true\`, ou o legado \`isComplete: true\`)**:
    - Parabenize o usuário
    - Mostre o status final incluindo o schema usado
-   - Sugira: "Todos os artifacts criados! Agora você pode implementar esta change ou arquivá-la."
+   - Sugira: "Planejamento concluído! Agora você pode implementar esta change. Quando a implementação e qualquer trabalho rastreado estiverem concluídos, arquive-a."
    - PARE
 
    ---
@@ -155,16 +155,16 @@ export function getOpsxContinueCommandTemplate(): CommandTemplate {
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
    - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
-   - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
+   - \`isPlanningComplete\`: Booleano indicando se todos os artifacts de planejamento estão completos. Versões mais antigas do CLI expõem o mesmo valor como \`isComplete\`.
 
 3. **Aja com base no status**:
 
    ---
 
-   **Se todos os artifacts estão completos (\`isComplete: true\`)**:
+   **Se todos os artifacts de planejamento estão completos (\`isPlanningComplete: true\`, ou o legado \`isComplete: true\`)**:
    - Parabenize o usuário
    - Mostre o status final incluindo o schema usado
-   - Sugira: "Todos os artifacts criados! Agora você pode implementar esta change com \`/opsx:apply\` ou arquivá-la com \`/opsx:archive\`."
+   - Sugira: "Planejamento concluído! Agora você pode implementar esta change com \`/opsx:apply\`. Quando a implementação e qualquer trabalho rastreado estiverem concluídos, arquive-a com \`/opsx:archive\`."
    - PARE
 
    ---

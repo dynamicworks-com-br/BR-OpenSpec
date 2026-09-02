@@ -1172,7 +1172,7 @@ export const VALIDATOR_MESSAGES = {
     (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
   deltaSectionsEmpty: (sections: string) => `Seções de delta ${sections} foram encontradas, mas nenhuma entrada de requisito foi analisada. Certifique-se de que cada seção inclua pelo menos um bloco "### Requirement:" (REMOVED pode usar sintaxe de lista com marcadores).`,
   noDeltaSectionsFound: 'Nenhuma seção de delta encontrada. Adicione cabeçalhos como "## ADDED Requirements" ou mova notas que não sejam deltas para fora de specs/.',
-  rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar em uma pasta de capability (ex.: specs/<capability>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
+  rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar sob um caminho de capability (ex.: specs/<capability-path>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
   modifiedOmitsCurrentScenarios: (reqName: string, scenarioNames: string) =>
     `MODIFIED "${reqName}" omite cenário(s) que o spec atual ainda tem: ${scenarioNames}. Copie-os para o bloco MODIFIED (um requisito MODIFIED substitui o bloco inteiro, então o archive se recusa a descartá-los).`,
   couldNotReadMainSpec: (specPath: string, code: string) =>
@@ -1265,6 +1265,7 @@ export const WORKFLOW_MESSAGES = {
   progressArtifacts: (done: number, total: number) => `Progresso: ${done}/${total} artefatos concluídos`,
   progressArtifactsSkipped: (done: number, total: number, skipped: number) => `Progresso: ${done}/${total} artefatos concluídos (${skipped} ignorado(s))`,
   allArtifactsComplete: 'Todos os artefatos concluídos!',
+  allPlanningArtifactsComplete: 'Todos os artefatos de planejamento concluídos!',
   blockedBy: (deps: string) => ` (bloqueado por: ${deps})`,
   skippedDeclaresSkipSpecs: ' (ignorado: a alteração declara skip_specs)',
   // templates.ts
@@ -1704,6 +1705,11 @@ Vou elaborar uma com base na nossa tarefa.
 
 **FAÇA:** Elabore o conteúdo da proposal (ainda não salve):
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo,
+\`user-auth\` ou \`identity/user-auth\`). Use o caminho exato existente para capabilities
+modificadas. Para capabilities novas, siga a organização de specs já estabelecida no
+projeto.
+
 \`\`\`
 Aqui está um rascunho de proposal:
 
@@ -1720,10 +1726,11 @@ Aqui está um rascunho de proposal:
 ## Capabilities
 
 ### Novas Capabilities
-- \`<nome-capability>\`: [breve descrição]
+- \`<capability-path>\`: [breve descrição]
 
 ### Capabilities Modificadas
 <!-- Se modificar comportamento existente -->
+- \`<existing-capability-path>\`: [breve descrição]
 
 ## Impacto
 
@@ -1765,9 +1772,9 @@ Para uma tarefa pequena como esta, talvez precisemos apenas de um arquivo spec.
 **FAÇA:** Crie o arquivo spec:
 \`\`\`bash
 # Unix/macOS
-mkdir -p openspec/changes/<nome>/specs/<nome-capability>
+mkdir -p openspec/changes/<nome>/specs/<capability-path>
 # Windows (PowerShell)
-# New-Item -ItemType Directory -Force -Path "openspec/changes/<nome>/specs/<nome-capability>"
+# New-Item -ItemType Directory -Force -Path "openspec/changes/<nome>/specs/<capability-path>"
 \`\`\`
 
 Elabore o conteúdo do spec:
@@ -1794,7 +1801,7 @@ O sistema SHALL <descrição do que o sistema deve fazer>
 Este formato - WHEN/THEN/AND - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste. Os marcadores estruturais (ADDED Requirements, Requirement, Scenario) e as palavras-chave (WHEN/THEN/AND, SHALL/MUST) ficam SEMPRE em inglês — é o protocolo que o parser e o validador reconhecem. Apenas o conteúdo descritivo é escrito em português.
 \`\`\`
 
-Salve em \`openspec/changes/<nome>/specs/<capability>/spec.md\`.
+Salve em \`openspec/changes/<nome>/specs/<capability-path>/spec.md\`.
 
 ---
 
@@ -2548,7 +2555,7 @@ export const CHANGE_PARSER_MESSAGES = {
 export const SPEC_STRUCTURE_MESSAGES = {
   deltaHeader: (header: string) =>
     `O spec principal contém o cabeçalho de delta "${header}". ` +
-    'Cabeçalhos de delta só são válidos dentro de openspec/changes/<name>/specs/<capability>/spec.md ' +
+    'Cabeçalhos de delta só são válidos dentro de openspec/changes/<name>/specs/<capability-path>/spec.md ' +
     'e truncam a seção ## Requirements analisada.',
   requirementOutsideRequirements: (header: string) =>
     `O cabeçalho de requisito "${header}" aparece fora da seção principal ## Requirements. ` +

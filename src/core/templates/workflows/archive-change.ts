@@ -12,6 +12,8 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
     description: 'Arquiva uma change concluída no workflow experimental. Use quando o usuário quiser finalizar e arquivar uma change após a implementação estar completa.',
     instructions: `Arquiva uma change concluída no workflow experimental.
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
 **Passos**
@@ -91,7 +93,7 @@ export function getArchiveChangeSkillTemplate(): SkillTemplate {
    Execute \`openspec status --change "<nome>" --json\` e use \`artifactPaths.specs.existingOutputPaths\` como a única fonte de delta specs. Se a entrada \`specs\` estiver ausente ou \`existingOutputPaths\` estiver vazia, prossiga sem prompt de sync e não infira delta specs de outros artifacts.
 
    **Se delta specs existirem:**
-   - Compare cada delta spec com seu spec principal correspondente em \`openspec/specs/\`
+   - Compare cada delta spec com seu spec principal correspondente em \`openspec/specs/<capability-path>/spec.md\`
    - Determine quais alterações seriam aplicadas (adições, modificações, remoções, renomeações)
    - Mostre um resumo combinado antes de solicitar
 
@@ -185,6 +187,8 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
     tags: ['workflow', 'archive', 'experimental'],
     content: `Arquiva uma change concluída no workflow experimental.
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Opcionalmente especifique um nome de change após \`/opsx:archive\` (por exemplo, \`/opsx:archive add-auth\`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
 **Passos**
@@ -264,7 +268,7 @@ export function getOpsxArchiveCommandTemplate(): CommandTemplate {
    Execute \`openspec status --change "<nome>" --json\` e use \`artifactPaths.specs.existingOutputPaths\` como a única fonte de delta specs. Se a entrada \`specs\` estiver ausente ou \`existingOutputPaths\` estiver vazia, prossiga sem prompt de sync e não infira delta specs de outros artifacts.
 
    **Se delta specs existirem:**
-   - Compare cada delta spec com seu spec principal correspondente em \`openspec/specs/\`
+   - Compare cada delta spec com seu spec principal correspondente em \`openspec/specs/<capability-path>/spec.md\`
    - Determine quais alterações seriam aplicadas (adições, modificações, remoções, renomeações)
    - Mostre um resumo combinado antes de solicitar
 

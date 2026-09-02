@@ -138,7 +138,9 @@ export interface ChangeStatus {
   changeName: string;
   /** Schema name */
   schemaName: string;
-  /** Whether all artifacts are complete */
+  /** Whether all planning artifacts are complete */
+  isPlanningComplete: boolean;
+  /** Compatibility alias for isPlanningComplete */
   isComplete: boolean;
   /** Artifact IDs required before apply phase (from schema's apply.requires) */
   applyRequires: string[];
@@ -473,10 +475,13 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
   const orderMap = new Map(buildOrder.map((id, idx) => [id, idx]));
   artifactStatuses.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
 
+  const isPlanningComplete = context.graph.isComplete(context.completed);
+
   return {
     changeName: context.changeName,
     schemaName: context.schemaName,
-    isComplete: context.graph.isComplete(context.completed),
+    isPlanningComplete,
+    isComplete: isPlanningComplete,
     applyRequires,
     artifacts: artifactStatuses,
     artifactPaths,

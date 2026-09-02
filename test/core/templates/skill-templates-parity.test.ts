@@ -199,4 +199,212 @@ describe('skill templates split parity', () => {
       expect(text, variant).not.toContain('Prosa solta deixada sob `## Requirements` NÃO bloqueia');
     }
   });
+
+  // Upstream #1500: sync used to report success without ever validating the
+  // main specs it just rewrote. The validation step has to sit between the last
+  // mutation and the summary, and it must forbid claiming success on failure.
+  // (Upstream also pins "same selected-root flags"; the fork has no store/root
+  // flags yet — stores are deferred (D1) — so that clause is omitted.)
+  it('validates synced main specs before reporting success', () => {
+    const variants: Array<[string, string]> = [
+      ['sync skill', getSyncSpecsSkillTemplate().instructions],
+      ['sync command', getOpsxSyncCommandTemplate().content],
+    ];
+
+    for (const [variant, content] of variants) {
+      const mutationsComplete = content.indexOf(
+        'Siga a **Referência de Formato de Spec Principal** abaixo'
+      );
+      const validation = content.indexOf('openspec validate --specs');
+      const summary = content.indexOf('**Exiba o resumo**');
+
+      expect(mutationsComplete, variant).toBeGreaterThanOrEqual(0);
+      expect(validation, variant).toBeGreaterThan(mutationsComplete);
+      expect(summary, variant).toBeGreaterThan(validation);
+      expect(content, variant).toContain(
+        'Se a validação falhar, reporte os problemas e não afirme que o sync foi concluído com sucesso'
+      );
+    }
+  });
+
+  // Upstream #1505: planning completion is not implementation completion, so
+  // continue must stop offering the archive as an equal alternative.
+  it('does not suggest archiving when only planning is complete', () => {
+    const variants: Array<[string, string]> = [
+      [
+        'skill',
+        generateSkillContent(getContinueChangeSkillTemplate(), 'PARITY-BASELINE'),
+      ],
+      ['opsx command', getOpsxContinueCommandTemplate().content],
+    ];
+
+    for (const [variant, content] of variants) {
+      expect(content, variant).toContain('Planejamento concluído!');
+      expect(content, variant).toContain(
+        'Quando a implementação e qualquer trabalho rastreado estiverem concluídos, arquive-a'
+      );
+      expect(content, variant).not.toContain('Todos os artifacts criados!');
+      expect(content, variant).not.toContain('ou arquivá-la');
+    }
+  });
+
+  // Upstream #1459: a capability's spec directory can be nested, so every
+  // spec-aware workflow must name `<capability-path>` and preserve the full path.
+  it('preserves nested capability paths in spec-aware workflow guidance (#1459)', () => {
+    const capabilityPathDefinition =
+      '`<capability-path>` é o diretório do spec relativo a `specs/`';
+    // The fork has no store/planning-home resolution (D1), so main specs are
+    // addressed as `openspec/specs/<capability-path>/spec.md`, without the
+    // upstream `<planningHome.root>/` prefix.
+    const pathAwareTemplates: Array<[string, string, string, string]> = [
+      [
+        'propose skill',
+        generateSkillContent(getOpsxProposeSkillTemplate(), 'PARITY-BASELINE'),
+        'specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de uma capability existente',
+      ],
+      [
+        'propose command',
+        getOpsxProposeCommandTemplate().content,
+        'specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de uma capability existente',
+      ],
+      [
+        'explore skill',
+        generateSkillContent(getExploreSkillTemplate(), 'PARITY-BASELINE'),
+        'specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de uma capability existente',
+      ],
+      [
+        'explore command',
+        getOpsxExploreCommandTemplate().content,
+        'specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de uma capability existente',
+      ],
+      [
+        'onboard skill',
+        generateSkillContent(getOnboardSkillTemplate(), 'PARITY-BASELINE'),
+        '<existing-capability-path>',
+        'Use o caminho exato existente para capabilities',
+      ],
+      [
+        'onboard command',
+        getOpsxOnboardCommandTemplate().content,
+        '<existing-capability-path>',
+        'Use o caminho exato existente para capabilities',
+      ],
+      [
+        'sync skill',
+        generateSkillContent(getSyncSpecsSkillTemplate(), 'PARITY-BASELINE'),
+        'openspec/specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de cada delta spec',
+      ],
+      [
+        'sync command',
+        getOpsxSyncCommandTemplate().content,
+        'openspec/specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de cada delta spec',
+      ],
+      [
+        'archive skill',
+        generateSkillContent(getArchiveChangeSkillTemplate(), 'PARITY-BASELINE'),
+        'openspec/specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de cada delta spec',
+      ],
+      [
+        'archive command',
+        getOpsxArchiveCommandTemplate().content,
+        'openspec/specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de cada delta spec',
+      ],
+      [
+        'bulk archive skill',
+        generateSkillContent(getBulkArchiveChangeSkillTemplate(), 'PARITY-BASELINE'),
+        'openspec/specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de cada delta spec',
+      ],
+      [
+        'bulk archive command',
+        getOpsxBulkArchiveCommandTemplate().content,
+        'openspec/specs/<capability-path>/spec.md',
+        'Preserve o caminho completo de cada delta spec',
+      ],
+    ];
+
+    for (const [label, content, destination, preservationGuidance] of pathAwareTemplates) {
+      expect(content, label).toContain(capabilityPathDefinition);
+      expect(content, label).toContain(destination);
+      expect(content, label).toContain(preservationGuidance);
+      expect(content, label).not.toContain('specs/<capability>/spec.md');
+    }
+
+    const onboardVariants: Array<[string, string]> = [
+      [
+        'onboard skill',
+        generateSkillContent(getOnboardSkillTemplate(), 'PARITY-BASELINE'),
+      ],
+      ['onboard command', getOpsxOnboardCommandTemplate().content],
+    ];
+
+    for (const [label, content] of onboardVariants) {
+      expect(content, label).toContain('- `<capability-path>`: [breve descrição]');
+      expect(content, label).not.toContain('<nome-capability>');
+    }
+
+    const bulkArchiveVariants: Array<[string, string]> = [
+      [
+        'bulk archive skill',
+        generateSkillContent(getBulkArchiveChangeSkillTemplate(), 'PARITY-BASELINE'),
+      ],
+      ['bulk archive command', getOpsxBulkArchiveCommandTemplate().content],
+    ];
+
+    for (const [label, content] of bulkArchiveVariants) {
+      expect(content, label).toContain(
+        'Construa um mapa chaveado por `<capability-path>`, o caminho exato relativo a `specs/`'
+      );
+      expect(content, label).toContain(
+        'billing/user-auth  -> [change-c]            <- OK (caminho completo diferente)'
+      );
+      expect(content, label).toContain(
+        'identity/user-auth -> [change-a, change-b]  <- CONFLITO'
+      );
+      expect(content, label).toContain('identity/user-auth (!)');
+      expect(content, label).toContain('exatamente o mesmo `<capability-path>`');
+      expect(content, label).toContain('por change e `<capability-path>`');
+      expect(content, label).toContain(
+        'identity/user-auth spec: Aplicará add-oauth depois add-jwt'
+      );
+      expect(content, label).toContain(
+        'add-jwt, identity/user-auth: implementação não encontrada'
+      );
+      expect(content, label).toContain(
+        '1 conflito resolvido (identity/user-auth: sincronizado add-oauth, ignorado add-jwt)'
+      );
+      expect(content, label).not.toContain('\n   auth -> [change-a');
+      expect(content, label).not.toContain('| auth (!)');
+      expect(content, label).not.toContain('(auth: sincronizado');
+      expect(content, label).not.toContain('add-jwt/auth:');
+    }
+  });
+
+  // Upstream #1459: a narrowed sync set is named by whole `existingOutputPaths`
+  // entries, not by a bare capability name that a nested path would alias.
+  it('narrows the sync set by complete existingOutputPaths entries (#1459)', () => {
+    const variants: Array<[string, string]> = [
+      ['sync skill', getSyncSpecsSkillTemplate().instructions],
+      ['sync command', getOpsxSyncCommandTemplate().content],
+    ];
+
+    for (const [variant, content] of variants) {
+      expect(content, variant).toContain(
+        'explícita de entradas completas de `existingOutputPaths`'
+      );
+      // The fork's prose is hard-wrapped, so pin the half that never straddles a break.
+      expect(content, variant).toContain('valores absolutos verbatim');
+      expect(content, variant).toContain('selecionando a entrada que termina em');
+      expect(content, variant).toContain('/specs/billing/invoices/spec.md');
+      expect(content, variant).not.toContain('sincronize só o delta billing');
+    }
+  });
 });

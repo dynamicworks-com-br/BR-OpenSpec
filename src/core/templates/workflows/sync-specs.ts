@@ -14,6 +14,8 @@ export function getSyncSpecsSkillTemplate(): SkillTemplate {
 
 Esta é uma operação **dirigida por agente** — você lerá os delta specs e editará diretamente os specs principais para aplicar as alterações. Isso permite mesclagem inteligente (por exemplo, adicionar um cenário sem copiar o requisito inteiro).
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
 **Passos**
@@ -40,10 +42,11 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    Sincronize todos os caminhos de \`existingOutputPaths\`, a menos que o
    caller tenha estreitado o conjunto. Um caller o estreita nomeando uma lista
-   explícita de caminhos de delta spec a sincronizar — o arquivamento faz isso
-   inline, e o usuário também pode ("sincronize só o delta billing"). Nesse
-   caso, sincronize apenas os caminhos nomeados e deixe os demais delta specs
-   intocados: o arquivamento em lote exclui um delta cuja implementação não
+   explícita de entradas completas de \`existingOutputPaths\` — copie esses
+   valores absolutos verbatim. O arquivamento faz isso inline, e o usuário
+   também pode (por exemplo, selecionando a entrada que termina em
+   \`/specs/billing/invoices/spec.md\`). Nesse caso, sincronize apenas os
+   caminhos nomeados e deixe os demais delta specs intocados: o arquivamento em lote exclui um delta cuja implementação não
    foi encontrada, e sincronizá-lo mesmo assim escreveria um spec principal
    que o caller deliberadamente omitiu. Carregue essa seleção estreitada pelo
    passo 3; nunca a alargue de volta à lista completa. Se um caminho nomeado
@@ -87,7 +90,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
-   b. **Leia o spec principal** em \`openspec/specs/<capability>/spec.md\` (pode ainda não existir)
+   b. **Leia o spec principal** em \`openspec/specs/<capability-path>/spec.md\` (pode ainda não existir)
 
    c. **Aplique as alterações de forma inteligente**:
 
@@ -140,13 +143,18 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
         (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
 
    d. **Crie um novo spec principal** se a capability ainda não existir:
-      - Crie \`openspec/specs/<capability>/spec.md\`
+      - Crie \`openspec/specs/<capability-path>/spec.md\`
       - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
         (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
       - Siga a **Referência de Formato de Spec Principal** abaixo
 
-4. **Exiba o resumo**
+4. **Valide os specs principais atualizados**
+
+   Execute \`openspec validate --specs\`.
+   Se a validação falhar, reporte os problemas e não afirme que o sync foi concluído com sucesso.
+
+5. **Exiba o resumo**
 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
@@ -268,6 +276,8 @@ export function getOpsxSyncCommandTemplate(): CommandTemplate {
 
 Esta é uma operação **dirigida por agente** — você lerá os delta specs e editará diretamente os specs principais para aplicar as alterações. Isso permite mesclagem inteligente (por exemplo, adicionar um cenário sem copiar o requisito inteiro).
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Opcionalmente especifique um nome de change após \`/opsx:sync\` (por exemplo, \`/opsx:sync add-auth\`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
 **Passos**
@@ -294,10 +304,11 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    Sincronize todos os caminhos de \`existingOutputPaths\`, a menos que o
    caller tenha estreitado o conjunto. Um caller o estreita nomeando uma lista
-   explícita de caminhos de delta spec a sincronizar — o arquivamento faz isso
-   inline, e o usuário também pode ("sincronize só o delta billing"). Nesse
-   caso, sincronize apenas os caminhos nomeados e deixe os demais delta specs
-   intocados: o arquivamento em lote exclui um delta cuja implementação não
+   explícita de entradas completas de \`existingOutputPaths\` — copie esses
+   valores absolutos verbatim. O arquivamento faz isso inline, e o usuário
+   também pode (por exemplo, selecionando a entrada que termina em
+   \`/specs/billing/invoices/spec.md\`). Nesse caso, sincronize apenas os
+   caminhos nomeados e deixe os demais delta specs intocados: o arquivamento em lote exclui um delta cuja implementação não
    foi encontrada, e sincronizá-lo mesmo assim escreveria um spec principal
    que o caller deliberadamente omitiu. Carregue essa seleção estreitada pelo
    passo 3; nunca a alargue de volta à lista completa. Se um caminho nomeado
@@ -341,7 +352,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
-   b. **Leia o spec principal** em \`openspec/specs/<capability>/spec.md\` (pode ainda não existir)
+   b. **Leia o spec principal** em \`openspec/specs/<capability-path>/spec.md\` (pode ainda não existir)
 
    c. **Aplique as alterações de forma inteligente**:
 
@@ -394,13 +405,18 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
         (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
 
    d. **Crie um novo spec principal** se a capability ainda não existir:
-      - Crie \`openspec/specs/<capability>/spec.md\`
+      - Crie \`openspec/specs/<capability-path>/spec.md\`
       - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
         (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
       - Siga a **Referência de Formato de Spec Principal** abaixo
 
-4. **Exiba o resumo**
+4. **Valide os specs principais atualizados**
+
+   Execute \`openspec validate --specs\`.
+   Se a validação falhar, reporte os problemas e não afirme que o sync foi concluído com sucesso.
+
+5. **Exiba o resumo**
 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas

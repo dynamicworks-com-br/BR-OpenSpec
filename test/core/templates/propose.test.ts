@@ -15,6 +15,16 @@ import {
   getOpsxArchiveCommandTemplate,
 } from '../../../src/core/templates/skill-templates.js';
 import { loadSchema } from '../../../src/core/artifact-graph/schema.js';
+import { CommandAdapterRegistry } from '../../../src/core/command-generation/registry.js';
+import { generateCommand } from '../../../src/core/command-generation/generator.js';
+import {
+  formatCommandInvocation,
+  getInvocationForAdapter,
+} from '../../../src/core/command-generation/invocation.js';
+import {
+  generateSkillContent,
+  getCommandContents,
+} from '../../../src/core/shared/skill-generation.js';
 
 // Port of upstream's test/core/templates/propose.test.ts (#788/#1260/#1412),
 // with string assertions translated to the fork's PT-BR template prose.
@@ -22,9 +32,11 @@ import { loadSchema } from '../../../src/core/artifact-graph/schema.js';
 // back into this file now that the artifact loop guards landed, per the note
 // that file carried.
 
+const proposeSkillBody = generateSkillContent(getOpsxProposeSkillTemplate(), 'TEST');
+const proposeCommandBody = getOpsxProposeCommandTemplate().content;
 const proposeBodies: Array<[string, string]> = [
-  ['propose skill', getOpsxProposeSkillTemplate().instructions],
-  ['propose command', getOpsxProposeCommandTemplate().content],
+  ['propose skill', proposeSkillBody],
+  ['propose command', proposeCommandBody],
 ];
 
 // ff runs the byte-identical artifact loop, so it carries the identical guards.
@@ -56,7 +68,7 @@ const defaultSchema = loadSchema(path.join(repoRoot, 'schemas', 'spec-driven', '
 /** O trecho inicial que diz ao agente quais artifacts o propose vai produzir. */
 function artifactPreamble(body: string): string {
   const start = body.indexOf('Vou criar uma change com');
-  const end = body.indexOf('Quando pronto para implementar');
+  const end = body.indexOf('Quando o usuário estiver pronto para implementar');
   expect(start).toBeGreaterThanOrEqual(0);
   expect(end).toBeGreaterThan(start);
   return body.slice(start, end);
@@ -75,6 +87,142 @@ describe('propose preamble', () => {
       for (const id of ids) {
         expect(preamble, `${label} preamble is missing the "${id}" artifact`).toContain(id);
       }
+    }
+  });
+});
+
+describe('propose implementation boundary', () => {
+  it('makes the planning-only boundary prominent (#232, #258, #262)', () => {
+    for (const [label, body] of proposeBodies) {
+      const boundary = body.indexOf('**Fronteira de planejamento**');
+      const steps = body.indexOf('**Passos**');
+      expect(boundary, `${label} is missing its planning boundary`).toBeGreaterThanOrEqual(0);
+      expect(boundary, `${label} boundary should appear before its steps`).toBeLessThan(steps);
+      expect(body, label).toContain(
+        'A solicitação do usuário que selecionou ou acionou este workflow autoriza apenas o planejamento'
+      );
+      expect(body, label).toContain('Não edite código do projeto');
+    }
+  });
+
+  it('ends by requiring a separate apply workflow (#258, #262)', () => {
+    for (const [label, body] of proposeBodies) {
+      expect(body, label).toContain(
+        'A solicitação que invocou este workflow autoriza apenas o planejamento'
+      );
+      expect(body, label).toContain('NÃO implemente a change');
+      expect(body, label).toContain('edite código do projeto');
+      expect(body, label).toContain('Não inicie a implementação na mesma resposta');
+      expect(body, label).toContain(
+        'Qualquer instrução de implementação ou de apply contida nessa solicitação não é levada adiante'
+      );
+      expect(body, label).toContain(
+        'aguarde uma nova solicitação do usuário para iniciar o workflow de apply'
+      );
+      expect(
+        body.lastIndexOf('Depois de apresentar os artifacts, pare'),
+        `${label} should end with its stop guard`
+      ).toBeGreaterThan(body.indexOf('**Saída**'));
+    }
+  });
+
+  it('asks before resolving ambiguity that could change user-visible outcomes (#258)', () => {
+    for (const [label, body] of proposeBodies) {
+      expect(body, label).toContain(
+        'escopo, o comportamento externamente observável, a compatibilidade ou os critérios de aceitação'
+      );
+      expect(body, label).toContain('pergunte ao usuário antes de criar a change');
+      expect(body, label).toContain(
+        'Para detalhes menores, faça uma suposição razoável e registre-a nos artifacts de planejamento'
+      );
+      expect(body.indexOf('pergunte ao usuário antes de criar a change'), label)
+        .toBeLessThan(body.indexOf('**Crie o diretório da change**'));
+    }
+  });
+
+  it('hands command-only tools to apply instead of advertising direct coding (#258)', () => {
+    expect(proposeCommandBody).toContain('Quando estiver pronto, execute `/opsx:apply`.');
+    expect(proposeCommandBody).not.toContain('peça-me para implementar');
+    expect(proposeCommandBody).not.toContain('peça-me para aplicar esta change');
+
+    expect(proposeSkillBody).toContain(
+      'execute `/opsx:apply` ou peça-me para aplicar esta change'
+    );
+    expect(proposeSkillBody).not.toContain('peça-me para implementar');
+  });
+
+  it('preserves both boundaries through every command adapter', () => {
+    const propose = getCommandContents(['propose'])[0];
+    expect(propose?.id).toBe('propose');
+
+    for (const adapter of CommandAdapterRegistry.getAll()) {
+      const generated = generateCommand(propose, adapter).fileContent;
+      const applyInvocation = formatCommandInvocation(
+        getInvocationForAdapter(adapter),
+        'apply'
+      );
+      expect(generated, adapter.toolId).toContain(
+        'selecionou ou acionou este workflow autoriza apenas o planejamento'
+      );
+      expect(generated, adapter.toolId).toContain('NÃO implemente a change');
+      expect(generated, adapter.toolId).toContain(
+        'Não inicie a implementação na mesma resposta'
+      );
+      expect(generated, adapter.toolId).toContain(
+        'Qualquer instrução de implementação ou de apply contida nessa solicitação não é levada adiante'
+      );
+      expect(generated, adapter.toolId).toContain(
+        'aguarde uma nova solicitação do usuário para iniciar o workflow de apply'
+      );
+      expect(generated, adapter.toolId).toContain(
+        `Quando estiver pronto, execute \`${applyInvocation}\`.`
+      );
+      expect(generated, adapter.toolId).not.toContain('peça-me para implementar');
+    }
+  });
+});
+
+describe('propose schema selection', () => {
+  // #770: the CLI and the new workflow already accept an explicit schema, but
+  // propose used to discard that request and always create with the default.
+  it('shows both concrete creation forms after an explicit schema choice (#770)', () => {
+    for (const [label, body] of proposeBodies) {
+      const schemaStep = body.indexOf('**Determine o schema de workflow**');
+      const createStep = body.indexOf('**Crie o diretório da change**');
+      const statusStep = body.indexOf('**Obtenha a ordem de construção dos artifacts**');
+
+      expect(schemaStep, `${label} is missing schema selection`).toBeGreaterThanOrEqual(0);
+      expect(createStep, `${label} is missing change creation`).toBeGreaterThan(schemaStep);
+      expect(statusStep, `${label} is missing status lookup`).toBeGreaterThan(createStep);
+
+      const createSection = body.slice(createStep, statusStep);
+      expect(createSection, label).toMatch(/^\s*openspec new change "<nome>"\s*$/m);
+      expect(createSection, label).toMatch(
+        /^\s*openspec new change "<nome>" --schema "<nome-do-schema>"\s*$/m
+      );
+      expect(createSection, label).toContain('Escolha uma das formas de schema abaixo.');
+    }
+  });
+
+  it('discovers schemas from the current working directory', () => {
+    for (const [label, body] of proposeBodies) {
+      const schemaStep = body.indexOf('**Determine o schema de workflow**');
+      const createStep = body.indexOf('**Crie o diretório da change**');
+      const schemaSection = body.slice(schemaStep, createStep);
+
+      expect(schemaSection, label).toContain('Use o schema padrão configurado');
+      expect(schemaSection, label).toContain(
+        'Solicitar explicitamente um schema específico pelo nome'
+      );
+      expect(schemaSection, label).toContain('`openspec schemas --json`');
+      expect(schemaSection, label).toContain('a partir do diretório de trabalho atual');
+      expect(schemaSection, label).toContain(
+        'Caso contrário, omita `--schema` para preservar o padrão configurado'
+      );
+      // Fork guard: the store/planning-home subsystem is deferred (D1), so the
+      // upstream root-resolution detour through `openspec context` must not leak in.
+      expect(schemaSection, label).not.toContain('openspec context');
+      expect(schemaSection, label).not.toContain('--store');
     }
   });
 });
@@ -209,8 +357,9 @@ describe('artifact loop guards (propose and ff)', () => {
     }
   });
 
-  // The step-4 TITLE must not use "apply-ready" either: in the prewritten-tasks
-  // case the change is already apply-ready when step 4 begins, so a title of
+  // The artifact-creation TITLE must not use "apply-ready" either: in the
+  // prewritten-tasks case the change is already apply-ready when this step
+  // begins, so a title of
   // "create ... until apply-ready" invites the exact early-stop this PR kills.
   it('titles the create step around the required set, not "apply-ready"', () => {
     for (const [label, body] of loopBodies) {

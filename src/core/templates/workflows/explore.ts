@@ -12,7 +12,7 @@ export function getExploreSkillTemplate(): SkillTemplate {
     description: 'Entre no modo explore - um parceiro de pensamento para explorar ideias, investigar problemas e esclarecer requisitos. Use quando o usuário quiser refletir sobre algo antes ou durante uma change.',
     instructions: `Entre no modo explore. Pense profundamente. Visualize livremente. Siga a conversa para onde ela for.
 
-**IMPORTANTE: O modo explore é para pensar, não implementar.** Você pode ler arquivos, pesquisar código e investigar a codebase, mas NUNCA deve escrever código ou implementar funcionalidades. Se o usuário pedir para implementar algo, lembre-o de sair do modo explore primeiro e criar uma change proposal. Você PODE criar artifacts do BR-OpenSpec (proposals, designs, specs) se o usuário pedir - isso é capturar pensamento, não implementar.
+**IMPORTANTE: O modo explore é para pensar, não implementar.** Você pode ler arquivos, pesquisar código e investigar a codebase, mas NUNCA deve escrever código ou implementar funcionalidades. Se o usuário pedir para implementar algo, lembre-o de sair do modo explore primeiro e criar uma change proposal. Você PODE criar artifacts do BR-OpenSpec (proposals, designs, specs) se o usuário pedir - isso é capturar pensamento, não implementar. Para uma change nova, faça o scaffold dela primeiro, conforme descrito abaixo.
 
 **Isso é uma postura, não um workflow.** Não há passos fixos, sequência obrigatória ou saídas mandatórias. Você é um parceiro de pensamento ajudando o usuário a explorar.
 
@@ -106,6 +106,15 @@ Pense livremente. Quando os insights cristalizarem, você pode oferecer:
 - "Isso parece sólido o suficiente para começar uma change. Quer que eu crie uma proposal?"
 - Ou continue explorando - sem pressão para formalizar
 
+Se o usuário pedir para capturar a exploração como uma change nova, faça a transição de forma fluida para a captura solicitada:
+
+1. Execute \`openspec new change "<nome>"\` antes de criar qualquer artifact. Nunca crie um diretório de change novo sob \`openspec/changes/\` à mão; o scaffold do CLI cria os metadados obrigatórios, como o \`.openspec.yaml\`.
+2. Execute \`openspec status --change "<nome>" --json\` e, em seguida, processe os artifacts solicitados em ordem de dependência. Para cada artifact solicitado que estiver \`ready\`, execute \`openspec instructions "<artifact-id>" --change "<nome>" --json\`. Antes de criar um artifact solicitado, avalie qualquer condição presente no próprio \`instruction\` dele contra a change explorada; em vez disso, registre que o pulou deliberadamente quando a condição não se aplicar. Se um artifact solicitado estiver bloqueado por um pré-requisito direto que o usuário não pediu, execute \`openspec instructions "<prerequisite-id>" --change "<nome>" --json\` para esse pré-requisito, esteja ele \`ready\` ou \`blocked\`. Se o próprio \`instruction\` dele declarar uma condição, avalie essa condição contra a change explorada e registre que o pulou deliberadamente somente quando a condição não se aplicar. Se a condição se aplicar, ou se o pré-requisito não for condicional, trate-o como um pré-requisito normal e pergunte antes de expandir a captura. Não crie um pré-requisito não solicitado sem a aprovação do usuário.
+3. Siga os campos \`template\` e \`instruction\` retornados. Leia os arquivos de dependências concluídos listados em \`dependencies\` e aplique \`context\` e \`rules\` como restrições, sem copiá-los para o artifact. Se o \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o; caso contrário, escreva o artifact em \`outputPath\`, usando o \`instruction\` para escolher um caminho concreto quando ele for um glob. Verifique se a saída concreta escolhida existe.
+4. Após criar cada artifact, reexecute \`openspec status --change "<nome>" --json\` e continue até que todo artifact solicitado esteja \`done\`, \`skipped\`, ou tenha sido deliberadamente pulado porque o próprio \`instruction\` dele declarava uma condição que não se aplicava. Avise o usuário sobre um skip condicional deliberado, lembre-se dele e não o reconsidere. Dependências são facilitadoras, não portões: se um artifact solicitado ainda estiver \`blocked\` apenas porque você pulou deliberadamente um pré-requisito condicional, execute \`openspec instructions "<artifact-id>" --change "<nome>" --json\` apesar do status blocked e, em seguida, crie-o usando o passo 3 somente quando esses skips condicionais registrados forem suas únicas dependências faltantes. Se um artifact solicitado estiver bloqueado por um pré-requisito que o usuário não pediu para capturar e que não pode ser pulado condicionalmente, explique essa dependência e pergunte antes de expandir a captura.
+
+Capture o(s) artifact(s) que o usuário solicitou sem pedir que ele invoque outro comando de workflow. Se ele pediu apenas para iniciar uma change, pare após o scaffold e mostre o status dela.
+
 ### Quando existe change
 
 Se o usuário mencionar uma change ou você detectar que uma é relevante:
@@ -122,14 +131,16 @@ Se o usuário mencionar uma change ou você detectar que uma é relevante:
 
 3. **Ofereça capturar quando decisões forem tomadas**
 
-    | Tipo de Insight            | Onde Capturar                  |
-    |----------------------------|--------------------------------|
-    | Novo requisito descoberto  | \`specs/<capability>/spec.md\` |
-    | Requisito alterado         | \`specs/<capability>/spec.md\` |
-    | Decisão de design tomada   | \`design.md\`                  |
-    | Escopo alterado            | \`proposal.md\`                |
-    | Novo trabalho identificado | \`tasks.md\`                   |
-    | Suposição invalidada       | Artifact relevante             |
+   \`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de uma capability existente e siga a organização já estabelecida no projeto para capabilities novas.
+
+    | Tipo de Insight            | Onde Capturar                       |
+    |----------------------------|-------------------------------------|
+    | Novo requisito descoberto  | \`specs/<capability-path>/spec.md\` |
+    | Requisito alterado         | \`specs/<capability-path>/spec.md\` |
+    | Decisão de design tomada   | \`design.md\`                       |
+    | Escopo alterado            | \`proposal.md\`                     |
+    | Novo trabalho identificado | \`tasks.md\`                        |
+    | Suposição invalidada       | Artifact relevante                  |
 
    Exemplos de ofertas:
    - "Essa é uma decisão de design. Capturar em design.md?"
@@ -291,6 +302,7 @@ Mas este resumo é opcional. Às vezes o pensamento EM SI é o valor.
 - **Não apresse** - Descoberta é tempo de pensamento, não tempo de tarefa
 - **Não force estrutura** - Deixe padrões emergirem naturalmente
 - **Não capture automaticamente** - Ofereça salvar insights, não apenas faça
+- **Não faça scaffold de changes manualmente** - Nunca crie um diretório de change novo sob \`openspec/changes/\` à mão. Sempre use \`openspec new change "<nome>"\` para que os metadados obrigatórios, como o \`.openspec.yaml\`, sejam criados antes de escrever os artifacts.
 - **Visualize** - Um bom diagrama vale muitos parágrafos
 - **Explore a codebase** - Fundamente discussões na realidade
 - **Questione suposições** - Incluindo as do usuário e as suas`,
@@ -308,7 +320,7 @@ export function getOpsxExploreCommandTemplate(): CommandTemplate {
     tags: ['workflow', 'explore', 'experimental', 'thinking'],
     content: `Entre no modo explore. Pense profundamente. Visualize livremente. Siga a conversa para onde ela for.
 
-**IMPORTANTE: O modo explore é para pensar, não implementar.** Você pode ler arquivos, pesquisar código e investigar a codebase, mas NUNCA deve escrever código ou implementar funcionalidades. Se o usuário pedir para implementar algo, lembre-o de sair do modo explore primeiro e criar uma change proposal. Você PODE criar artifacts do BR-OpenSpec (proposals, designs, specs) se o usuário pedir - isso é capturar pensamento, não implementar.
+**IMPORTANTE: O modo explore é para pensar, não implementar.** Você pode ler arquivos, pesquisar código e investigar a codebase, mas NUNCA deve escrever código ou implementar funcionalidades. Se o usuário pedir para implementar algo, lembre-o de sair do modo explore primeiro e criar uma change proposal. Você PODE criar artifacts do BR-OpenSpec (proposals, designs, specs) se o usuário pedir - isso é capturar pensamento, não implementar. Para uma change nova, faça o scaffold dela primeiro, conforme descrito abaixo.
 
 **Isso é uma postura, não um workflow.** Não há passos fixos, sequência obrigatória ou saídas mandatórias. Você é um parceiro de pensamento ajudando o usuário a explorar.
 
@@ -411,6 +423,15 @@ Pense livremente. Quando os insights cristalizarem, você pode oferecer:
 - "Isso parece sólido o suficiente para começar uma change. Quer que eu crie uma proposal?"
 - Ou continue explorando - sem pressão para formalizar
 
+Se o usuário pedir para capturar a exploração como uma change nova, faça a transição de forma fluida para a captura solicitada:
+
+1. Execute \`openspec new change "<nome>"\` antes de criar qualquer artifact. Nunca crie um diretório de change novo sob \`openspec/changes/\` à mão; o scaffold do CLI cria os metadados obrigatórios, como o \`.openspec.yaml\`.
+2. Execute \`openspec status --change "<nome>" --json\` e, em seguida, processe os artifacts solicitados em ordem de dependência. Para cada artifact solicitado que estiver \`ready\`, execute \`openspec instructions "<artifact-id>" --change "<nome>" --json\`. Antes de criar um artifact solicitado, avalie qualquer condição presente no próprio \`instruction\` dele contra a change explorada; em vez disso, registre que o pulou deliberadamente quando a condição não se aplicar. Se um artifact solicitado estiver bloqueado por um pré-requisito direto que o usuário não pediu, execute \`openspec instructions "<prerequisite-id>" --change "<nome>" --json\` para esse pré-requisito, esteja ele \`ready\` ou \`blocked\`. Se o próprio \`instruction\` dele declarar uma condição, avalie essa condição contra a change explorada e registre que o pulou deliberadamente somente quando a condição não se aplicar. Se a condição se aplicar, ou se o pré-requisito não for condicional, trate-o como um pré-requisito normal e pergunte antes de expandir a captura. Não crie um pré-requisito não solicitado sem a aprovação do usuário.
+3. Siga os campos \`template\` e \`instruction\` retornados. Leia os arquivos de dependências concluídos listados em \`dependencies\` e aplique \`context\` e \`rules\` como restrições, sem copiá-los para o artifact. Se o \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o; caso contrário, escreva o artifact em \`outputPath\`, usando o \`instruction\` para escolher um caminho concreto quando ele for um glob. Verifique se a saída concreta escolhida existe.
+4. Após criar cada artifact, reexecute \`openspec status --change "<nome>" --json\` e continue até que todo artifact solicitado esteja \`done\`, \`skipped\`, ou tenha sido deliberadamente pulado porque o próprio \`instruction\` dele declarava uma condição que não se aplicava. Avise o usuário sobre um skip condicional deliberado, lembre-se dele e não o reconsidere. Dependências são facilitadoras, não portões: se um artifact solicitado ainda estiver \`blocked\` apenas porque você pulou deliberadamente um pré-requisito condicional, execute \`openspec instructions "<artifact-id>" --change "<nome>" --json\` apesar do status blocked e, em seguida, crie-o usando o passo 3 somente quando esses skips condicionais registrados forem suas únicas dependências faltantes. Se um artifact solicitado estiver bloqueado por um pré-requisito que o usuário não pediu para capturar e que não pode ser pulado condicionalmente, explique essa dependência e pergunte antes de expandir a captura.
+
+Capture o(s) artifact(s) que o usuário solicitou sem pedir que ele invoque outro comando de workflow. Se ele pediu apenas para iniciar uma change, pare após o scaffold e mostre o status dela.
+
 ### Quando existe change
 
 Se o usuário mencionar uma change ou você detectar que uma é relevante:
@@ -427,14 +448,16 @@ Se o usuário mencionar uma change ou você detectar que uma é relevante:
 
 3. **Ofereça capturar quando decisões forem tomadas**
 
-    | Tipo de Insight            | Onde Capturar                  |
-    |----------------------------|--------------------------------|
-    | Novo requisito descoberto  | \`specs/<capability>/spec.md\` |
-    | Requisito alterado         | \`specs/<capability>/spec.md\` |
-    | Decisão de design tomada   | \`design.md\`                  |
-    | Escopo alterado            | \`proposal.md\`                |
-    | Novo trabalho identificado | \`tasks.md\`                   |
-    | Suposição invalidada       | Artifact relevante             |
+   \`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de uma capability existente e siga a organização já estabelecida no projeto para capabilities novas.
+
+    | Tipo de Insight            | Onde Capturar                       |
+    |----------------------------|-------------------------------------|
+    | Novo requisito descoberto  | \`specs/<capability-path>/spec.md\` |
+    | Requisito alterado         | \`specs/<capability-path>/spec.md\` |
+    | Decisão de design tomada   | \`design.md\`                       |
+    | Escopo alterado            | \`proposal.md\`                     |
+    | Novo trabalho identificado | \`tasks.md\`                        |
+    | Suposição invalidada       | Artifact relevante                  |
 
    Exemplos de ofertas:
    - "Essa é uma decisão de design. Capturar em design.md?"
@@ -476,6 +499,7 @@ Quando as coisas cristalizarem, você pode oferecer um resumo - mas é opcional.
 - **Não apresse** - Descoberta é tempo de pensamento, não tempo de tarefa
 - **Não force estrutura** - Deixe padrões emergirem naturalmente
 - **Não capture automaticamente** - Ofereça salvar insights, não apenas faça
+- **Não faça scaffold de changes manualmente** - Nunca crie um diretório de change novo sob \`openspec/changes/\` à mão. Sempre use \`openspec new change "<nome>"\` para que os metadados obrigatórios, como o \`.openspec.yaml\`, sejam criados antes de escrever os artifacts.
 - **Visualize** - Um bom diagrama vale muitos parágrafos
 - **Explore a codebase** - Fundamente discussões na realidade
 - **Questione suposições** - Incluindo as do usuário e as suas`
