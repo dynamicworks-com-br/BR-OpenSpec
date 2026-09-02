@@ -303,6 +303,29 @@ describe('tools-manager', () => {
       expect(getCurrentToolIds(testDir).has('codex')).toBe(false);
     });
 
+    it('removes managed skills left in a legacy root', async () => {
+      // A detecção lê `.codex/skills` (legacySkillsDirs), então ignorá-lo na
+      // remoção deixaria o Codex ainda configurado e o próximo `update`
+      // migraria as skills de volta — remoção desfeita em silêncio.
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+      const legacySkill = path.join(
+        testDir,
+        '.codex',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
+      await fs.mkdir(path.dirname(legacySkill), { recursive: true });
+      await fs.writeFile(legacySkill, '# skill legada', 'utf-8');
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(true);
+
+      const counts = await removeTool(testDir, codex);
+
+      expect(counts.removedSkillCount).toBeGreaterThan(0);
+      expect(await fileExists(legacySkill)).toBe(false);
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(false);
+    });
+
     it('keeps a shared root owned by another tool: removing codex spares agents', async () => {
       const agents = AI_TOOLS.find((t) => t.value === 'agents')!;
       const codex = AI_TOOLS.find((t) => t.value === 'codex')!;

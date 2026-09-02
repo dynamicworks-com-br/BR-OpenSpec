@@ -301,8 +301,19 @@ export async function removeTool(
       : { removedSkillCount: 0, removedCommandCount };
   }
 
-  const removedSkillCount = await removeOpenSpecSkillDirs(projectPath, skillsDir);
+  let removedSkillCount = await removeOpenSpecSkillDirs(projectPath, skillsDir);
   const removedCommandCount = await removeOpenSpecCommandFiles(projectPath, tool.value);
+
+  // A detecção (`getToolSkillStatus`) também lê as raízes legadas, então uma
+  // remoção que as ignorasse deixaria a ferramenta ainda "configurada" e o
+  // próximo `update` migraria as skills intactas de volta — a remoção seria
+  // desfeita em silêncio.
+  for (const legacyRoot of tool.legacySkillsDirs ?? []) {
+    const legacySkillsDir = path.join(projectPath, legacyRoot, 'skills');
+    removedSkillCount += await removeOpenSpecSkillDirs(projectPath, legacySkillsDir);
+    removeSkillsDirIfEmpty(projectPath, legacySkillsDir);
+  }
+
   // Sem largar o marcador, a ferramenta continuaria "configurada" (só-marcador
   // conta como configurado) e o próximo `update` recriaria as skills.
   clearSharedSkillTarget(projectPath, tool.value);
