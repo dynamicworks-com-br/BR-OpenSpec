@@ -31,6 +31,9 @@ export const GlobalConfigSchema = z
       })
       .passthrough()
       .optional(),
+    // Gerenciado em runtime (como telemetry.noticeSeen); não configurável via
+    // `config set`.
+    completionTipSeen: z.boolean().optional(),
   })
   .passthrough();
 

@@ -29,6 +29,8 @@ export interface GlobalConfig {
   workflows?: string[];
   /** Anonymous usage analytics settings and identity. */
   telemetry?: TelemetryConfig;
+  /** Whether the first-run shell-completions tip has been shown. */
+  completionTipSeen?: boolean;
 }
 
 const DEFAULT_CONFIG: GlobalConfig = {

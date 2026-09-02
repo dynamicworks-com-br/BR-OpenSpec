@@ -843,6 +843,53 @@ export const SCHEMA_MESSAGES = {
   cannotForkLinkedEntry: (entryPath: string, detail?: string) =>
     `Não é possível copiar o esquema com uma entrada vinculada (link) ou não suportada: ${entryPath}${detail ? `: ${detail}` : ''}`,
   cannotForkLinkedCycle: (entryPath: string) => `Não é possível copiar o esquema com um ciclo de diretórios vinculados (links): ${entryPath}`,
+  // schema fork — cópia transacional (upstream 8127c7b7)
+  cannotForkOntoItself: (source: string) =>
+    `Não é possível copiar o esquema '${source}' sobre ele mesmo; escolha um nome de destino diferente`,
+  stagedForkInvalid: (source: string, dest: string) =>
+    `A cópia preparada de '${source}' não é um esquema válido (a origem pode ter mudado durante a cópia); ` +
+    `operação abortada, '${dest}' não foi modificado.`,
+  replacingExistingSchema: (dest: string) => `Substituindo esquema existente '${dest}'...`,
+  forkDestinationChangedOnDisk: (dest: string, dir: string) =>
+    `O esquema '${dest}' em ${dir} mudou em disco enquanto a cópia era preparada. ` +
+    `Operação abortada para preservar essas alterações concorrentes; nada foi sobrescrito. ` +
+    `Execute a cópia novamente para sobrescrever o conteúdo atual.`,
+  forkInstallRestoreFailed: (
+    dest: string,
+    backupDir: string,
+    destinationDir: string,
+    restoreMessage: string
+  ) =>
+    `Falha ao instalar o esquema copiado e não foi possível restaurar o '${dest}' anterior. ` +
+    `Seu esquema anterior está preservado em ${backupDir}; mova-o de volta para ${destinationDir} para restaurar. ` +
+    `Erro na restauração: ${restoreMessage}`,
+  forkBackupKept: (dest: string, backupDir: string) =>
+    `Aviso: o '${dest}' anterior mudou durante a cópia e NÃO foi apagado; ` +
+    `sua cópia anterior à operação está preservada em ${backupDir}.`,
+  // schema init --default — atualização transacional do config (upstream 2fa679f1)
+  defaultConfigIsSymlink: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} deve ser um arquivo regular, não um link simbólico`,
+  defaultConfigNotRegularFile: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} deve ser um arquivo regular`,
+  defaultConfigNotWritable: (pathOrFile: string) =>
+    `Não é possível definir o esquema padrão: ${pathOrFile} não tem permissão de escrita`,
+  defaultConfigInvalidYaml: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} contém YAML inválido`,
+  defaultConfigNotObject: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} deve conter um objeto YAML`,
+  generatedSchemaInvalid: (issues: string) => `O esquema gerado falhou na validação: ${issues}`,
+  initSchemaChangedOnDisk: (name: string) =>
+    `O esquema '${name}' mudou em disco enquanto a inicialização era preparada. ` +
+    `Operação abortada para preservar essas alterações concorrentes.`,
+  initConfigChangedOnDisk: (file: string) =>
+    `${file} mudou em disco enquanto a inicialização era preparada. ` +
+    `Operação abortada para preservar essas alterações concorrentes.`,
+  initRollbackIncomplete: (errors: string, schemaDir: string, configPath: string | null) =>
+    `A inicialização do esquema falhou e a reversão ficou incompleta (${errors}). ` +
+    `Backups de recuperação podem ter permanecido ao lado de ${schemaDir} e ` +
+    `${configPath ?? 'do arquivo de configuração'}.`,
+  initBackupCleanupFailed: (backup: string, message: string) =>
+    `Aviso: a inicialização foi concluída, mas o backup em ${backup} não pôde ser removido: ${message}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -960,6 +1007,15 @@ export const COMPLETION_MESSAGES = {
 
   // Zsh installer (missing)
   zshNotInstalled: 'Script de autocomplete não está instalado',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Dica de autocomplete — primeira execução (src/core/completion-tip.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const COMPLETION_TIP_MESSAGES = {
+  firstRunTip:
+    "Dica: execute 'openspec completion install' para habilitar o autocomplete do shell",
 };
 
 // ═══════════════════════════════════════════════════════════

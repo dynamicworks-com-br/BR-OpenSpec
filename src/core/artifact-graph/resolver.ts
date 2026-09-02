@@ -48,6 +48,26 @@ export function getProjectSchemasDir(projectRoot: string): string {
 }
 
 /**
+ * Diretórios que `schema fork` e `schema init` criam transitoriamente ao trocar
+ * um esquema de lugar: a cópia de staging (`.fork-staging-<rand>` /
+ * `.init-staging-<rand>`, criada via mkdtemp) e o backup do destino anterior
+ * (`<nome>.fork-backup-<pid>-<ts>` / `<nome>.init-backup-<pid>-<ts>`). Qualquer
+ * um deles pode coexistir brevemente com esquemas reais no diretório de
+ * esquemas, e um backup sobrevive à execução quando sua limpeza é bloqueada,
+ * então a descoberta nunca pode expô-los. Nomes reais de esquema são kebab-case
+ * (sem pontos), então excluir esses nomes temporários com ponto jamais esconde
+ * um esquema legítimo.
+ */
+function isOwnedTransientSchemaDir(name: string): boolean {
+  return (
+    name.startsWith('.fork-staging-') ||
+    name.includes('.fork-backup-') ||
+    name.startsWith('.init-staging-') ||
+    name.includes('.init-backup-')
+  );
+}
+
+/**
  * Determines whether a directory entry represents a schema directory candidate.
  *
  * Returns true for real directories and for symlinks whose target is a
@@ -60,6 +80,9 @@ export function getProjectSchemasDir(projectRoot: string): string {
  * @param entry - The directory entry from `fs.readdirSync(..., { withFileTypes: true })`
  */
 export function isSchemaDir(parentDir: string, entry: fs.Dirent): boolean {
+  if (isOwnedTransientSchemaDir(entry.name)) {
+    return false;
+  }
   if (entry.isDirectory()) {
     return true;
   }

@@ -1,8 +1,9 @@
 import { Command } from 'commander';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import ora from 'ora';
-import { stringify as stringifyYaml } from 'yaml';
+import { stringify as stringifyYaml, parseDocument, isMap } from 'yaml';
 import {
   getSchemaDir,
   getProjectSchemasDir,
@@ -13,6 +14,7 @@ import {
 } from '../core/artifact-graph/resolver.js';
 import { parseSchema, SchemaValidationError } from '../core/artifact-graph/schema.js';
 import type { SchemaYaml, Artifact } from '../core/artifact-graph/types.js';
+import { resolveConfigFilePath } from '../core/project-config.js';
 import { FileSystemUtils } from '../utils/file-system.js';
 import { SCHEMA_MESSAGES, CLI_MESSAGES, CONFIG_MESSAGES } from '../messages/index.js';
 import { ptBrKeysHelpTip } from '../prompts/keys-help-tip.js';
@@ -325,6 +327,150 @@ function assertSchemaTreeCanBeCopied(
   } finally {
     ancestors.delete(canonicalSrc);
   }
+}
+
+/**
+ * Produz uma impressão digital estável do conteúdo de um diretório: um SHA-256
+ * sobre o caminho relativo E os bytes de cada arquivo (mais os caminhos dos
+ * diretórios), percorridos em ordem estável. Duas árvores byte a byte idênticas
+ * produzem o mesmo digest, e QUALQUER mudança no conteúdo, no tamanho ou no
+ * conjunto de caminhos o altera. Serve para detectar uma modificação concorrente
+ * do destino de uma cópia entre o momento em que a sobrescrita é autorizada e o
+ * momento em que ela é de fato movida/apagada, para que essas alterações nunca
+ * sejam destruídas em silêncio.
+ */
+function fingerprintDir(dir: string): string {
+  const hash = createHash('sha256');
+  const walk = (current: string, rel: string): void => {
+    const entries = fs
+      .readdirSync(current, { withFileTypes: true })
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      const abs = path.join(current, entry.name);
+      const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+      // Usa o tipo de entrada devolvido pelo readdir (sem lstat separado) e lê o
+      // arquivo direto — evitando a janela entre checagem e uso. O tamanho vem
+      // dos bytes efetivamente lidos, então o digest continua cobrindo conteúdo
+      // e comprimento.
+      if (entry.isDirectory()) {
+        hash.update(`D:${relPath}\n`);
+        walk(abs, relPath);
+      } else if (entry.isFile()) {
+        const contents = fs.readFileSync(abs);
+        hash.update(`F:${relPath}:${contents.length}:`);
+        hash.update(contents);
+        hash.update('\n');
+      } else {
+        // Links simbólicos / outros tipos de entrada: registra o tipo + caminho
+        // (e o alvo do link quando legível) para que a troca de um pelo outro
+        // continue sendo detectada.
+        let target = '';
+        try {
+          target = fs.readlinkSync(abs);
+        } catch {
+          // Não é link simbólico ou o alvo é ilegível; o marcador de tipo abaixo basta.
+        }
+        hash.update(`O:${relPath}:${target}\n`);
+      }
+    }
+  };
+  walk(dir, '');
+  return hash.digest('hex');
+}
+
+interface PreparedConfigUpdate {
+  path: string;
+  content: Buffer;
+  originalContent: Buffer | null;
+  originalMode: number | null;
+}
+
+/** @internal Costura de operações de arquivo para testes de falha transacional. */
+export const schemaInitFileOperations = {
+  renameSync: fs.renameSync,
+};
+
+/**
+ * Lê e prepara (em memória) a atualização de `schema: <name>` no config do
+ * projeto, sem tocar em disco. Toda validação do config acontece aqui — antes de
+ * qualquer arquivo de esquema ser criado ou movido.
+ */
+async function prepareDefaultConfigUpdate(
+  projectRoot: string,
+  schemaName: string
+): Promise<PreparedConfigUpdate> {
+  const configPath =
+    resolveConfigFilePath(projectRoot) ??
+    path.join(projectRoot, 'openspec', 'config.yaml');
+  FileSystemUtils.assertProjectArtifactPath(projectRoot, configPath);
+
+  if (fs.existsSync(configPath)) {
+    const stats = fs.lstatSync(configPath);
+    if (stats.isSymbolicLink()) {
+      throw new Error(SCHEMA_MESSAGES.defaultConfigIsSymlink(path.basename(configPath)));
+    }
+    if (!stats.isFile()) {
+      throw new Error(SCHEMA_MESSAGES.defaultConfigNotRegularFile(path.basename(configPath)));
+    }
+    if (
+      !(await FileSystemUtils.canWriteFile(configPath)) ||
+      !(await FileSystemUtils.canWriteFile(path.dirname(configPath)))
+    ) {
+      throw new Error(SCHEMA_MESSAGES.defaultConfigNotWritable(path.basename(configPath)));
+    }
+
+    const originalContent = fs.readFileSync(configPath);
+    // A Document API edita o arquivo no lugar: comentários e demais chaves
+    // (context, rules…) sobrevivem à atualização.
+    const config = parseDocument(originalContent.toString('utf-8'));
+    if (config.errors.length > 0) {
+      throw new Error(SCHEMA_MESSAGES.defaultConfigInvalidYaml(path.basename(configPath)));
+    }
+    if (config.contents !== null && !isMap(config.contents)) {
+      throw new Error(SCHEMA_MESSAGES.defaultConfigNotObject(path.basename(configPath)));
+    }
+    // `schema` é a chave que readProjectConfig lê; `defaultSchema` é a chave
+    // morta que uma execução anterior possa ter deixado.
+    config.set('schema', schemaName);
+    config.delete('defaultSchema');
+
+    return {
+      path: configPath,
+      content: Buffer.from(config.toString()),
+      originalContent,
+      originalMode: stats.mode,
+    };
+  }
+
+  if (!(await FileSystemUtils.canWriteFile(configPath))) {
+    throw new Error(SCHEMA_MESSAGES.defaultConfigNotWritable(path.dirname(configPath)));
+  }
+
+  return {
+    path: configPath,
+    content: Buffer.from(stringifyYaml({ schema: schemaName })),
+    originalContent: null,
+    originalMode: null,
+  };
+}
+
+/**
+ * Verifica se o config em disco continua exatamente como estava quando a
+ * atualização foi preparada (existência, tipo, modo e bytes).
+ */
+function configMatchesPreparedState(prepared: PreparedConfigUpdate): boolean {
+  if (prepared.originalContent === null) {
+    return !fs.existsSync(prepared.path);
+  }
+  if (!fs.existsSync(prepared.path)) return false;
+
+  const stats = fs.lstatSync(prepared.path);
+  return (
+    stats.isFile() &&
+    !stats.isSymbolicLink() &&
+    stats.mode === prepared.originalMode &&
+    fs.readFileSync(prepared.path).equals(prepared.originalContent)
+  );
 }
 
 /**
@@ -677,41 +823,175 @@ export function registerSchemaCommand(program: Command): void {
         const trustedSourceDir = fs.realpathSync(sourceDir);
         assertSchemaTreeCanBeCopied(trustedSourceDir);
 
+        // Valida também o conteúdo do schema.yaml da origem de antemão, para que
+        // uma origem estruturalmente inválida seja rejeitada antes que o caminho
+        // do --force possa remover um destino existente. Isso mantém o
+        // `fork --force` atômico — uma origem inutilizável nunca destrói um
+        // destino válido — igual ao `schema init`, que também valida antes de
+        // sobrescrever.
+        parseSchema(
+          fs.readFileSync(path.join(trustedSourceDir, 'schema.yaml'), 'utf-8')
+        );
+
         // Check destination
-        const destinationDir = path.join(getProjectSchemasDir(projectRoot), destinationName);
+        const schemasDir = getProjectSchemasDir(projectRoot);
+        const destinationDir = path.join(schemasDir, destinationName);
 
-        if (fs.existsSync(destinationDir)) {
-          if (!options?.force) {
-            if (options?.json) {
-              console.log(JSON.stringify({
-                forked: false,
-                error: SCHEMA_MESSAGES.schemaAlreadyExists(destinationName),
-                suggestion: SCHEMA_MESSAGES.suggestionForceOverwrite,
-              }, null, 2));
-            } else {
-              console.error(SCHEMA_MESSAGES.schemaAlreadyExistsAt(destinationName, destinationDir));
-              console.error(SCHEMA_MESSAGES.suggestionForceOverwrite);
-            }
-            process.exitCode = 1;
-            return;
-          }
-
-          // Remove existing
-          if (spinner) spinner.start(SCHEMA_MESSAGES.removingExistingSchema(destinationName));
-          fs.rmSync(destinationDir, { recursive: true });
+        // Rejeita a cópia sobre si mesma. Copiar um esquema sobre ele mesmo com
+        // --force removeria a origem no passo de substituição abaixo e então
+        // falharia na cópia, destruindo a única cópia do esquema. Resolve os dois
+        // lados para os caminhos reais (realpathSync segue links simbólicos;
+        // path.resolve é fallback só para um destino que ainda não existe) para
+        // que um link ou uma grafia com `.`/`..` do mesmo diretório também seja
+        // detectada.
+        const resolvedDestination = fs.existsSync(destinationDir)
+          ? fs.realpathSync(destinationDir)
+          : path.resolve(destinationDir);
+        if (resolvedDestination === trustedSourceDir) {
+          throw new Error(SCHEMA_MESSAGES.cannotForkOntoItself(source));
         }
 
-        // Copy schema
+        const destinationExists = fs.existsSync(destinationDir);
+        if (destinationExists && !options?.force) {
+          if (options?.json) {
+            console.log(JSON.stringify({
+              forked: false,
+              error: SCHEMA_MESSAGES.schemaAlreadyExists(destinationName),
+              suggestion: SCHEMA_MESSAGES.suggestionForceOverwrite,
+            }, null, 2));
+          } else {
+            console.error(SCHEMA_MESSAGES.schemaAlreadyExistsAt(destinationName, destinationDir));
+            console.error(SCHEMA_MESSAGES.suggestionForceOverwrite);
+          }
+          process.exitCode = 1;
+          return;
+        }
+
+        // Registra a impressão digital do destino que o usuário autorizou a
+        // sobrescrever ANTES de gastar tempo preparando a cópia. A preparação
+        // pode demorar, e um processo concorrente pode editar o destino nessa
+        // janela; a impressão digital permite detectar essa mudança e abortar em
+        // vez de atropelá-la.
+        const authorizedDestinationFingerprint = destinationExists
+          ? fingerprintDir(destinationDir)
+          : null;
+
+        // Prepara a cópia completa em um diretório temporário irmão e só então a
+        // troca para o lugar definitivo. Isso mantém o `fork --force` atômico: um
+        // destino existente só é removido depois que a nova cópia foi totalmente
+        // copiada, teve o nome atualizado e foi validada. Qualquer falha durante
+        // a preparação deixa tanto a origem quanto o destino existente
+        // exatamente como estavam.
         if (spinner) spinner.start(SCHEMA_MESSAGES.forkingSchema(source, destinationName));
-        copyDirRecursive(trustedSourceDir, destinationDir);
+        fs.mkdirSync(schemasDir, { recursive: true });
+        const stagingDir = fs.mkdtempSync(path.join(schemasDir, '.fork-staging-'));
+        try {
+          copyDirRecursive(trustedSourceDir, stagingDir);
 
-        // Update name in schema.yaml
-        const destSchemaPath = path.join(destinationDir, 'schema.yaml');
-        const schemaContent = fs.readFileSync(destSchemaPath, 'utf-8');
-        const schema = parseSchema(schemaContent);
-        schema.name = destinationName;
+          // Atualiza o nome no schema.yaml preparado usando a Document API do
+          // yaml, em vez de reserializar o objeto analisado, para que block
+          // scalars, comentários e a ordem das chaves do schema.yaml de origem
+          // sobrevivam à cópia.
+          const stagedSchemaPath = path.join(stagingDir, 'schema.yaml');
+          const schemaContent = fs.readFileSync(stagedSchemaPath, 'utf-8');
+          const doc = parseDocument(schemaContent);
+          doc.set('name', destinationName);
+          fs.writeFileSync(stagedSchemaPath, doc.toString());
 
-        fs.writeFileSync(destSchemaPath, stringifyYaml(schema));
+          // Validação autoritativa: valida o esquema preparado COMPLETO — os
+          // bytes exatos que estão prestes a ser instalados — e não apenas a
+          // origem na verificação inicial. Os arquivos de origem que
+          // copyDirRecursive lê podem mudar no meio da cópia, então uma origem
+          // válida no início pode gerar uma cópia preparada inválida. Validar
+          // aqui, antes de QUALQUER passo destrutivo, garante que nunca
+          // instalamos uma cópia inválida nem apagamos um destino válido por
+          // causa dela.
+          try {
+            parseSchema(fs.readFileSync(stagedSchemaPath, 'utf-8'));
+          } catch (validationError) {
+            throw new Error(
+              SCHEMA_MESSAGES.stagedForkInvalid(source, destinationName),
+              { cause: validationError }
+            );
+          }
+
+          // Troca a cópia preparada para o lugar. Quando um destino já existe,
+          // ele é movido PRIMEIRO para um backup irmão e só então a cópia
+          // preparada é instalada; o backup é descartado apenas depois que a
+          // instalação dá certo. Se o próprio rename da instalação falhar (ex.:
+          // um lock no Windows), o backup volta ao lugar para que o destino
+          // original do usuário nunca seja perdido.
+          if (destinationExists) {
+            if (spinner) spinner.text = SCHEMA_MESSAGES.replacingExistingSchema(destinationName);
+
+            // Revalida imediatamente antes do movimento destrutivo: se o destino
+            // mudou em disco enquanto preparávamos a cópia (ou foi removido),
+            // sua impressão digital não corresponde mais ao que o usuário
+            // autorizou. Aborta SEM tocá-lo, preservando as alterações
+            // concorrentes. O catch externo limpa o staging.
+            const currentFingerprint = fs.existsSync(destinationDir)
+              ? fingerprintDir(destinationDir)
+              : null;
+            if (currentFingerprint !== authorizedDestinationFingerprint) {
+              throw new Error(
+                SCHEMA_MESSAGES.forkDestinationChangedOnDisk(destinationName, destinationDir)
+              );
+            }
+
+            const backupDir = `${destinationDir}.fork-backup-${process.pid}-${Date.now()}`;
+            fs.renameSync(destinationDir, backupDir);
+            try {
+              fs.renameSync(stagingDir, destinationDir);
+            } catch (installError) {
+              // A instalação falhou depois que o original foi movido de lado.
+              // Tenta trazê-lo de volta. Se a restauração TAMBÉM falhar, o
+              // original fica preso no diretório de backup — lança um erro
+              // nomeando o backup e o destino para que o usuário possa recuperá-lo
+              // manualmente, com o erro de instalação original anexado como
+              // causa. Nunca engolir esse caso.
+              try {
+                fs.renameSync(backupDir, destinationDir);
+              } catch (restoreError) {
+                throw new Error(
+                  SCHEMA_MESSAGES.forkInstallRestoreFailed(
+                    destinationName,
+                    backupDir,
+                    destinationDir,
+                    (restoreError as Error).message
+                  ),
+                  { cause: installError }
+                );
+              }
+              throw installError;
+            }
+
+            // Revalida antes de descartar o backup: só apaga se ele ainda for
+            // byte a byte o destino original que movemos de lado. Se mudou
+            // durante a janela de instalação (uma escrita concorrente no
+            // diretório movido), NÃO apaga — deixa no lugar e informa onde ele
+            // está, para que nada se perca.
+            if (fingerprintDir(backupDir) === authorizedDestinationFingerprint) {
+              fs.rmSync(backupDir, { recursive: true, force: true });
+            } else {
+              console.error(SCHEMA_MESSAGES.forkBackupKept(destinationName, backupDir));
+            }
+          } else {
+            fs.renameSync(stagingDir, destinationDir);
+          }
+        } catch (error) {
+          // Remove apenas o diretório de staging que esta execução criou; a
+          // origem e qualquer destino existente ficam exatamente como os
+          // encontramos. A limpeza fica no seu próprio try/catch para que uma
+          // remoção que falhe (ex.: um arquivo travado no Windows) jamais
+          // mascare o erro original; depois relança, para que a falha real
+          // continue alimentando o relatório JSON/código de saída.
+          try {
+            fs.rmSync(stagingDir, { recursive: true, force: true });
+          } catch {
+            // Limpeza best-effort; o erro original abaixo é o que importa.
+          }
+          throw error;
+        }
 
         if (spinner) spinner.succeed(SCHEMA_MESSAGES.forkedSchema(source, destinationName));
 
@@ -933,53 +1213,182 @@ export function registerSchemaCommand(program: Command): void {
           };
         }
 
-        // Replace only after all inputs have been collected and validated
-        if (schemaExists) {
-          if (spinner) spinner.start(SCHEMA_MESSAGES.removingExistingSchema(name));
-          fs.rmSync(schemaDir, { recursive: true });
-        }
+        // Analisa e serializa o config ANTES de preparar qualquer arquivo de
+        // esquema. Assim, configs malformados, que não são objeto, que são links
+        // simbólicos ou somente leitura falham antes que um esquema existente
+        // possa ser movido ou que um novo possa aparecer.
+        const preparedConfig = options?.default
+          ? await prepareDefaultConfigUpdate(projectRoot, name)
+          : null;
+        const schemasDir = getProjectSchemasDir(projectRoot);
+        FileSystemUtils.assertProjectArtifactPath(projectRoot, schemaDir);
+        const authorizedSchemaFingerprint = schemaExists
+          ? fingerprintDir(schemaDir)
+          : null;
 
-        // Create schema directory
         if (spinner) spinner.start(SCHEMA_MESSAGES.creatingSchema(name));
-        fs.mkdirSync(schemaDir, { recursive: true });
-
-        fs.writeFileSync(
-          path.join(schemaDir, 'schema.yaml'),
-          stringifyYaml(schema)
+        fs.mkdirSync(schemasDir, { recursive: true });
+        const schemaStagingDir = fs.mkdtempSync(
+          path.join(schemasDir, '.init-staging-')
         );
+        let configStagingDir: string | null = null;
+        let stagedConfigPath: string | null = null;
 
-        // Create template files in templates/ subdirectory (standard location)
-        const templatesDir = path.join(schemaDir, 'templates');
-        for (const artifact of selectedArtifacts) {
-          const templatePath = path.join(templatesDir, artifact.template);
-          const templateDir = path.dirname(templatePath);
+        try {
+          fs.writeFileSync(
+            path.join(schemaStagingDir, 'schema.yaml'),
+            stringifyYaml(schema)
+          );
 
-          if (!fs.existsSync(templateDir)) {
-            fs.mkdirSync(templateDir, { recursive: true });
+          // Create template files in templates/ subdirectory (standard location)
+          const templatesDir = path.join(schemaStagingDir, 'templates');
+          for (const artifact of selectedArtifacts) {
+            const templatePath = path.join(templatesDir, artifact.template);
+            fs.mkdirSync(path.dirname(templatePath), { recursive: true });
+            fs.writeFileSync(templatePath, createDefaultTemplate(artifact.id));
           }
 
-          // Create default template content
-          const templateContent = createDefaultTemplate(artifact.id);
-          fs.writeFileSync(templatePath, templateContent);
-        }
+          const validation = validateSchema(schemaStagingDir);
+          if (!validation.valid) {
+            throw new Error(
+              SCHEMA_MESSAGES.generatedSchemaInvalid(
+                validation.issues.map((issue) => issue.message).join('; ')
+              )
+            );
+          }
 
-        // Update config if --default
-        if (options?.default) {
-          const configPath = path.join(projectRoot, 'openspec', 'config.yaml');
-
-          if (fs.existsSync(configPath)) {
-            const { parse: parseYaml, stringify: stringifyYaml2 } = await import('yaml');
-            const configContent = fs.readFileSync(configPath, 'utf-8');
-            const config = parseYaml(configContent) || {};
-            config.defaultSchema = name;
-            fs.writeFileSync(configPath, stringifyYaml2(config));
-          } else {
-            // Create config file
-            const configDir = path.dirname(configPath);
-            if (!fs.existsSync(configDir)) {
-              fs.mkdirSync(configDir, { recursive: true });
+          if (preparedConfig) {
+            const configDir = path.dirname(preparedConfig.path);
+            configStagingDir = fs.mkdtempSync(
+              path.join(configDir, '.schema-init-config-')
+            );
+            stagedConfigPath = path.join(
+              configStagingDir,
+              path.basename(preparedConfig.path)
+            );
+            fs.writeFileSync(stagedConfigPath, preparedConfig.content);
+            if (preparedConfig.originalMode !== null) {
+              fs.chmodSync(stagedConfigPath, preparedConfig.originalMode);
             }
-            fs.writeFileSync(configPath, stringifyYaml({ defaultSchema: name }));
+          }
+
+          // Re-resolve os dois destinos imediatamente antes do primeiro
+          // movimento, para que a troca de um link simbólico pai durante a
+          // preparação não consiga redirecionar o commit.
+          FileSystemUtils.assertProjectArtifactPath(projectRoot, schemaDir);
+          if (preparedConfig) {
+            FileSystemUtils.assertProjectArtifactPath(projectRoot, preparedConfig.path);
+          }
+
+          const currentSchemaFingerprint = fs.existsSync(schemaDir)
+            ? fingerprintDir(schemaDir)
+            : null;
+          if (currentSchemaFingerprint !== authorizedSchemaFingerprint) {
+            throw new Error(SCHEMA_MESSAGES.initSchemaChangedOnDisk(name));
+          }
+          if (preparedConfig && !configMatchesPreparedState(preparedConfig)) {
+            throw new Error(
+              SCHEMA_MESSAGES.initConfigChangedOnDisk(path.basename(preparedConfig.path))
+            );
+          }
+
+          const token = `${process.pid}-${Date.now()}`;
+          const schemaBackup = `${schemaDir}.init-backup-${token}`;
+          const configBackup = preparedConfig
+            ? `${preparedConfig.path}.init-backup-${token}`
+            : null;
+          let schemaBackedUp = false;
+          let configBackedUp = false;
+          let schemaInstalled = false;
+          let configInstalled = false;
+
+          try {
+            if (schemaExists) {
+              schemaInitFileOperations.renameSync(schemaDir, schemaBackup);
+              schemaBackedUp = true;
+            }
+            if (preparedConfig && preparedConfig.originalContent !== null) {
+              schemaInitFileOperations.renameSync(preparedConfig.path, configBackup!);
+              configBackedUp = true;
+            }
+
+            schemaInitFileOperations.renameSync(schemaStagingDir, schemaDir);
+            schemaInstalled = true;
+            if (preparedConfig && stagedConfigPath) {
+              schemaInitFileOperations.renameSync(stagedConfigPath, preparedConfig.path);
+              configInstalled = true;
+            }
+          } catch (installError) {
+            // Os rótulos `config:`/`schema:` identificam tecnicamente os dois
+            // artefatos da transação — ficam em inglês, como os IDs de artefato.
+            const rollbackErrors: string[] = [];
+            try {
+              if (configInstalled && preparedConfig) {
+                fs.rmSync(preparedConfig.path, { force: true });
+              }
+              if (configBackedUp && preparedConfig && configBackup) {
+                schemaInitFileOperations.renameSync(configBackup, preparedConfig.path);
+              }
+            } catch (rollbackError) {
+              rollbackErrors.push(`config: ${(rollbackError as Error).message}`);
+            }
+            try {
+              if (schemaInstalled) {
+                fs.rmSync(schemaDir, { recursive: true, force: true });
+              }
+              if (schemaBackedUp) {
+                schemaInitFileOperations.renameSync(schemaBackup, schemaDir);
+              }
+            } catch (rollbackError) {
+              rollbackErrors.push(`schema: ${(rollbackError as Error).message}`);
+            }
+
+            if (rollbackErrors.length > 0) {
+              throw new Error(
+                SCHEMA_MESSAGES.initRollbackIncomplete(
+                  rollbackErrors.join(', '),
+                  schemaDir,
+                  preparedConfig?.path ?? null
+                ),
+                { cause: installError }
+              );
+            }
+            throw installError;
+          }
+
+          // A transação foi confirmada. A limpeza não pode transformar sucesso em
+          // falso fracasso, então deixe um backup recuperável e avise se a
+          // remoção for bloqueada, em vez de reportar que a inicialização falhou.
+          for (const backup of [
+            schemaBackedUp ? schemaBackup : null,
+            configBackedUp ? configBackup : null,
+          ]) {
+            if (!backup) continue;
+            try {
+              fs.rmSync(backup, { recursive: true, force: true });
+            } catch (cleanupError) {
+              console.error(
+                SCHEMA_MESSAGES.initBackupCleanupFailed(
+                  backup,
+                  (cleanupError as Error).message
+                )
+              );
+            }
+          }
+        } catch (error) {
+          try {
+            fs.rmSync(schemaStagingDir, { recursive: true, force: true });
+          } catch {
+            // A limpeza best-effort não pode esconder o erro real da operação.
+          }
+          throw error;
+        } finally {
+          if (configStagingDir) {
+            try {
+              fs.rmSync(configStagingDir, { recursive: true, force: true });
+            } catch {
+              // Limpeza best-effort. Um config confirmado já saiu daqui.
+            }
           }
         }
 
