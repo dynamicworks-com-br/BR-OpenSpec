@@ -84,7 +84,11 @@ import {
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
 import { getProfileWorkflows, CORE_WORKFLOWS } from './profiles.js';
 import { getAvailableTools } from './available-tools.js';
-import { writeSharedSkillTarget } from './shared-skill-target.js';
+import {
+  resolveSharedSkillWriters,
+  sharedSkillRootOwner,
+  writeSharedSkillTarget,
+} from './shared-skill-target.js';
 import {
   migrateIfNeeded,
   migrateLegacyToolDirs,
@@ -137,6 +141,7 @@ type ValidatedInitTool = {
   isGlobalSkillTarget: boolean;
   wasConfigured: boolean;
   requiresIdeRestart?: boolean;
+  writesSkills: boolean;
 };
 
 /**
@@ -721,16 +726,8 @@ export class InitCommand {
     toolStates: Map<string, ToolSkillStatus>,
     projectPath: string
   ): ValidatedInitTool[] {
-    const validatedTools: ValidatedInitTool[] = [];
-
-    const reconciledToolIds = toolIds.includes('codex') && toolIds.includes('agents')
-      ? toolIds.filter((toolId) => toolId !== 'agents')
-      : toolIds;
-    if (reconciledToolIds.length !== toolIds.length) {
-      console.log(chalk.dim(INIT_MESSAGES.sharedSkillsRootOneTree('Codex e agents', '.agents', 'Codex')));
-    }
-
-    for (const toolId of reconciledToolIds) {
+    const selectedTools: AIToolOption[] = [];
+    for (const toolId of toolIds) {
       const tool = AI_TOOLS.find((t) => t.value === toolId);
       if (!tool) {
         const validToolIds = getToolsWithSkillsDir();
@@ -746,6 +743,57 @@ export class InitCommand {
         );
       }
 
+      selectedTools.push(tool);
+    }
+
+    // A selected tool may share its physical skills root with an already
+    // configured owner. Include that owner in the refresh without dropping the
+    // selected tool: it may still have an independent command surface.
+    const generationTools = [...selectedTools];
+    const delivery: Delivery = getGlobalConfig().delivery ?? 'both';
+    for (const selected of selectedTools) {
+      if (!selected.skillsDir) continue;
+      const selectedOwner = selected.value === 'codex' ||
+        !shouldGenerateSkillsForTool(selected.value, delivery)
+        ? undefined
+        : sharedSkillRootOwner(projectPath, selected.value);
+      for (const candidate of AI_TOOLS) {
+        if (
+          candidate.skillsDir === selected.skillsDir &&
+          toolStates.get(candidate.value)?.configured &&
+          candidate.value === selectedOwner &&
+          !generationTools.includes(candidate)
+        ) {
+          generationTools.push(candidate);
+        }
+      }
+    }
+
+    const skillWriters = resolveSharedSkillWriters(projectPath, generationTools);
+    const sharedRoots = new Map<string, AIToolOption[]>();
+    for (const tool of generationTools) {
+      if (!tool.skillsDir) continue;
+      const group = sharedRoots.get(tool.skillsDir) ?? [];
+      group.push(tool);
+      sharedRoots.set(tool.skillsDir, group);
+    }
+    for (const [root, group] of sharedRoots) {
+      if (group.length < 2) continue;
+      const owner = group.find((tool) => skillWriters.has(tool.value));
+      console.log(
+        chalk.dim(
+          INIT_MESSAGES.sharedSkillsRootOneTree(
+            group.map((tool) => tool.name).join(', '),
+            root,
+            owner?.value ?? ''
+          )
+        )
+      );
+    }
+
+    const validatedTools: ValidatedInitTool[] = [];
+    for (const tool of generationTools) {
+      if (!toolSupportsSkills(tool)) continue;
       const preState = toolStates.get(tool.value);
       const skillsPath = resolveToolSkillsDir(projectPath, tool);
       const isGlobalSkillTarget = hasGlobalSkillTarget(tool);
@@ -758,6 +806,7 @@ export class InitCommand {
         isGlobalSkillTarget,
         wasConfigured: preState?.configured ?? false,
         requiresIdeRestart: tool.requiresIdeRestart,
+        writesSkills: !tool.skillsDir || skillWriters.has(tool.value),
       });
     }
 
@@ -850,7 +899,7 @@ export class InitCommand {
         const shouldGenerateCommands = shouldGenerateCommandsForTool(tool.value, delivery);
 
         // Generate skill files if the selected delivery and tool capability allow skills
-        if (shouldGenerateSkills) {
+        if (shouldGenerateSkills && tool.writesSkills) {
           // Create skill directories and SKILL.md files
           for (const { template, dirName } of skillTemplates) {
             const skillDir = path.join(tool.skillsPath, dirName);
@@ -873,7 +922,11 @@ export class InitCommand {
         }
         // Skills em alvo global são compartilhadas entre projetos: a entrega de
         // um projeto nunca remove as skills que outro projeto usa.
-        if (shouldRemoveSkillsForTool(tool.value, delivery) && !tool.isGlobalSkillTarget) {
+        if (
+          shouldRemoveSkillsForTool(tool.value, delivery) &&
+          tool.writesSkills &&
+          !tool.isGlobalSkillTarget
+        ) {
           removedSkillCount += await this.removeSkillDirs(tool.skillsRoot, tool.skillsPath);
           // Retain an explicit selection even when this delivery mode produces
           // no skills, so a divergent legacy sibling cannot reclaim ownership.

@@ -41,7 +41,12 @@ export interface AIToolOption {
 
 export const AI_TOOLS: AIToolOption[] = [
   { name: 'Amazon Q Developer', value: 'amazon-q', available: true, successLabel: 'Amazon Q Developer', skillsDir: '.amazonq', requiresIdeRestart: true },
-  { name: 'Antigravity', value: 'antigravity', available: true, successLabel: 'Antigravity', skillsDir: '.agent', requiresIdeRestart: true },
+  // Antigravity moved workspace skills and workflows from `.agent` to the
+  // shared `.agents` root in v1.20.5. Detection keys off `.agent` and
+  // `.agents/workflows` rather than the bare `.agents` root: that root is
+  // shared with Codex, Zed, and the vendor-neutral target, so its presence
+  // alone says nothing about Antigravity.
+  { name: 'Antigravity', value: 'antigravity', available: true, successLabel: 'Antigravity', skillsDir: '.agents', legacySkillsDirs: ['.agent'], detectionPaths: ['.agent', '.agents/workflows'], requiresIdeRestart: true },
   { name: 'Auggie (Augment CLI)', value: 'auggie', available: true, successLabel: 'Auggie', skillsDir: '.augment' },
   { name: 'Bob Shell', value: 'bob', available: true, successLabel: 'Bob Shell', skillsDir: '.bob' },
   { name: 'Claude Code', value: 'claude', available: true, successLabel: 'Claude Code', skillsDir: '.claude' },
@@ -73,6 +78,7 @@ export const AI_TOOLS: AIToolOption[] = [
   { name: 'Rovo Dev CLI', value: 'rovodev', available: true, successLabel: 'Rovo Dev CLI', skillsDir: '.rovodev', detectionPaths: ['.rovodev/skills', '.rovodev'] },
   { name: 'Zoo Code', value: 'roocode', available: true, successLabel: 'Zoo Code', skillsDir: '.roo', requiresIdeRestart: true },
   { name: 'Trae', value: 'trae', available: true, successLabel: 'Trae', skillsDir: '.trae', requiresIdeRestart: true },
+  { name: 'Zed Agent', value: 'zed', available: true, successLabel: 'Zed Agent', skillsDir: '.agents', detectionPaths: ['.zed', '.agents/skills'] },
   // Vendor-neutral target for assistants that read the shared `.agents` root.
   // Detection keys off `.agents/skills` rather than the bare root: frameworks use
   // `.agents/` for more than skills, so the root alone says nothing about skills.

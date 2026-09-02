@@ -177,6 +177,30 @@ describe('tools-manager', () => {
       expect(getCurrentToolIds(testDir).has('codex')).toBe(false);
     });
 
+    it('keeps a Codex-rendered .agents tree when Antigravity is added later', async () => {
+      // Divergência do fork em relação aos dois testes acima: o Antigravity é
+      // `adapter-backed` e renderiza só referências genéricas. Assumir a raiz
+      // apagaria as referências `$openspec-*` de que o Codex depende, então ele
+      // escreve apenas os próprios workflows ao lado da árvore alheia.
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+      const antigravity = AI_TOOLS.find((t) => t.value === 'antigravity')!;
+
+      await addTool(testDir, codex);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+
+      await addTool(testDir, antigravity);
+
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+      const proposeSkill = await fs.readFile(
+        path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(proposeSkill).toContain('$openspec-apply-change');
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'workflows', 'opsx-propose.md'))
+      ).toBe(true);
+    });
+
     it('is idempotent: re-running overwrites existing files', async () => {
       const tool = AI_TOOLS.find((t) => t.value === 'claude')!;
       await addTool(testDir, tool);

@@ -521,11 +521,13 @@ export const INIT_MESSAGES = {
   settingUp: (name: string) => `Configurando ${name}...`,
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   setupFailed: (name: string) => `Falha na configuração de ${name}`,
-  // Aviso (dim) quando duas ferramentas selecionadas juntas compartilham a mesma
-  // árvore física de skills (hoje `codex` + `agents` em `.agents/skills`):
-  // só o dono escreve, com referências que servem aos dois consumidores.
+  // Aviso (dim) quando duas ou mais ferramentas selecionadas compartilham a
+  // mesma árvore física de skills (`antigravity`, `codex`, `zed` e `agents` em
+  // `.agents/skills`): só o dono (`owner`, um id de ferramenta) escreve, com
+  // referências que servem a todos os consumidores; as demais continuam
+  // escrevendo a própria superfície de comandos.
   sharedSkillsRootOneTree: (names: string, root: string, owner: string) =>
-    `${names} compartilham ${root}/skills; escrevendo uma única árvore com as referências de skill do ${owner} e genéricas.`,
+    `${names} compartilham ${root}/skills; escrevendo uma única árvore para ${owner}.`,
   setupCompleteTitle: 'Configuração do BR-OpenSpec Concluída',
   setupIncompleteTitle: 'Configuração do BR-OpenSpec Incompleta',
   // Lançado após o resumo quando alguma ferramenta falhou (exit ≠ 0 para automação).

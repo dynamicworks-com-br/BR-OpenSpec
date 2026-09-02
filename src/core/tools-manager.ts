@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { createRequire } from 'module';
 import { FileSystemUtils } from '../utils/file-system.js';
 import { getTransformerForTool } from '../utils/command-references.js';
-import { type AIToolOption } from './config.js';
+import { AI_TOOLS, type AIToolOption } from './config.js';
 import {
   generateCommands,
   CommandAdapterRegistry,
@@ -39,6 +39,7 @@ import {
 } from './shared/index.js';
 import {
   clearSharedSkillTarget,
+  resolveSharedSkillWriters,
   resolveSharedSkillTargetOwner,
   writeSharedSkillTarget,
 } from './shared-skill-target.js';
@@ -167,8 +168,36 @@ export async function addTool(
   const shouldGenerateSkills = shouldGenerateSkillsForTool(tool.value, delivery);
   const shouldGenerateCommands = shouldGenerateCommandsForTool(tool.value, delivery);
 
+  // Uma raiz de skills compartilhada (`.agents`, usada por Antigravity, Codex,
+  // Zed e o alvo neutro) só comporta uma variante renderizada de cada skill.
+  //
+  // Divergência deliberada do fork: em `openspec tools --add`, a seleção
+  // explícita continua assumindo a posse da raiz (é o que os testes de
+  // `tools-manager` cobrem para codex↔agents) — exceto quando o renderizador
+  // desta ferramenta é `adapter-backed` e outra ferramenta configurada na mesma
+  // raiz renderiza skills nativamente. Nesse caso a árvore alheia permanece (a
+  // arbitragem de `resolveSharedSkillWriters`, a mesma de `init`/`update`) e
+  // esta ferramenta recebe apenas a própria superfície de comandos — é o que
+  // impede `--add antigravity` de sobrescrever uma árvore do Codex.
+  const toolStates = getToolStates(projectPath);
+  const sharedRootTools = tool.skillsDir
+    ? [
+        tool,
+        ...AI_TOOLS.filter(
+          (candidate) =>
+            candidate.value !== tool.value &&
+            candidate.skillsDir === tool.skillsDir &&
+            toolStates.get(candidate.value)?.configured
+        ),
+      ]
+    : [tool];
+  const writesSkills =
+    !tool.skillsDir ||
+    resolveCommandSurfaceCapability(tool.value) !== 'adapter-backed' ||
+    resolveSharedSkillWriters(projectPath, sharedRootTools).has(tool.value);
+
   // Write skill files
-  if (shouldGenerateSkills) {
+  if (shouldGenerateSkills && writesSkills) {
     const skillTemplates = getSkillTemplates(workflows);
 
     for (const { template, dirName } of skillTemplates) {

@@ -131,6 +131,34 @@ describe('InitCommand', () => {
       }
     });
 
+    it.each([
+      ['archive', 'openspec-archive-change'],
+      ['bulk-archive', 'openspec-bulk-archive-change'],
+    ] as const)(
+      'should install the sync workflow required by %s in a custom profile',
+      async (archiveWorkflow, archiveSkill) => {
+        saveGlobalConfig({
+          featureFlags: {},
+          profile: 'custom',
+          delivery: 'both',
+          workflows: ['propose', 'explore', 'apply', archiveWorkflow],
+        });
+
+        const initCommand = new InitCommand({ tools: 'claude', force: true });
+        await initCommand.execute(testDir);
+
+        await expect(
+          fs.access(path.join(testDir, '.claude', 'skills', archiveSkill, 'SKILL.md'))
+        ).resolves.toBeUndefined();
+        await expect(
+          fs.access(path.join(testDir, '.claude', 'skills', 'openspec-sync-specs', 'SKILL.md'))
+        ).resolves.toBeUndefined();
+        await expect(
+          fs.access(path.join(testDir, '.claude', 'commands', 'opsx', 'sync.md'))
+        ).resolves.toBeUndefined();
+      }
+    );
+
     it('should create core profile commands for Claude Code by default', async () => {
       const initCommand = new InitCommand({ tools: 'claude', force: true });
 
@@ -600,8 +628,8 @@ describe('InitCommand', () => {
       }
     );
 
-    it('should reconcile Codex and agents to one tree both consumers can invoke', async () => {
-      const initCommand = new InitCommand({ tools: 'codex,agents', force: true });
+    it('should reconcile Codex, Zed, and agents to one tree all consumers can invoke', async () => {
+      const initCommand = new InitCommand({ tools: 'codex,zed,agents', force: true });
       await initCommand.execute(testDir);
 
       const skillsDir = path.join(testDir, '.agents', 'skills');
@@ -617,10 +645,119 @@ describe('InitCommand', () => {
         .flat()
         .map(String);
       expect(logCalls.some((entry) => entry.includes('Criados: Codex'))).toBe(true);
-      expect(logCalls.some((entry) => entry.includes('Shared .agents skills'))).toBe(false);
+      expect(logCalls.some((entry) => entry.includes('Zed Agent'))).toBe(true);
+      expect(logCalls.some((entry) => entry.includes('Shared .agents skills'))).toBe(true);
       expect(
-        logCalls.some((entry) => entry.includes('compartilham .agents/skills'))
+        logCalls.some((entry) => entry.includes('escrevendo uma única árvore para codex'))
       ).toBe(true);
+    });
+
+    it.each(['antigravity,codex', 'codex,antigravity'])(
+      'keeps Codex-compatible shared skills and Antigravity workflows for --tools %s',
+      async (tools) => {
+        await new InitCommand({ tools, force: true }).execute(testDir);
+
+        const skillsDir = path.join(testDir, '.agents', 'skills');
+        const proposeSkill = await fs.readFile(
+          path.join(skillsDir, 'openspec-propose', 'SKILL.md'),
+          'utf-8'
+        );
+        expect(proposeSkill).toContain('$openspec-apply-change');
+        expect(proposeSkill).toContain('/openspec-apply-change');
+        expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe(
+          'codex\n'
+        );
+        expect(
+          await fileExists(path.join(testDir, '.agents', 'workflows', 'opsx-propose.md'))
+        ).toBe(true);
+      }
+    );
+
+    it('preserves an existing shared owner while adding Antigravity workflows', async () => {
+      await new InitCommand({ tools: 'agents', force: true }).execute(testDir);
+      saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+      await new InitCommand({ tools: 'antigravity', force: true }).execute(testDir);
+
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe('agents\n');
+      expect(
+        await fs.readFile(path.join(skillsDir, 'openspec-propose', 'SKILL.md'), 'utf-8')
+      ).toContain('/openspec-apply-change');
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'workflows', 'opsx-propose.md'))
+      ).toBe(true);
+    });
+
+    it('preserves a Codex-owned shared tree when the agents target is added', async () => {
+      await new InitCommand({ tools: 'codex', force: true }).execute(testDir);
+
+      await new InitCommand({ tools: 'agents', force: true }).execute(testDir);
+
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe('codex\n');
+      const proposeSkill = await fs.readFile(
+        path.join(skillsDir, 'openspec-propose', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(proposeSkill).toContain('$openspec-apply-change');
+      expect(proposeSkill).toContain('/openspec-apply-change');
+    });
+
+    it('upgrades an Antigravity-owned shared tree when Codex is added', async () => {
+      await new InitCommand({ tools: 'antigravity', force: true }).execute(testDir);
+      expect(
+        await fs.readFile(path.join(testDir, '.agents', 'skills', '.openspec-target'), 'utf-8')
+      ).toBe('antigravity\n');
+
+      await new InitCommand({ tools: 'codex', force: true }).execute(testDir);
+
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe('codex\n');
+      const proposeSkill = await fs.readFile(
+        path.join(skillsDir, 'openspec-propose', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(proposeSkill).toContain('$openspec-apply-change');
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'workflows', 'opsx-propose.md'))
+      ).toBe(true);
+    });
+
+    it('migrates generated Antigravity files without touching custom legacy files', async () => {
+      await new InitCommand({ tools: 'antigravity', force: true }).execute(testDir);
+      const legacyWorkflow = path.join(testDir, '.agent', 'workflows', 'opsx-propose.md');
+      const customWorkflow = path.join(testDir, '.agent', 'workflows', 'my-workflow.md');
+      await fs.mkdir(path.dirname(legacyWorkflow), { recursive: true });
+      await fs.copyFile(
+        path.join(testDir, '.agents', 'workflows', 'opsx-propose.md'),
+        legacyWorkflow
+      );
+      await fs.writeFile(customWorkflow, '# mine\n');
+
+      await new InitCommand({ tools: 'antigravity,codex', force: true }).execute(testDir);
+
+      expect(await fileExists(legacyWorkflow)).toBe(false);
+      expect(await fs.readFile(customWorkflow, 'utf-8')).toBe('# mine\n');
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'workflows', 'opsx-propose.md'))
+      ).toBe(true);
+      expect(
+        await fs.readFile(path.join(testDir, '.agents', 'skills', '.openspec-target'), 'utf-8')
+      ).toBe('codex\n');
+    });
+
+    it('should keep a configured Codex tree compatible when Zed is added later', async () => {
+      await new InitCommand({ tools: 'codex', force: true }).execute(testDir);
+      await new InitCommand({ tools: 'zed', force: true }).execute(testDir);
+
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      const proposeSkill = await fs.readFile(
+        path.join(skillsDir, 'openspec-propose', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(proposeSkill).toContain('$openspec-apply-change');
+      expect(proposeSkill).toContain('/openspec-apply-change');
+      expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe('codex\n');
     });
 
     it('should migrate legacy Codex skills only after init writes their replacements', async () => {
@@ -1233,6 +1370,8 @@ describe('InitCommand - profile and detection features', () => {
     // New commands should be at the correct plural path
     const newCommandsDir = path.join(testDir, '.opencode', 'commands');
     expect(await directoryExists(newCommandsDir)).toBe(true);
+    const proposeCommand = await fs.readFile(path.join(newCommandsDir, 'opsx-propose.md'), 'utf-8');
+    expect(proposeCommand).toContain('**Argumentos fornecidos**: $ARGUMENTS');
   });
 
   it('should remove managed global Codex prompts in non-interactive mode', async () => {
@@ -1264,6 +1403,28 @@ describe('InitCommand - profile and detection features', () => {
       path.join(testDir, '.agents', 'skills', '.openspec-target'),
       'utf-8'
     )).toBe('agents\n');
+  });
+
+  it('should generate Zed skills in the shared .agents directory', async () => {
+    const initCommand = new InitCommand({ tools: 'zed,agents', force: true });
+
+    await initCommand.execute(testDir);
+
+    const skillFile = path.join(
+      testDir,
+      '.agents',
+      'skills',
+      'openspec-apply-change',
+      'SKILL.md'
+    );
+    expect(await fileExists(skillFile)).toBe(true);
+    const skillContent = await fs.readFile(skillFile, 'utf-8');
+    expect(skillContent).toContain('/openspec-archive-change');
+    expect(skillContent).not.toContain('$openspec-archive-change');
+    expect(await fs.readFile(
+      path.join(testDir, '.agents', 'skills', '.openspec-target'),
+      'utf-8'
+    )).toBe('zed\n');
   });
 
   it('should preserve legacy Codex prompts without replacement skills during non-interactive init', async () => {
