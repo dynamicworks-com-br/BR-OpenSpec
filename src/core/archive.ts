@@ -975,10 +975,20 @@ export class ArchiveCommand {
     changeName?: string,
     options: ArchiveOptions = {}
   ): Promise<void> {
-    // Raiz absoluta: a transação abaixo compara e reporta caminhos de
-    // rename/snapshot, e um caminho relativo ao cwd não bate com o que os
+    // Raiz absoluta E canônica: a transação abaixo compara e reporta caminhos
+    // de rename/snapshot, e um caminho relativo ao cwd não bate com o que os
     // fingerprints e a verificação de destino resolvem.
-    const targetPath = path.resolve('.');
+    //
+    // A canonicalização é obrigatória, não cosmética: `resolveTrustedSpecPath`
+    // rebaseia cada delta na raiz canônica de specs, então `update.source` já
+    // vem com aliases do SO expandidos. Se a raiz daqui ficasse na forma que o
+    // cwd devolve, `path.relative(changeDir, update.source)` compararia formas
+    // diferentes do mesmo caminho e produziria um relativo que escapa da raiz
+    // — no Windows os caminhos curtos 8.3 (`RUNNER~1` × `runneradmin`) fazem
+    // exatamente isso, e a verificação pós-move acusaria "o delta arquivado
+    // mudou" para um arquivo intacto. O upstream não tropeça nisso porque
+    // recebe a raiz já canonicalizada de `resolveRootForCommand` (stores).
+    const targetPath = FileSystemUtils.canonicalizeExistingPath(path.resolve('.'));
     const changesDir = path.join(targetPath, 'openspec', 'changes');
     const archiveDir = path.join(changesDir, 'archive');
     const mainSpecsDir = path.join(targetPath, 'openspec', 'specs');
