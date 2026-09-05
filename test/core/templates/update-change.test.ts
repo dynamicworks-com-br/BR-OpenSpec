@@ -31,7 +31,7 @@ describe('update-change templates', () => {
     for (const [label, body] of bodies) {
       expect(body, label).toContain('openspec list --json');
       expect(body, label).toContain('openspec status --change "<nome>" --json');
-      expect(body, label).toContain('openspec instructions <artifact-id> --change "<nome>" --json');
+      expect(body, label).toContain('openspec instructions "<artifact-id>" --change "<nome>" --json');
     }
   });
 
@@ -75,12 +75,48 @@ describe('update-change templates', () => {
     }
   });
 
+  // Upstream #1500: update pointed at `/opsx:continue` without ever saying it
+  // may not be installed. The availability note must come before the first
+  // mention, and must name the CLI fallback.
+  it('explains the optional continue workflow before suggesting it', () => {
+    for (const [label, body] of bodies) {
+      const availabilityGuidance = body.indexOf(
+        '`/opsx:continue` é um workflow opcional e pode não estar instalado'
+      );
+      const firstSuggestion = body.indexOf(
+        '`/opsx:continue`',
+        availabilityGuidance + '`/opsx:continue`'.length
+      );
+
+      expect(availabilityGuidance, label).toBeGreaterThanOrEqual(0);
+      expect(body.indexOf('`/opsx:continue`'), label).toBe(availabilityGuidance);
+      expect(firstSuggestion, label).toBeGreaterThan(availabilityGuidance);
+      expect(body, label).toContain(
+        'Se ele não estiver disponível, `openspec status --change "<nome>" --json` mostra o próximo artifact'
+      );
+      expect(body, label).toContain(
+        '`openspec instructions "<artifact-id>" --change "<nome>" --json` explica como criá-lo'
+      );
+    }
+  });
+
   it('confirms every edit and redirects intent changes to /opsx:new', () => {
     for (const [label, body] of bodies) {
       expect(body, label).toContain('Escreva somente após o usuário confirmar');
       expect(body, label).toContain('Se o usuário rejeitar uma revisão, não a escreva');
       expect(body, label).toContain('recomende começar do zero com `/opsx:new`');
       expect(body, label).toContain('Atualizar vs. Começar do Zero');
+      expect(body, label).toContain('peça um nome de change distinto e ainda não usado');
+      expect(body, label).toContain('openspec new change "<novo-nome-da-change>"');
+      expect(body, label).not.toContain('openspec new change "<nome>"');
+
+      const newAvailabilityCheck = body.indexOf(
+        'verifique primeiro se o workflow opcional `/opsx:new` está disponível'
+      );
+      const newRecommendation = body.indexOf('recomende começar do zero com `/opsx:new`');
+      expect(newAvailabilityCheck, label).toBeGreaterThanOrEqual(0);
+      expect(body.slice(0, newAvailabilityCheck), label).not.toContain('`/opsx:new`');
+      expect(newRecommendation, label).toBeGreaterThan(newAvailabilityCheck);
     }
   });
 });

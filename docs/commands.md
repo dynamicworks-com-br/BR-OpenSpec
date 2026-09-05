@@ -696,9 +696,9 @@ Different AI tools use slightly different command syntax. Use the format that ma
 | Your tool's command file | Syntax example | Example tools |
 |--------------------------|----------------|---------------|
 | `.../commands/opsx/<id>.*` | `/opsx:propose`, `/opsx:apply` | Claude Code, Gemini CLI, Crush |
-| `.../opsx-<id>.*` | `/opsx-propose`, `/opsx-apply` | Cursor, Devin Desktop, Copilot (IDE), Codex (global prompts) |
+| `.../opsx-<id>.*` | `/opsx-propose`, `/opsx-apply` | Cursor, Devin Desktop, Copilot (IDE), Command Code |
 | `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose`, `@opsx-apply` | Amazon Q Developer |
-| none — skills only | `/openspec-propose`, `/openspec-apply-change` | ForgeCode, Mistral Vibe, Trae, shared `.agents` target |
+| none — skills only | `/openspec-propose`, `/openspec-apply-change` | ForgeCode, MiniMax Code, Mistral Vibe, Trae, Zed Agent, shared `.agents` target |
 | none — Kimi Code | `/skill:openspec-propose` | Kimi Code |
 | Codex skills | `$openspec-propose` | Codex |
 

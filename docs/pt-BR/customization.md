@@ -18,6 +18,7 @@ O arquivo `openspec/config.yaml` é a maneira mais fácil de personalizar o BR-O
 - **Injetar contexto do projeto** - A IA vê sua stack tecnológica, convenções, etc.
 - **Adicionar regras por artefato** - Regras personalizadas para artefatos específicos
 - **Adicionar orientação por operação** - Preferências consultivas para o trabalho de apply e archive
+- **Lembrar escolhas de integração** - por exemplo, o opt-in do [Copilot coding agent (nuvem) do GitHub](supported-tools.md#copilot-coding-agent-nuvem-do-github)
 
 ### Configuração Rápida
 
@@ -52,6 +53,11 @@ operations:
   archive:
     guidance:
       - Mantenha o resumo de conclusão conciso
+
+# Definido pelo `openspec init` quando você escolhe (ou recusa) o Copilot coding
+# agent (nuvem) do GitHub; controla se `init`/`update` geram os arquivos dele.
+githubCopilot:
+  cloudAgent: false
 ```
 
 ### Como Funciona

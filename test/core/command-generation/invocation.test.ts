@@ -109,12 +109,9 @@ describe('command-generation/invocation', () => {
 
     it('returns undefined for tools with no command adapter', () => {
       // These tools receive skills only, so they have no command name to spell.
-      // Upstream lists codex here; in this fork codex still registers an
-      // adapter (flat, global prompts), so it has an invocation to resolve.
-      for (const toolId of ['forgecode', 'kimi', 'vibe', 'trae', 'agents', 'not-a-tool']) {
+      for (const toolId of ['codex', 'forgecode', 'kimi', 'vibe', 'trae', 'agents', 'not-a-tool']) {
         expect(resolveCommandInvocation(toolId), toolId).toBeUndefined();
       }
-      expect(resolveCommandInvocation('codex')).toEqual({ style: 'flat', prefix: '/' });
     });
   });
 
@@ -136,10 +133,8 @@ describe('command-generation/invocation', () => {
 
   describe('generateCommand', () => {
     it('rewrites command references to the names a flat tool registers', () => {
-      // codex is the fork's own flat adapter (upstream retired codex's
-      // adapter); qwen stays flat here even though the fork still writes it
-      // as TOML.
-      for (const toolId of ['cursor', 'github-copilot', 'devin', 'opencode', 'qwen', 'codex']) {
+      // qwen stays flat here even though the fork still writes it as TOML.
+      for (const toolId of ['cursor', 'github-copilot', 'devin', 'opencode', 'qwen']) {
         const adapter = CommandAdapterRegistry.get(toolId)!;
         const { fileContent } = generateCommand(sampleContent, adapter);
         expect(fileContent, toolId).toContain('/opsx-archive');
@@ -179,7 +174,7 @@ describe('command-generation/invocation', () => {
       // generateCommand owns the rewrite; an adapter that re-added its own
       // body transform would break this contract even though the output of
       // generateCommand happens to be identical (the rewrite is idempotent).
-      for (const toolId of ['bob', 'opencode', 'pi', 'qwen', 'cursor', 'devin', 'codex']) {
+      for (const toolId of ['bob', 'opencode', 'pi', 'qwen', 'cursor', 'devin']) {
         const adapter = CommandAdapterRegistry.get(toolId)!;
         expect(adapter.formatFile(sampleContent), toolId).toContain('/opsx:archive');
       }

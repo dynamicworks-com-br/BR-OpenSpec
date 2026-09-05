@@ -108,7 +108,7 @@ Uma spec que descreve apenas o que está mudando, usando seções `ADDED`, `MODI
 
 ### Para onde vão as mudanças arquivadas?
 
-Para `openspec/changes/archive/AAAA-MM-DD-<nome>/`, com todos os artefatos preservados. Nada é deletado; a mudança apenas sai da sua lista de ativas.
+Para `openspec/changes/archive/AAAA-MM-DD-<nome>/`, com todos os artefatos da mudança preservados. A mudança sai da sua lista de ativas. Uma mudança que declara explicitamente `retire_capabilities: true` também pode excluir a spec principal de uma capability quando remove o último requisito dessa capability.
 
 ## Configuração e personalização
 

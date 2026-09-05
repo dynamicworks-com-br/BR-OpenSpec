@@ -13,6 +13,8 @@ Sincroniza delta specs de uma change para os specs principais.
 
 Esta é uma operação **dirigida por agente** — você lerá os delta specs e editará diretamente os specs principais para aplicar as alterações. Isso permite mesclagem inteligente (por exemplo, adicionar um cenário sem copiar o requisito inteiro).
 
+`<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo, `user-auth` ou `identity/user-auth`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
 **Passos**
@@ -39,10 +41,11 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    Sincronize todos os caminhos de `existingOutputPaths`, a menos que o
    caller tenha estreitado o conjunto. Um caller o estreita nomeando uma lista
-   explícita de caminhos de delta spec a sincronizar — o arquivamento faz isso
-   inline, e o usuário também pode ("sincronize só o delta billing"). Nesse
-   caso, sincronize apenas os caminhos nomeados e deixe os demais delta specs
-   intocados: o arquivamento em lote exclui um delta cuja implementação não
+   explícita de entradas completas de `existingOutputPaths` — copie esses
+   valores absolutos verbatim. O arquivamento faz isso inline, e o usuário
+   também pode (por exemplo, selecionando a entrada que termina em
+   `/specs/billing/invoices/spec.md`). Nesse caso, sincronize apenas os
+   caminhos nomeados e deixe os demais delta specs intocados: o arquivamento em lote exclui um delta cuja implementação não
    foi encontrada, e sincronizá-lo mesmo assim escreveria um spec principal
    que o caller deliberadamente omitiu. Carregue essa seleção estreitada pelo
    passo 3; nunca a alargue de volta à lista completa. Se um caminho nomeado
@@ -86,7 +89,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    a. **Leia o delta spec** para entender as alterações pretendidas
 
-   b. **Leia o spec principal** em `openspec/specs/<capability>/spec.md` (pode ainda não existir)
+   b. **Leia o spec principal** em `openspec/specs/<capability-path>/spec.md` (pode ainda não existir)
 
    c. **Aplique as alterações de forma inteligente**:
 
@@ -107,6 +110,29 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
       **REMOVED Requirements:**
       - Remova o bloco inteiro do requisito do spec principal
+      - Aposentando a capability. Exclua o `spec.md` inteiro - e o diretório, quando
+        não sobrar mais nada nele - somente quando TODAS estas condições valerem:
+        1. remover os requisitos *nesta execução* não deixou nenhum bloco de requisito;
+        2. o restante do spec está bem formado (ele ainda tem um `## Purpose`);
+        3. o spec principal não estava vazio antes deste sync - se você não removeu
+           nada, não altere nada;
+        4. toda outra linha não vazia do arquivo inteiro é contabilizada como o
+           título, o Purpose, o cabeçalho Requirements, ou o enunciado, os cenários
+           ou os exemplos cercados de um requisito canônico;
+        5. o `.openspec.yaml` da change declara `retire_capabilities: true`;
+        6. o `spec.md` resolve dentro da raiz real dos specs (não siga um link
+           simbólico de diretório de capability para excluir um arquivo externo).
+        Se remover os requisitos selecionados deixaria zero blocos de requisito e
+        qualquer condição de aposentadoria não for satisfeita, não modifique o spec
+        principal. Interrompa o sync para essa capability, reporte a condição que
+        bloqueou e diga ao usuário como resolvê-la.
+        Nunca escreva nem deixe uma seção `## Requirements` vazia. Quando só o
+        marcador estiver faltando, diga isso também - é a única coisa que o usuário
+        pode adicionar para a aposentadoria passar.
+      - Excluir o arquivo também exclui seu `## Purpose`; qualquer outra seção bloqueia
+        a aposentadoria. Nomeie o Purpose ao reportar a aposentadoria. Inclua um
+        `git checkout` pronto para colar só quando o spec vivia no checkout de quem
+        chamou; caso contrário, dê orientação de recuperação restrita ao checkout.
 
       **RENAMED Requirements:**
       - Encontre o requisito FROM, renomeie para TO
@@ -116,19 +142,26 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
         (é o que o `openspec archive` faz; ele avisa e segue em frente)
 
    d. **Crie um novo spec principal** se a capability ainda não existir:
-      - Crie `openspec/specs/<capability>/spec.md`
+      - Crie `openspec/specs/<capability-path>/spec.md`
       - Adicione a seção Purpose: copie o corpo do `## Purpose` do delta verbatim quando ele existir
         (é o que o `openspec archive` faz); só escreva um placeholder TBD breve quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
       - Siga a **Referência de Formato de Spec Principal** abaixo
 
-4. **Exiba o resumo**
+4. **Valide os specs principais atualizados**
+
+   Execute `openspec validate --specs`.
+   Se a validação falhar, reporte os problemas e não afirme que o sync foi concluído com sucesso.
+
+5. **Exiba o resumo**
 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
    - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
      para que ele seja escrito agora em vez de ficar pendente
+   - Qualquer capability aposentada, nomeando o `spec.md` excluído, seu Purpose e
+     ou um `git checkout` pronto para colar ou orientação de recuperação restrita ao checkout
 
 **Referência de Formato de Delta Spec**
 

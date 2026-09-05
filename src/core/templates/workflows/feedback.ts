@@ -47,6 +47,7 @@ export function getFeedbackSkillTemplate(): SkillTemplate {
 5. **Envie após confirmação**
    - Use o comando \`openspec feedback\` para enviar
    - Formato: \`openspec feedback "título" --body "conteúdo do corpo"\`
+   - O comando preserva o texto do título no corpo da issue e encurta títulos longos de issue no GitHub
    - O comando adicionará automaticamente metadados (versão, plataforma, timestamp)
 
 **Exemplo de Rascunho**

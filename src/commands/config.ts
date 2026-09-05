@@ -25,6 +25,7 @@ import { OPENSPEC_DIR_NAME } from '../core/config.js';
 import { hasProjectConfigDrift } from '../core/profile-sync-drift.js';
 import { UpdateCommand } from '../core/update.js';
 import { CONFIG_MESSAGES, CLI_MESSAGES } from '../messages/index.js';
+import { ptBrKeysHelpTip } from '../prompts/keys-help-tip.js';
 
 type ProfileAction = 'both' | 'delivery' | 'workflows' | 'keep';
 
@@ -44,7 +45,7 @@ interface WorkflowPromptMeta {
   description: string;
 }
 
-const WORKFLOW_PROMPT_META: Record<string, WorkflowPromptMeta> = {
+export const WORKFLOW_PROMPT_META: Record<string, WorkflowPromptMeta> = {
   propose: {
     name: CONFIG_MESSAGES.workflowProposeName,
     description: CONFIG_MESSAGES.workflowProposeDesc,
@@ -549,6 +550,7 @@ export function registerConfigCommand(program: Command): void {
           delivery: currentState.delivery,
           workflows: [...currentState.workflows],
         };
+        let workflowSelectionChanged = false;
 
         if (action === 'both' || action === 'delivery') {
           const deliveryChoices: { value: Delivery; name: string; description: string }[] = [
@@ -597,19 +599,29 @@ export function registerConfigCommand(program: Command): void {
           };
 
           const selectedWorkflows = await checkbox<string>({
+            // A opção `instructions` foi removida no @inquirer/checkbox v5. A
+            // dica de teclas embutida (`theme.style.keysHelpTip`) cobre o mesmo
+            // conteúdo, mas em inglês — por isso é localizada aqui.
             message: CONFIG_MESSAGES.selectWorkflows,
-            instructions: CONFIG_MESSAGES.spaceToToggle,
             pageSize: ALL_WORKFLOWS.length,
             theme: {
               icon: {
                 checked: '[x]',
                 unchecked: '[ ]',
               },
+              style: {
+                keysHelpTip: ptBrKeysHelpTip,
+              },
             },
             choices: ALL_WORKFLOWS.map(formatWorkflowChoice),
           });
           nextState.workflows = selectedWorkflows;
-          nextState.profile = deriveProfileFromWorkflowSelection(selectedWorkflows);
+          workflowSelectionChanged =
+            selectedWorkflows.length !== currentState.workflows.length ||
+            selectedWorkflows.some((workflow) => !currentState.workflows.includes(workflow));
+          nextState.profile = workflowSelectionChanged
+            ? deriveProfileFromWorkflowSelection(selectedWorkflows)
+            : currentState.profile;
         }
 
         const diff = diffProfileState(currentState, nextState);
@@ -627,7 +639,9 @@ export function registerConfigCommand(program: Command): void {
 
         config.profile = nextState.profile;
         config.delivery = nextState.delivery;
-        config.workflows = nextState.workflows;
+        if (currentState.profile !== 'custom' || workflowSelectionChanged) {
+          config.workflows = nextState.workflows;
+        }
         saveGlobalConfig(config);
 
         // Check if inside an OpenSpec project

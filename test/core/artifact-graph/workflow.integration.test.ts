@@ -35,6 +35,22 @@ describe('artifact-graph workflow integration', () => {
   });
 
   describe('spec-driven workflow', () => {
+    it('preserves existing flat or nested capability organization in its instructions (#1459)', () => {
+      const schema = resolveSchema('spec-driven');
+      const proposal = schema.artifacts.find(artifact => artifact.id === 'proposal');
+      const specs = schema.artifacts.find(artifact => artifact.id === 'specs');
+
+      expect(proposal?.instruction).toContain('`user-auth` ou `identity/user-auth`');
+      expect(proposal?.instruction).toContain('siga a organização de specs já existente no projeto');
+      expect(specs?.instruction).toContain(
+        '`<capability-path>` é o diretório do spec relativo a `specs/`'
+      );
+      expect(specs?.instruction).toContain(
+        'não adicione um novo nível de domínio quando o projeto usa um layout plano'
+      );
+      expect(specs?.instruction).toContain('Não mova nem renomeie a capability');
+    });
+
     it('should progress through complete workflow', () => {
       // 1. Resolve the real built-in schema
       const schema = resolveSchema('spec-driven');

@@ -190,7 +190,7 @@ openspec/changes/add-dark-mode/
 ├── proposal.md           # Por que e o quê
 ├── design.md             # Como (abordagem técnica)
 ├── tasks.md              # Checklist de implementação
-├── .openspec.yaml        # Metadados da mudança (opcional): schema, created, skip_specs
+├── .openspec.yaml        # Metadados da mudança (opcional): schema, created, skip_specs, retire_capabilities
 └── specs/                # Delta specs
     └── ui/
         └── spec.md       # O que está mudando em ui/spec.md
@@ -392,7 +392,7 @@ The system MUST expire sessions after 15 minutes of inactivity.
 |---------|---------|------------------------|
 | `## ADDED Requirements` | Novo comportamento | Adicionado à spec principal |
 | `## MODIFIED Requirements` | Comportamento alterado | Substitui o requisito existente |
-| `## REMOVED Requirements` | Comportamento descontinuado | Removido da spec principal |
+| `## REMOVED Requirements` | Comportamento descontinuado | Removido da spec principal; remover o último requisito aposenta a capability e exclui o arquivo de spec dela, quando a mudança declara `retire_capabilities: true` |
 | `## Purpose` | Para que serve uma capability novinha em folha | Semeia o Purpose da spec principal sendo criada; ignorado quando a spec já existe |
 
 ### Por Que Deltas em Vez de Specs Completas

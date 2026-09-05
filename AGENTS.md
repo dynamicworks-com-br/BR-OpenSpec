@@ -152,7 +152,8 @@ docs/            # Markdown documentation (English + pt-BR)
 
 - **Telemetry**: Anonymous usage stats sent to PostHog. Only command names and version are tracked. No arguments, paths, content, or PII.
   - Opt-out: `export OPENSPEC_TELEMETRY=0` or `export DO_NOT_TRACK=1`
-  - Auto-disabled in CI (`CI=true`)
+  - Opt-out via global config: `openspec config set telemetry.enabled false` (the env vars above stay hard overrides)
+  - Auto-disabled in CI — `CI` set to anything other than an explicit off-value (`false`, `0`, `no`, `off`, or empty); see `src/utils/ci.ts`
 - **npm publishing**: Uses OIDC trusted publishing from GitHub Actions (no static tokens in repo)
 - **Sensitive files**: `.env` files are gitignored. No API keys or secrets should be committed.
 
@@ -175,6 +176,8 @@ docs/            # Markdown documentation (English + pt-BR)
 - `OPENSPEC_CONCURRENCY=N` — Max concurrent validations (default 6)
 - `NO_COLOR=1` — Disable colored output (also `--no-color` flag)
 - `OPENSPEC_NO_ANIMATION=1` — Disable the `openspec init` welcome animation (also `--no-animation` flag)
+- `OPENSPEC_NO_COMPLETIONS=1` — Suppress the shell-completions install tip (also suppressed in CI)
+- `CI` — Any value other than an explicit off-value (`false`, `0`, `no`, `off`, empty) disables telemetry, the `openspec update` version check, and the completions tip (`src/utils/ci.ts`)
 - `XDG_CONFIG_HOME` — Override global config directory
 
 ## Key Files for Agents
@@ -269,4 +272,4 @@ BR-OpenSpec is PT-BR first, but the spec/change format is a protocol parsed by t
 - **Change-document section headers parsed/validated by the tooling:** `## Why`, `## What Changes` (the parser extracts them by name via `findSection` and the validator requires them).
 - **Artifact-scaffold section headings** (in `schemas/<schema>/templates/*.md` and the section names in `schema.yaml`): the heading *structure* of proposal/design/spec/tasks (e.g., `## Capabilities`, `### New/Modified Capabilities`, `## Impact`, `## Context`, `## Goals / Non-Goals`, `## Decisions`, task-group numbering) stays in English. Since `## Why`/`## What Changes` are protocol-locked, keeping the sibling headings English too avoids mixed-language documents and keeps the structure aligned with upstream. Only the **guidance** under them (HTML comments and descriptive prose) is translated to pt-BR. (This applies to artifact scaffolds — ordinary documentation headings in `docs/` and `README` ARE translated.)
 
-**Rule of thumb:** any UPPERCASE word that expresses a normative rule, a delta operation (ADD/REMOVE/RENAME), or a scenario clause — and any section heading the tooling parses or validates — stays in English. Translating these breaks `openspec validate` and spec/change parsing. Everything else that the Brazilian developer reads or writes (CLI strings, workflow-template prose, and the guidance/comments in `schemas/<schema>/schema.yaml` and `schemas/<schema>/templates/*.md`) IS translated to pt-BR. The same reserved-terms note is duplicated at the top of `src/messages/index.ts`.
+**Rule of thumb:** any UPPERCASE word that expresses a normative rule, a delta operation (ADD/REMOVE/RENAME), or a scenario clause — and any section heading the tooling parses or validates — stays in English. Omitting `SHALL`/`MUST` from a requirement makes `openspec validate` emit a WARNING (an error only under `--strict`); translating the structural markers breaks spec/change parsing outright. Everything else that the Brazilian developer reads or writes (CLI strings, workflow-template prose, and the guidance/comments in `schemas/<schema>/schema.yaml` and `schemas/<schema>/templates/*.md`) IS translated to pt-BR. The same reserved-terms note is duplicated at the top of `src/messages/index.ts`.

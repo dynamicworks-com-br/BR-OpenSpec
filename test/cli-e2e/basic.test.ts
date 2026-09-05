@@ -56,6 +56,7 @@ describe('openspec CLI e2e basics', () => {
     expect(normalizedOutput).toContain(
       `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${expectedTools}`
     );
+    expect(normalizedOutput).toContain('--language <language>');
   });
 
   it('reports the package version', async () => {
@@ -125,15 +126,48 @@ describe('openspec CLI e2e basics', () => {
   });
 
   describe('init command non-interactive options', () => {
+    it('initializes artifact language non-interactively', async () => {
+      const projectDir = await prepareFixture('tmp-init');
+      const emptyProjectDir = path.join(projectDir, '..', 'language-project');
+      await fs.mkdir(emptyProjectDir, { recursive: true });
+
+      const result = await runCLI(
+        ['init', '--tools', 'none', '--language', 'French', '--no-animation'],
+        { cwd: emptyProjectDir },
+      );
+
+      expect(result.exitCode).toBe(0);
+      // O bloco gravado no config.yaml fica em inglês (é lido pelos agentes).
+      const config = await fs.readFile(
+        path.join(emptyProjectDir, 'openspec', 'config.yaml'),
+        'utf-8',
+      );
+      expect(config).toContain('Language: French');
+      expect(config).toContain('All artifacts must be written in French.');
+      expect(config).toContain('Keep OpenSpec structural headings and SHALL/MUST keywords in English.');
+
+      const created = await runCLI(['new', 'change', 'language-check'], {
+        cwd: emptyProjectDir,
+      });
+      expect(created.exitCode).toBe(0);
+      const instructions = await runCLI(
+        ['instructions', 'proposal', '--change', 'language-check', '--json'],
+        { cwd: emptyProjectDir },
+      );
+      expect(instructions.exitCode).toBe(0);
+      expect(JSON.parse(instructions.stdout).context).toContain('Language: French');
+    });
+
     it('initializes with --tools all option', async () => {
       const projectDir = await prepareFixture('tmp-init');
       const emptyProjectDir = path.join(projectDir, '..', 'empty-project');
       await fs.mkdir(emptyProjectDir, { recursive: true });
 
       const codexHome = path.join(emptyProjectDir, '.codex');
+      const testHome = path.join(emptyProjectDir, 'home');
       const result = await runCLI(['init', '--tools', 'all'], {
         cwd: emptyProjectDir,
-        env: { CODEX_HOME: codexHome },
+        env: { CODEX_HOME: codexHome, HOME: testHome, USERPROFILE: testHome },
         timeoutMs: 20000,
       });
       expect(result.timedOut).toBe(false);
@@ -143,8 +177,13 @@ describe('openspec CLI e2e basics', () => {
       // Check that skills were created for multiple tools
       const claudeSkillPath = path.join(emptyProjectDir, '.claude/skills/openspec-explore/SKILL.md');
       const cursorSkillPath = path.join(emptyProjectDir, '.cursor/skills/openspec-explore/SKILL.md');
+      const minimaxSkillPath = path.join(
+        testHome,
+        '.minimax/skills/openspec-explore/SKILL.md'
+      );
       expect(await fileExists(claudeSkillPath)).toBe(true);
       expect(await fileExists(cursorSkillPath)).toBe(true);
+      expect(await fileExists(minimaxSkillPath)).toBe(true);
     }, 25000);
 
     it('initializes with --tools list option', async () => {
@@ -175,6 +214,35 @@ describe('openspec CLI e2e basics', () => {
 
       const skillPath = path.join(emptyProjectDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
       expect(await fileExists(skillPath)).toBe(true);
+    });
+
+    it('initializes with --tools zed option', async () => {
+      const projectDir = await prepareFixture('tmp-init');
+      const emptyProjectDir = path.join(projectDir, '..', 'empty-project');
+      await fs.mkdir(emptyProjectDir, { recursive: true });
+
+      const result = await runCLI(['init', '--tools', 'zed'], { cwd: emptyProjectDir });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Configuração do BR-OpenSpec Concluída');
+      expect(result.stdout).toContain('Zed Agent');
+      expect(result.stdout).not.toContain('Reinicie sua IDE');
+
+      const skillPath = path.join(emptyProjectDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillPath)).toBe(true);
+      expect(await fs.readFile(
+        path.join(emptyProjectDir, '.agents', 'skills', '.openspec-target'),
+        'utf-8'
+      )).toBe('zed\n');
+
+      const updateResult = await runCLI(['update'], { cwd: emptyProjectDir });
+      expect(updateResult.exitCode).toBe(0);
+      expect(await fs.readFile(
+        path.join(emptyProjectDir, '.agents', 'skills', '.openspec-target'),
+        'utf-8'
+      )).toBe('zed\n');
+      const updatedSkill = await fs.readFile(skillPath, 'utf-8');
+      expect(updatedSkill).toContain('/openspec-explore');
+      expect(updatedSkill).not.toContain('$openspec-explore');
     });
 
     it('initializes with --tools none option', async () => {

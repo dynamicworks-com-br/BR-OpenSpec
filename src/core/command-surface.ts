@@ -19,9 +19,6 @@ export function resolveCommandSurfaceCapability(toolId: string): CommandSurfaceC
     return 'adapter-backed';
   }
 
-  // Kept in sync with upstream: codex becomes skills-invocable once it has no
-  // command adapter. In this fork codex still registers one, so the registry
-  // check above wins and this branch is currently unreachable.
   if (toolId === 'codex') {
     return 'skills-invocable';
   }

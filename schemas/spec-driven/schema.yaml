@@ -13,8 +13,8 @@ artifacts:
       - **Why**: 1-2 frases sobre o problema ou oportunidade. Qual problema isso resolve? Por que agora?
       - **What Changes**: Lista de marcadores das mudanças. Seja específico sobre novas capabilities, modificações ou remoções. Marque mudanças incompatíveis com **BREAKING**.
       - **Capabilities**: Identifique quais specs serão criadas ou modificadas:
-        - **New Capabilities**: Liste as capabilities sendo introduzidas. Cada uma vira um novo `specs/<name>/spec.md`. Use nomes em kebab-case (ex.: `user-auth`, `data-export`).
-        - **Modified Capabilities**: Liste as capabilities existentes cujos REQUIREMENTS estão mudando. Inclua apenas se o comportamento no nível da spec mudar (não apenas detalhes de implementação). Cada uma precisa de um arquivo de spec delta. Verifique `openspec/specs/` para os nomes de spec existentes. Deixe vazio se não houver mudança de requirement.
+        - **New Capabilities**: Liste as capabilities sendo introduzidas. Cada uma vira um novo `specs/<capability-path>/spec.md`. Use kebab-case nos segmentos de caminho que você introduzir (ex.: `user-auth` ou `identity/user-auth`) e siga a organização de specs já existente no projeto.
+        - **Modified Capabilities**: Liste as capabilities existentes cujos REQUIREMENTS estão mudando. Inclua apenas se o comportamento no nível da spec mudar (não apenas detalhes de implementação). Cada uma precisa de um arquivo de spec delta. Use o caminho exato existente em `openspec/specs/`. Deixe vazio se não houver mudança de requirement.
       - **Impact**: Código, APIs, dependências ou sistemas afetados.
 
       IMPORTANTE: A seção Capabilities é crítica. Ela cria o contrato entre
@@ -60,8 +60,10 @@ artifacts:
       visível externamente, provavelmente não pertence à spec.
 
       Crie um arquivo de spec por capability listada na seção Capabilities da proposta.
-      - Novas capabilities: use o nome exato em kebab-case da proposta (specs/<capability>/spec.md).
-      - Capabilities modificadas: use o nome da pasta de spec existente em openspec/specs/<capability>/ ao criar a spec delta em specs/<capability>/spec.md.
+      `<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo,
+      `user-auth` ou `identity/user-auth`). Preserve o caminho completo:
+      - Novas capabilities: use o caminho exato da proposta em `specs/<capability-path>/spec.md`. Todo segmento de caminho introduzido pela proposta deve estar em kebab-case. Siga a organização existente do projeto; não adicione um novo nível de domínio quando o projeto usa um layout plano.
+      - Capabilities modificadas: use o caminho exato existente em `openspec/specs/<capability-path>/` ao criar o delta em `specs/<capability-path>/spec.md`. Não mova nem renomeie a capability.
 
       Deve haver pelo menos um arquivo de spec, a menos que o `.openspec.yaml` da change
       defina `skip_specs: true` (sem mudança de comportamento no nível de spec) - `openspec validate`
@@ -89,10 +91,10 @@ artifacts:
       preencher à mão. NÃO adicione `## Purpose` a um delta de uma capability existente -
       esse spec já tem um e o do delta é ignorado. Para alterar o Purpose de uma
       capability existente - incluindo um placeholder `A definir` que sobrou -
-      edite `openspec/specs/<capability>/spec.md` diretamente.
+      edite `openspec/specs/<capability-path>/spec.md` diretamente.
 
       Fluxo de trabalho de requirements MODIFIED:
-      1. Localize o requirement existente em openspec/specs/<capability>/spec.md
+      1. Localize o requirement existente em openspec/specs/<capability-path>/spec.md
       2. Copie o bloco INTEIRO do requirement (de `### Requirement:` até todos os cenários)
       3. Cole sob `## MODIFIED Requirements` e edite para refletir o novo comportamento
       4. Garanta que o texto do cabeçalho corresponda exatamente (ignorando espaços em branco)
@@ -180,22 +182,26 @@ artifacts:
       - Cada tarefa MUST ser um checkbox: `- [ ] X.Y Descrição da tarefa`
       - As tarefas devem ser pequenas o suficiente para serem concluídas em uma sessão
       - Ordene as tarefas por dependência (o que precisa ser feito primeiro?)
+      - Cada tarefa MUST indicar como verificar sua conclusão (um teste, comando,
+        comportamento observável ou artifact entregue). Coloque a verificação na
+        descrição do checkbox da própria tarefa. Use uma tarefa de verificação
+        separada apenas quando ela checar integração mais ampla ou comportamento
+        do sistema que atravessa múltiplas tarefas de implementação.
 
       Example:
       ```
       ## 1. Setup
 
-      - [ ] 1.1 Create new module structure
-      - [ ] 1.2 Add dependencies to package.json
+      - [ ] 1.1 Create new module structure and verify expected files are present
+      - [ ] 1.2 Add dependencies to package.json and verify package installation succeeds
 
       ## 2. Core Implementation
 
-      - [ ] 2.1 Implement data export function
-      - [ ] 2.2 Add CSV formatting utilities
+      - [ ] 2.1 Implement data export function and verify the export test passes
+      - [ ] 2.2 Add CSV formatting utilities and verify unit tests cover quoting and delimiters
       ```
 
       Referencie as specs para o que precisa ser construído e o design para como construir.
-      Cada tarefa deve ser verificável - você sabe quando ela está concluída.
     requires:
       - specs
       - design

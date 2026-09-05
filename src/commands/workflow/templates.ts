@@ -38,7 +38,7 @@ export async function templatesCommand(options: TemplatesOptions): Promise<void>
   const spinner = options.json ? undefined : ora(WORKFLOW_MESSAGES.loadingTemplates).start();
 
   try {
-    const projectRoot = process.cwd();
+    const projectRoot = FileSystemUtils.canonicalProjectRoot();
     const schemaName = validateSchemaExists(options.schema ?? DEFAULT_SCHEMA, projectRoot);
     const schema = resolveSchema(schemaName, projectRoot);
     const graph = ArtifactGraph.fromSchema(schema);
@@ -68,13 +68,22 @@ export async function templatesCommand(options: TemplatesOptions): Promise<void>
       source = 'package';
     }
 
-    const templates: TemplateInfo[] = graph.getAllArtifacts().map((artifact) => ({
-      artifactId: artifact.id,
-      templatePath: FileSystemUtils.canonicalizeExistingPath(
-        path.join(schemaDir, 'templates', artifact.template)
-      ),
-      source,
-    }));
+    const templatesDir = path.join(schemaDir, 'templates');
+    const templates: TemplateInfo[] = graph.getAllArtifacts().map((artifact) => {
+      const templatePath = path.join(templatesDir, artifact.template);
+      try {
+        FileSystemUtils.assertPathWithin(templatesDir, templatePath);
+        return {
+          artifactId: artifact.id,
+          templatePath: FileSystemUtils.canonicalizeExistingPath(templatePath),
+          source,
+        };
+      } catch {
+        throw new Error(
+          WORKFLOW_MESSAGES.templateOutsideTemplatesDir(artifact.template, artifact.id)
+        );
+      }
+    });
 
     spinner?.stop();
 

@@ -4,10 +4,11 @@ on:
   push:
     branches: [main]
 
+# Floor for the workflow. The prepare job widens this to pull-requests: write
+# for the Version Packages PR.
 permissions:
   contents: write
-  pull-requests: write
-  id-token: write # Required for npm OIDC trusted publishing
+  id-token: write # Required for npm provenance (NPM_CONFIG_PROVENANCE)
 
 concurrency:
   group: release-${{ github.ref }}
@@ -17,10 +18,11 @@ jobs:
   prepare:
     if: github.repository == 'dynamicworks-com-br/BR-OpenSpec'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write # changesets opens/updates the Version Packages PR
+      id-token: write # Required for npm provenance (NPM_CONFIG_PROVENANCE)
     steps:
-      # Generate GitHub App token first - used for checkout and changesets
-      # This allows git operations to trigger CI workflows on the version PR
-      # (GITHUB_TOKEN cannot trigger workflows by design)
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
