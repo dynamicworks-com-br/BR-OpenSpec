@@ -9,7 +9,7 @@ import { ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 function relativePathSchema(fieldName: string) {
   return z
     .string()
-    .min(1, { error: ARTIFACT_GRAPH_MESSAGES.fieldRequired(fieldName) })
+    .min(1, { message: ARTIFACT_GRAPH_MESSAGES.fieldRequired(fieldName) })
     .superRefine((value, ctx) => {
       const segments = value.split(/[\\/]+/u);
       const isDrivePath = /^[A-Za-z]:/u.test(value);
