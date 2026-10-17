@@ -9,8 +9,10 @@ import {
   resolveSchemaForChange,
   validateSchemaName,
   ChangeMetadataError,
+  readRetireCapabilitiesMarker,
 } from '../../src/utils/change-metadata.js';
 import { ChangeMetadataSchema } from '../../src/core/artifact-graph/types.js';
+import { CHANGE_METADATA_MESSAGES } from '../../src/messages/index.js';
 
 describe('ChangeMetadataSchema', () => {
   describe('valid metadata', () => {
@@ -314,5 +316,39 @@ describe('validateSchemaName', () => {
     expect(() => validateSchemaName('unknown-schema')).toThrow(
       /Schema desconhecido 'unknown-schema'/
     );
+  });
+});
+
+describe('boolean marker reasons', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-marker-reason-'));
+    await fs.mkdir(path.join(tempDir, 'openspec', 'changes', 'c'), { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  // Every reason quotes something the author wrote, and callers print it
+  // straight to a terminal. A schema name carrying an ESC could redraw the
+  // screen; a CR could forge a line of its own.
+  it('strips control characters from a reason that quotes authored content', async () => {
+    const changeDir = path.join(tempDir, 'openspec', 'changes', 'c');
+    await fs.writeFile(
+      path.join(changeDir, '.openspec.yaml'),
+      'schema: "ghost\u001b[31m-schema"\nretire_capabilities: true\n',
+      'utf-8'
+    );
+
+    const marker = readRetireCapabilitiesMarker(changeDir);
+
+    expect(marker.declared).toBe(false);
+    // The name is still recognisable, so the author can find what they typed.
+    expect(marker.invalidReason).toContain(
+      CHANGE_METADATA_MESSAGES.markerUnknownSchema('ghost?[31m-schema')
+    );
+    expect(marker.invalidReason).not.toMatch(/[\u0000-\u001f\u007f]/);
   });
 });

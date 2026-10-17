@@ -28,6 +28,76 @@ OPSX (ações fluidas):
 
 > **Personalização:** Os workflows do OPSX são orientados por schemas que definem sequências de artefatos. Consulte [Personalização](customization.md) para detalhes sobre como criar schemas personalizados.
 
+## Visão Geral do Workflow
+
+O workflow padrão continua fluido: exploração e verificação são opcionais, e
+você pode atualizar os artefatos de planejamento sempre que a implementação
+revelar algo novo.
+
+```mermaid
+flowchart TD
+    Idea["Ideia ou problema"] --> Explore["/opsx:explore<br/>(opcional)"]
+    Idea --> Propose["/opsx:propose"]
+    Explore --> Propose
+    Propose --> Review{"Artefatos de planejamento<br/>prontos?"}
+    Review -->|"Refinar"| Update["/opsx:update"]
+    Update --> Review
+    Review -->|"Implementar"| Apply["/opsx:apply"]
+    Apply -->|"Plano mudou"| Update
+    Apply --> Archive["/opsx:archive"]
+    Apply --> Verify["/opsx:verify<br/>(opcional, seleção personalizada)"]
+    Apply --> Sync["/opsx:sync<br/>(opcional, antes de arquivar)"]
+    Verify --> Verified{"Pronto para arquivar?"}
+    Verified -->|"Corrigir implementação"| Apply
+    Verified -->|"Revisar plano"| Update
+    Verified -->|"Pronto"| Sync
+    Verified -->|"Pronto"| Archive
+    Sync --> Archive
+```
+
+O assistente de IA conduz o workflow, enquanto a CLI fornece scaffold
+determinístico, status e instruções de artefatos:
+
+```mermaid
+sequenceDiagram
+    actor Human as Humano
+    participant Assistant as Assistente de IA
+    participant CLI as CLI do BR-OpenSpec
+    participant Files as Arquivos de planejamento e implementação
+
+    Human->>Assistant: /opsx:propose "mudança"
+    Assistant->>CLI: openspec new change
+    CLI->>Files: Cria o scaffold dos metadados da mudança
+    Assistant->>CLI: Solicita status e instruções de artefatos
+    CLI-->>Assistant: Ordem de construção, caminhos e templates
+    Assistant->>Files: Escreve os artefatos de planejamento definidos pelo schema
+    Assistant-->>Human: Apresenta os artefatos para revisão
+
+    Human->>Assistant: /opsx:apply
+    Assistant->>CLI: Solicita as instruções de apply
+    CLI-->>Assistant: Arquivos de contexto e estado das tarefas
+    Assistant->>Files: Implementa as tarefas e atualiza os checkboxes
+    Assistant-->>Human: Relata o status da implementação
+
+    Human->>Assistant: /opsx:archive
+    Assistant->>CLI: Solicita as entradas de arquivamento e o status dos artefatos
+    CLI-->>Assistant: Caminhos de planejamento e conclusão dos artefatos
+    Assistant->>Files: Lê o estado das tarefas e compara as delta specs
+    opt Existem delta specs
+        Assistant-->>Human: Oferece sincronizar antes de arquivar
+        alt Sync aceito
+            Human->>Assistant: Confirma o sync
+            Assistant->>Files: Mescla as delta specs nas specs principais
+        else Sync pulado
+            Human->>Assistant: Arquiva sem sincronizar
+        end
+    end
+    Assistant->>Files: Move a mudança para o archive
+    Assistant-->>Human: Relata o local do arquivamento e o resultado do sync
+
+    Note over Human,CLI: Alternativa via CLI: openspec archive change-name --yes pula os prompts de confirmação. Ele ainda valida, depois aplica as delta specs existentes e arquiva
+```
+
 ## Dois Modos
 
 ### Caminho Rápido Padrão (perfil `core`)

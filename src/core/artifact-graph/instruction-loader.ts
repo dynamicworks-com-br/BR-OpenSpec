@@ -3,7 +3,11 @@ import * as path from 'node:path';
 import { getSchemaDir, resolveSchema, listSchemasWithInfo } from './resolver.js';
 import { ArtifactGraph } from './graph.js';
 import { detectCompleted } from './state.js';
-import { resolveArtifactOutputs } from './outputs.js';
+import {
+  isSpecsArtifactPath,
+  resolveArtifactOutputPath,
+  resolveArtifactOutputs,
+} from './outputs.js';
 import { resolveSchemaForChange, readChangeMetadata } from '../../utils/change-metadata.js';
 import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
@@ -134,7 +138,9 @@ export interface ChangeStatus {
   changeName: string;
   /** Schema name */
   schemaName: string;
-  /** Whether all artifacts are complete */
+  /** Whether all planning artifacts are complete */
+  isPlanningComplete: boolean;
+  /** Compatibility alias for isPlanningComplete */
   isComplete: boolean;
   /** Artifact IDs required before apply phase (from schema's apply.requires) */
   applyRequires: string[];
@@ -172,7 +178,17 @@ export function loadTemplate(
     );
   }
 
-  const templatePathOnDisk = path.join(schemaDir, 'templates', templatePath);
+  const templatesDir = path.join(schemaDir, 'templates');
+  const templatePathOnDisk = path.join(templatesDir, templatePath);
+
+  try {
+    FileSystemUtils.assertPathWithin(templatesDir, templatePathOnDisk);
+  } catch (error) {
+    throw new TemplateLoadError(
+      error instanceof Error ? error.message : String(error),
+      templatePathOnDisk
+    );
+  }
 
   if (!fs.existsSync(templatePathOnDisk)) {
     throw new TemplateLoadError(
@@ -227,7 +243,7 @@ export function loadChangeContext(
   );
 
   // Resolve schema: explicit > metadata > default
-  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName, {
+  const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName, projectRoot, {
     projectConfig: options.projectConfig,
   });
 
@@ -251,12 +267,7 @@ export function loadChangeContext(
   const skippedArtifacts = new Set<string>();
   if (skipSpecsDeclared) {
     for (const artifact of graph.getAllArtifacts()) {
-      // A schema may write generates as './specs/...' - the globs treat that
-      // identically to 'specs/...', so the skip set must too, or validate
-      // would honor the marker while instructions tell the agent to create
-      // the very files the conflict gate polices.
-      const generates = artifact.generates.replace(/^(?:\.\/)+/, '');
-      if (generates.startsWith('specs/') && !completed.has(artifact.id)) {
+      if (isSpecsArtifactPath(artifact.generates) && !completed.has(artifact.id)) {
         completed.add(artifact.id);
         skippedArtifacts.add(artifact.id);
       }
@@ -335,7 +346,10 @@ export function generateInstructions(
 
   // Extract context and rules as separate fields (not prepended to template)
   const configContext = projectConfig?.context?.trim() || undefined;
-  const rulesForArtifact = projectConfig?.rules?.[artifactId];
+  const rulesForArtifact =
+    projectConfig?.rules && Object.hasOwn(projectConfig.rules, artifactId)
+      ? projectConfig.rules[artifactId]
+      : undefined;
   const configRules = rulesForArtifact && rulesForArtifact.length > 0 ? rulesForArtifact : undefined;
 
   return {
@@ -416,7 +430,7 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
   const artifactStatuses: ArtifactStatus[] = artifacts.map(artifact => {
     artifactPaths[artifact.id] = {
       outputPath: artifact.generates,
-      resolvedOutputPath: path.join(context.changeDir, artifact.generates),
+      resolvedOutputPath: resolveArtifactOutputPath(context.changeDir, artifact.generates),
       existingOutputPaths: resolveArtifactOutputs(context.changeDir, artifact.generates),
     };
 
@@ -461,10 +475,13 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
   const orderMap = new Map(buildOrder.map((id, idx) => [id, idx]));
   artifactStatuses.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
 
+  const isPlanningComplete = context.graph.isComplete(context.completed);
+
   return {
     changeName: context.changeName,
     schemaName: context.schemaName,
-    isComplete: context.graph.isComplete(context.completed),
+    isPlanningComplete,
+    isComplete: isPlanningComplete,
     applyRequires,
     artifacts: artifactStatuses,
     artifactPaths,

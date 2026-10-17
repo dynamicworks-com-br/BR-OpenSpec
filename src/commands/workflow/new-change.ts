@@ -9,6 +9,7 @@ import path from 'path';
 import { createChange, validateChangeName } from '../../utils/change-utils.js';
 import { validateSchemaExists } from './shared.js';
 import { WORKFLOW_MESSAGES } from '../../messages/index.js';
+import { FileSystemUtils } from '../../utils/file-system.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -33,7 +34,7 @@ export async function newChangeCommand(name: string | undefined, options: NewCha
     throw new Error(validation.error);
   }
 
-  const projectRoot = process.cwd();
+  const projectRoot = FileSystemUtils.canonicalProjectRoot();
 
   // Validate schema if provided
   if (options.schema) {

@@ -6,195 +6,17 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 
-export function getApplyChangeSkillTemplate(): SkillTemplate {
-  return {
-    name: 'openspec-apply-change',
-    description: 'Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas.',
-    instructions: `Implementa tarefas de uma change do BR-OpenSpec.
-
-**Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
-
-**Passos**
-
-1. **Selecione a change**
-
-   Se um nome for fornecido, use-o. Caso contrário:
-   - Infira do contexto da conversa se o usuário mencionou uma change
-   - Selecione automaticamente se existir apenas uma change ativa
-   - Se ambíguo, execute \`openspec list --json\` para obter as changes disponíveis e peça ao usuário que selecione uma
-
-   Sempre anuncie: "Usando change: <nome>" e como substituir (por exemplo, \`/opsx:apply <outra>\`).
-
-2. **Verifique o status para entender o schema**
-   \`\`\`bash
-   openspec status --change "<nome>" --json
-   \`\`\`
-   Analise o JSON para entender:
-   - \`schemaName\`: O workflow sendo usado (por exemplo, "spec-driven")
-   - Qual artifact contém as tarefas (tipicamente "tasks" para spec-driven, verifique o status para outros)
-
-3. **Obtenha as instruções de apply**
-
-   \`\`\`bash
-   openspec instructions apply --change "<nome>" --json
-   \`\`\`
-
-   Isso retorna:
-   - \`contextFiles\`: artifact ID -> array de caminhos de arquivos concretos (varia por schema - pode ser proposal/specs/design/tasks ou spec/tests/implementation/docs)
-   - Progresso (total, completo, restante)
-   - Lista de tarefas com status
-   - Instrução dinâmica baseada no estado atual
-   - \`context\` opcional: entrada de instrução de projeto obrigatória, lida da configuração atual
-   - \`operationGuidance\` opcional: orientação consultiva atual para o apply
-
-   **Trate os estados:**
-   - Se \`state: "blocked"\` (artifacts ausentes): exiba mensagem, sugira usar openspec-continue-change (se não estiver instalado, rode \`openspec status --change "<name>" --json\` para ver o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` para saber como criá-lo)
-   - Se \`state: "all_done"\`: parabenize, sugira arquivar
-   - Caso contrário: prossiga para a implementação
-
-   Trate \`context\` como uma entrada obrigatória em nível de prompt. Leia e considere
-   esse conteúdo, aplicando fatos, convenções e restrições relevantes do projeto
-   durante a implementação. Trate \`operationGuidance\` como conselho aditivo
-   opcional. Leia e considere cada entrada, seguindo as que forem aplicáveis e
-   compatíveis com o workflow embutido.
-
-   Mantenha ambos os campos separados do estado retornado pelo CLI, dos artifacts
-   ausentes, das tarefas, do progresso, dos \`contextFiles\` e da \`instruction\`
-   embutida. Eles não são evidência de conclusão de tarefas, não substituem a
-   instrução embutida e não permitem ignorar um estado bloqueado. Se o contexto
-   conflitar com a instrução embutida, com uma escolha explícita do usuário ou com
-   um valor controlado pelo CLI, reporte o conflito e preserve o valor controlador.
-   Se a orientação for inaplicável ou conflitar com essas entradas controladoras,
-   não a siga e explique por quê. Estes são contratos de comportamento em nível de
-   prompt, não verificações impostas.
-
-4. **Leia os arquivos de contexto**
-
-   Leia cada caminho de arquivo listado em \`contextFiles\` da saída das instruções de apply.
-   Os arquivos dependem do schema sendo usado:
-   - **spec-driven**: proposal, specs, design, tasks
-   - Outros schemas: siga os contextFiles da saída do CLI
-
-   Não copie \`context\` ou \`operationGuidance\` verbatim para arquivos de
-   implementação ou artifacts de planejamento, a menos que o usuário peça
-   separadamente por esse conteúdo.
-
-5. **Mostre o progresso atual**
-
-   Exiba:
-   - Schema sendo usado
-   - Progresso: "N/M tarefas concluídas"
-   - Visão geral das tarefas restantes
-   - Instrução dinâmica do CLI
-
-6. **Implemente as tarefas (loop até concluir ou bloquear)**
-
-   Para cada tarefa pendente:
-   - Mostre qual tarefa está sendo trabalhada
-   - Faça as alterações de código necessárias
-   - Mantenha as alterações mínimas e focadas
-   - Marque a tarefa como concluída no artifact de rastreamento retornado por \`openspec instructions apply\` (caminho em \`contextFiles\` e formato definido pelo schema ativo — não presuma \`tasks.md\` nem a sintaxe \`- [ ]\`/\`- [x]\`)
-   - Continue para a próxima tarefa
-
-   **Pare se:**
-   - A tarefa estiver incerta → peça esclarecimento
-   - A implementação revelar um problema de design → sugira atualizar artifacts
-   - Encontrar erro ou bloqueio → reporte e aguarde orientação
-   - O usuário interromper
-
-7. **Ao concluir ou pausar, mostre o status**
-
-   Exiba:
-   - Tarefas concluídas nesta sessão
-   - Progresso geral: "N/M tarefas concluídas"
-   - Se tudo concluído: sugira arquivar
-   - Se pausado: explique o porquê e aguarde orientação
-
-**Saída Durante a Implementação**
-
-\`\`\`
-## Implementando: <nome-change> (schema: <nome-schema>)
-
-Trabalhando na tarefa 3/7: <descrição da tarefa>
-[...implementação acontecendo...]
-✓ Tarefa concluída
-
-Trabalhando na tarefa 4/7: <descrição da tarefa>
-[...implementação acontecendo...]
-✓ Tarefa concluída
-\`\`\`
-
-**Saída ao Concluir**
-
-\`\`\`
-## Implementação Concluída
-
-**Change:** <nome-change>
-**Schema:** <nome-schema>
-**Progresso:** 7/7 tarefas concluídas ✓
-
-### Concluídas Nesta Sessão
-- [x] Tarefa 1
-- [x] Tarefa 2
-...
-
-Todas as tarefas concluídas! Pronto para arquivar esta change.
-\`\`\`
-
-**Saída ao Pausar (Problema Encontrado)**
-
-\`\`\`
-## Implementação Pausada
-
-**Change:** <nome-change>
-**Schema:** <nome-schema>
-**Progresso:** 4/7 tarefas concluídas
-
-### Problema Encontrado
-<descrição do problema>
-
-**Opções:**
-1. <opção 1>
-2. <opção 2>
-3. Outra abordagem
-
-O que você gostaria de fazer?
-\`\`\`
-
-**Guardrails**
-- Continue pelas tarefas até concluir ou bloquear
-- Sempre leia os arquivos de contexto antes de começar (da saída das instruções de apply)
-- Se a tarefa for ambígua, pause e pergunte antes de implementar
-- Se a implementação revelar problemas, pause e sugira atualizar artifacts
-- Mantenha as alterações de código mínimas e limitadas a cada tarefa
-- Atualize a checkbox da tarefa imediatamente após concluir cada tarefa
-- Pare em erros, bloqueios ou requisitos incertos - não adivinhe
-- Use os contextFiles da saída do CLI, não assuma nomes de arquivos específicos
-- Não use contexto ou orientação da operação como prova de que uma tarefa está concluída
-- Aplique o contexto relevante do projeto; reporte conflitos com as entradas controladoras do workflow
-- Considere cada entrada de orientação; explique qualquer conselho inaplicável ou conflitante
-- Não copie contexto de runtime ou orientação da operação para arquivos de implementação ou artifacts de planejamento
-- Preserve o comportamento de estado blocked/ready/all_done controlado pelo CLI e os critérios de conclusão
-
-**Integração com Fluxo Fluido**
-
-Esta skill suporta o modelo de "ações em uma change":
-
-- **Pode ser invocada a qualquer momento**: Antes de todos os artifacts estarem prontos (se tasks existirem), após implementação parcial, intercalada com outras ações
-- **Permite atualizações de artifacts**: Se a implementação revelar problemas de design, sugira atualizar artifacts - não está travada em fases, trabalhe de forma fluida`,
-    license: 'MIT',
-    compatibility: 'Requer openspec CLI.',
-    metadata: { author: 'openspec', version: '1.0' },
-  };
-}
-
-export function getOpsxApplyCommandTemplate(): CommandTemplate {
-  return {
-    name: 'OPSX: Apply',
-    description: 'Implementa tarefas de uma change do BR-OpenSpec (Experimental)',
-    category: 'Workflow',
-    tags: ['workflow', 'artifacts', 'experimental'],
-    content: `Implementa tarefas de uma change do BR-OpenSpec.
+/**
+ * The apply workflow instructions, authored once and rendered by both the
+ * skill and command surfaces. The surfaces are intentionally distinct, but
+ * they differ only in how they are invoked — the generation transformers
+ * rewrite the canonical `/opsx:<id>` tokens per surface downstream (see
+ * command-references.ts). The instruction text itself is shared, so the two
+ * cannot silently drift. Should a surface ever need genuinely different
+ * wording, add a parameter here and pass it from that surface's template.
+ */
+export function getApplyInstructions(): string {
+  return `Implementa tarefas de uma change do BR-OpenSpec.
 
 **Entrada**: Opcionalmente especifique um nome de change (por exemplo, \`/opsx:apply add-auth\`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
@@ -224,7 +46,7 @@ export function getOpsxApplyCommandTemplate(): CommandTemplate {
    \`\`\`
 
    Isso retorna:
-   - \`contextFiles\`: artifact ID -> array de caminhos de arquivos concretos (varia por schema)
+   - \`contextFiles\`: artifact ID -> array de caminhos de arquivos concretos (varia por schema - pode ser proposal/specs/design/tasks ou spec/tests/implementation/docs)
    - Progresso (total, completo, restante)
    - Lista de tarefas com status
    - Instrução dinâmica baseada no estado atual
@@ -283,6 +105,7 @@ export function getOpsxApplyCommandTemplate(): CommandTemplate {
    **Pare se:**
    - A tarefa estiver incerta → peça esclarecimento
    - A implementação revelar um problema de design → sugira atualizar artifacts
+   - Uma tarefa exigir trabalho além do que a spec e as tarefas descrevem, ou você se sentir tentado a descartar, reduzir, adiar ou aceitar exceções ao comportamento especificado para fazê-la caber → traga o escopo adicional à tona e pergunte; não o absorva silenciosamente
    - Encontrar erro ou bloqueio → reporte e aguarde orientação
    - O usuário interromper
 
@@ -353,6 +176,8 @@ O que você gostaria de fazer?
 - Mantenha as alterações de código mínimas e limitadas a cada tarefa
 - Atualize a checkbox da tarefa imediatamente após concluir cada tarefa
 - Pare em erros, bloqueios ou requisitos incertos - não adivinhe
+- Quando uma tarefa exigir trabalho além do que a spec descreve, traga o escopo adicional à tona e pause - nunca reduza, adie ou simplifique silenciosamente o comportamento especificado
+- Só marque uma tarefa como concluída (\`- [x]\` ou o formato do schema ativo) quando o comportamento especificado estiver totalmente implementado, não quando ela estiver parcialmente feita ou adiada
 - Use os contextFiles da saída do CLI, não assuma nomes de arquivos específicos
 - Não use contexto ou orientação da operação como prova de que uma tarefa está concluída
 - Aplique o contexto relevante do projeto; reporte conflitos com as entradas controladoras do workflow
@@ -365,6 +190,26 @@ O que você gostaria de fazer?
 Esta skill suporta o modelo de "ações em uma change":
 
 - **Pode ser invocada a qualquer momento**: Antes de todos os artifacts estarem prontos (se tasks existirem), após implementação parcial, intercalada com outras ações
-- **Permite atualizações de artifacts**: Se a implementação revelar problemas de design, sugira atualizar artifacts - não está travada em fases, trabalhe de forma fluida`
+- **Permite atualizações de artifacts**: Se a implementação revelar problemas de design, sugira atualizar artifacts - não está travada em fases, trabalhe de forma fluida`;
+}
+
+export function getApplyChangeSkillTemplate(): SkillTemplate {
+  return {
+    name: 'openspec-apply-change',
+    description: 'Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas.',
+    instructions: getApplyInstructions(),
+    license: 'MIT',
+    compatibility: 'Requer openspec CLI.',
+    metadata: { author: 'openspec', version: '1.0' },
+  };
+}
+
+export function getOpsxApplyCommandTemplate(): CommandTemplate {
+  return {
+    name: 'OPSX: Apply',
+    description: 'Implementa tarefas de uma change do BR-OpenSpec (Experimental)',
+    category: 'Workflow',
+    tags: ['workflow', 'artifacts', 'experimental'],
+    content: getApplyInstructions(),
   };
 }

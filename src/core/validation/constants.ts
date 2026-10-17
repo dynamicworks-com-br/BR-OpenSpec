@@ -2,6 +2,8 @@
  * Validation threshold constants
  */
 
+import { SPECS_APPLY_MESSAGES } from '../../messages/index.js';
+
 // Minimum character lengths
 export const MIN_WHY_SECTION_LENGTH = 50;
 export const MIN_PURPOSE_LENGTH = 50;
@@ -10,6 +12,17 @@ export const MIN_PURPOSE_LENGTH = 50;
 export const MAX_WHY_SECTION_LENGTH = 1000;
 export const MAX_REQUIREMENT_TEXT_LENGTH = 500;
 export const MAX_DELTAS_PER_CHANGE = 10;
+
+// O Purpose que o `openspec archive` grava no spec principal que cria quando o
+// delta introduziu a capability sem um `## Purpose` utilizável. Nomeado aqui e
+// composto destas duas metades no ponto de escrita
+// (`SPECS_APPLY_MESSAGES.skeletonPurpose`, que é a definição única no catálogo
+// PT-BR), para que a validação reconheça o placeholder pela mesma definição que
+// o produz: uma segunda grafia copiada à mão deixaria de casar no dia em que o
+// texto mudasse, e um check que não casa nada parece exatamente um check que
+// não achou nada.
+export const PURPOSE_PLACEHOLDER_PREFIX: string = SPECS_APPLY_MESSAGES.skeletonPurposePrefix;
+export const PURPOSE_PLACEHOLDER_SUFFIX: string = SPECS_APPLY_MESSAGES.skeletonPurposeSuffix;
 
 // Validation messages
 export const VALIDATION_MESSAGES = {
@@ -37,6 +50,11 @@ export const VALIDATION_MESSAGES = {
 
   // Warnings
   PURPOSE_TOO_BRIEF: `A seção Purpose é muito breve (menos de ${MIN_PURPOSE_LENGTH} caracteres)`,
+  PURPOSE_IS_PLACEHOLDER:
+    'A seção Purpose ainda é um placeholder, não um Purpose que alguém escreveu (a frase que o `openspec archive` ' +
+    'grava para uma nova capability, ou um marcador `A definir`/`TBD`/`TODO` deixado no lugar). Substitua-a por uma ' +
+    'descrição de para que serve esta capability, editando o spec principal diretamente: um `## Purpose` em um delta ' +
+    'só é lido quando a capability é criada, então não pode substituir este.',
   REQUIREMENT_TOO_LONG: `O texto do requisito é muito longo (>${MAX_REQUIREMENT_TEXT_LENGTH} caracteres). Considere dividi-lo.`,
   DELTA_DESCRIPTION_TOO_BRIEF: 'A descrição do delta é muito breve',
   DELTA_MISSING_REQUIREMENTS: 'O delta deve incluir requisitos',

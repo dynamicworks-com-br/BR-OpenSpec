@@ -14,6 +14,8 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
 
 **Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
+\`/opsx:continue\` é um workflow opcional e pode não estar instalado. Antes de sugeri-lo em qualquer ponto abaixo, verifique se ele está disponível. Se ele não estiver disponível, \`openspec status --change "<nome>" --json\` mostra o próximo artifact e \`openspec instructions "<artifact-id>" --change "<nome>" --json\` explica como criá-lo.
+
 **Passos**
 
 1. **Selecione a change**
@@ -40,7 +42,7 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
    - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
-   - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
+   - \`isPlanningComplete\`: Booleano indicando se todos os artifacts de planejamento estão completos. Versões mais antigas do CLI expõem o mesmo valor como \`isComplete\`.
    - \`artifactPaths\`: Caminhos por artifact (\`outputPath\`, \`resolvedOutputPath\`, \`existingOutputPaths\`). Use-os em vez de assumir caminhos locais do repositório.
 
    Os ids e caminhos dos artifacts vêm do schema ativo - NÃO os assuma e NÃO ramifique com base em nomes de artifact fixos. Schemas personalizados devem funcionar sem alterações.
@@ -63,7 +65,7 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
    - Se o usuário rejeitar uma revisão, não a escreva - deixe aquele artifact inalterado.
    - Quando uma reescrita substancial for necessária, obtenha primeiro as regras e o template daquele artifact:
      \`\`\`bash
-     openspec instructions <artifact-id> --change "<nome>" --json
+     openspec instructions "<artifact-id>" --change "<nome>" --json
      \`\`\`
 
 6. **Aponte o próximo passo (apenas orientação - NUNCA aja sobre ele)**
@@ -84,8 +86,7 @@ Após cada invocação, mostre:
 - Edite apenas os arquivos concretos em \`existingOutputPaths\`; nunca escreva em um \`resolvedOutputPath\` com glob.
 - Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do \`/opsx:continue\`.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero").
-- \`/opsx:continue\` e \`/opsx:new\` podem não estar instalados (perfil core). Ao sugerir um que esteja indisponível, aponte para o CLI: \`openspec status --change "<name>" --json\` mostra o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` explica como criá-lo.`,
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, verifique primeiro se o workflow opcional \`/opsx:new\` está disponível. Se estiver, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero"). Se ele não estiver disponível, peça um nome de change distinto e ainda não usado e recomende \`openspec new change "<novo-nome-da-change>"\` em vez disso.`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
@@ -102,6 +103,8 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
 
 **Entrada**: Opcionalmente especifique um nome de change após \`/opsx:update\` (por exemplo, \`/opsx:update add-auth\`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
+\`/opsx:continue\` é um workflow opcional e pode não estar instalado. Antes de sugeri-lo em qualquer ponto abaixo, verifique se ele está disponível. Se ele não estiver disponível, \`openspec status --change "<nome>" --json\` mostra o próximo artifact e \`openspec instructions "<artifact-id>" --change "<nome>" --json\` explica como criá-lo.
+
 **Passos**
 
 1. **Selecione a change**
@@ -128,7 +131,7 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
    Analise o JSON para entender o estado atual. A resposta inclui:
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
    - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
-   - \`isComplete\`: Booleano indicando se todos os artifacts estão completos
+   - \`isPlanningComplete\`: Booleano indicando se todos os artifacts de planejamento estão completos. Versões mais antigas do CLI expõem o mesmo valor como \`isComplete\`.
    - \`artifactPaths\`: Caminhos por artifact (\`outputPath\`, \`resolvedOutputPath\`, \`existingOutputPaths\`). Use-os em vez de assumir caminhos locais do repositório.
 
    Os ids e caminhos dos artifacts vêm do schema ativo - NÃO os assuma e NÃO ramifique com base em nomes de artifact fixos. Schemas personalizados devem funcionar sem alterações.
@@ -151,7 +154,7 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
    - Se o usuário rejeitar uma revisão, não a escreva - deixe aquele artifact inalterado.
    - Quando uma reescrita substancial for necessária, obtenha primeiro as regras e o template daquele artifact:
      \`\`\`bash
-     openspec instructions <artifact-id> --change "<nome>" --json
+     openspec instructions "<artifact-id>" --change "<nome>" --json
      \`\`\`
 
 6. **Aponte o próximo passo (apenas orientação - NUNCA aja sobre ele)**
@@ -172,7 +175,6 @@ Após cada invocação, mostre:
 - Edite apenas os arquivos concretos em \`existingOutputPaths\`; nunca escreva em um \`resolvedOutputPath\` com glob.
 - Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do \`/opsx:continue\`.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero").
-- \`/opsx:continue\` e \`/opsx:new\` podem não estar instalados (perfil core). Ao sugerir um que esteja indisponível, aponte para o CLI: \`openspec status --change "<name>" --json\` mostra o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` explica como criá-lo.`
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, verifique primeiro se o workflow opcional \`/opsx:new\` está disponível. Se estiver, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero"). Se ele não estiver disponível, peça um nome de change distinto e ainda não usado e recomende \`openspec new change "<novo-nome-da-change>"\` em vez disso.`
   };
 }

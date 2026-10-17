@@ -212,12 +212,20 @@ describe('config profile interactive flow', () => {
     expect(checkbox).toHaveBeenCalledTimes(1);
     const checkboxCall = checkbox.mock.calls[0][0];
     expect(checkboxCall.pageSize).toBe(ALL_WORKFLOWS.length);
-    expect(checkboxCall.theme).toEqual({
-      icon: {
-        checked: '[x]',
-        unchecked: '[ ]',
-      },
+    // `instructions` foi removida no @inquirer/checkbox v5; a dica de teclas
+    // localizada entra por theme.style.keysHelpTip.
+    expect(checkboxCall).not.toHaveProperty('instructions');
+    expect(checkboxCall.theme.icon).toEqual({
+      checked: '[x]',
+      unchecked: '[ ]',
     });
+    expect(typeof checkboxCall.theme.style.keysHelpTip).toBe('function');
+    const keysHelpTip = checkboxCall.theme.style.keysHelpTip([
+      ['space', 'select'],
+      ['⏎', 'submit'],
+    ]);
+    expect(keysHelpTip).toContain('espaço');
+    expect(keysHelpTip).toContain('alternar');
     const proposeChoice = checkboxCall.choices.find((choice: { value: string }) => choice.value === 'propose');
     const onboardChoice = checkboxCall.choices.find((choice: { value: string }) => choice.value === 'onboard');
     expect(proposeChoice.checked).toBe(true);
@@ -287,6 +295,65 @@ describe('config profile interactive flow', () => {
     expect(confirm).not.toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith('Nenhuma alteração na configuração.');
   });
+
+  it('should preserve a custom profile when dependency expansion matches the core set', async () => {
+    const { saveGlobalConfig, getGlobalConfig, getGlobalConfigPath } = await import('../../src/core/global-config.js');
+    const { select, checkbox, confirm } = await getPromptMocks();
+
+    saveGlobalConfig({
+      featureFlags: {},
+      profile: 'custom',
+      delivery: 'both',
+      workflows: ['propose', 'explore', 'apply', 'update', 'archive'],
+    });
+    const configPath = getGlobalConfigPath();
+    const beforeContent = fs.readFileSync(configPath, 'utf-8');
+
+    select.mockResolvedValueOnce('workflows');
+    checkbox.mockResolvedValueOnce(['propose', 'explore', 'apply', 'update', 'sync', 'archive']);
+
+    await runConfigCommand(['profile']);
+
+    expect(getGlobalConfig().profile).toBe('custom');
+    expect(fs.readFileSync(configPath, 'utf-8')).toBe(beforeContent);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith('Nenhuma alteração na configuração.');
+  });
+
+  it.each(['delivery', 'both'] as const)(
+    'should preserve raw custom workflows during a %s change',
+    async (action) => {
+      const { saveGlobalConfig, getGlobalConfig } = await import('../../src/core/global-config.js');
+      const { select, checkbox } = await getPromptMocks();
+
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'custom',
+        delivery: 'both',
+        workflows: ['propose', 'explore', 'apply', 'update', 'archive'],
+      });
+      select.mockResolvedValueOnce(action);
+      select.mockResolvedValueOnce('skills');
+      if (action === 'both') {
+        checkbox.mockResolvedValueOnce([
+          'propose',
+          'explore',
+          'apply',
+          'update',
+          'sync',
+          'archive',
+        ]);
+      }
+
+      await runConfigCommand(['profile']);
+
+      expect(getGlobalConfig()).toMatchObject({
+        profile: 'custom',
+        delivery: 'skills',
+        workflows: ['propose', 'explore', 'apply', 'update', 'archive'],
+      });
+    }
+  );
 
   it('keep action should warn when project files drift from global config', async () => {
     const { saveGlobalConfig } = await import('../../src/core/global-config.js');

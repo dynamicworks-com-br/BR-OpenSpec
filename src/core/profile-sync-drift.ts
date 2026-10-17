@@ -5,6 +5,20 @@ import type { Delivery } from './global-config.js';
 import { ALL_WORKFLOWS } from './profiles.js';
 import { CommandAdapterRegistry } from './command-generation/index.js';
 import { getConfiguredTools } from './shared/index.js';
+import {
+  shouldGenerateCommandsForTool,
+  shouldGenerateSkillsForTool,
+  shouldReconcileCommandFilesForTool,
+  shouldRemoveSkillsForTool,
+} from './command-surface.js';
+import { readSharedSkillTarget } from './shared-skill-target.js';
+import { FileSystemUtils } from '../utils/file-system.js';
+import { isLegacyCodexSkillEquivalentToCurrent } from './shared/skill-content-equivalence.js';
+import {
+  hasGlobalSkillTarget,
+  resolveToolSkillsDir,
+  toolSupportsSkills,
+} from './shared/skill-paths.js';
 
 type WorkflowId = (typeof ALL_WORKFLOWS)[number];
 
@@ -56,14 +70,52 @@ export function hasToolProfileOrDeliveryDrift(
   delivery: Delivery
 ): boolean {
   const tool = AI_TOOLS.find((t) => t.value === toolId);
-  if (!tool?.skillsDir) return false;
+  if (!tool || !toolSupportsSkills(tool)) return false;
 
   const knownDesiredWorkflows = toKnownWorkflows(desiredWorkflows);
   const desiredWorkflowSet = new Set<WorkflowId>(knownDesiredWorkflows);
-  const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
+  const skillsDir = resolveToolSkillsDir(projectPath, tool);
   const adapter = CommandAdapterRegistry.get(toolId);
-  const shouldGenerateSkills = delivery !== 'commands';
-  const shouldGenerateCommands = delivery !== 'skills';
+  const shouldGenerateSkills = shouldGenerateSkillsForTool(toolId, delivery);
+  const shouldGenerateCommands = shouldGenerateCommandsForTool(toolId, delivery);
+
+  const sharedTarget = tool.skillsDir
+    ? readSharedSkillTarget(projectPath, tool.skillsDir)
+    : undefined;
+  for (const root of tool.legacySkillsDirs ?? []) {
+    for (const workflow of knownDesiredWorkflows) {
+      const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
+      const legacySkill = path.join(projectPath, root, 'skills', dirName, 'SKILL.md');
+      if (!fs.existsSync(legacySkill)) continue;
+
+      const currentSkill = path.join(skillsDir, dirName, 'SKILL.md');
+      if (!fs.existsSync(currentSkill) || sharedTarget !== toolId) {
+        return true;
+      }
+      try {
+        if (
+          FileSystemUtils.canonicalizeExistingPath(legacySkill) ===
+          FileSystemUtils.canonicalizeExistingPath(currentSkill)
+        ) {
+          continue;
+        }
+        // Equivalent generated copies are actionable: migration can safely
+        // remove the redundant legacy file even when version, line endings,
+        // or supported invocation syntax changed. Materially divergent copies
+        // stay in place without forcing an update on every run.
+        if (
+          isLegacyCodexSkillEquivalentToCurrent(
+            fs.readFileSync(legacySkill, 'utf-8'),
+            fs.readFileSync(currentSkill, 'utf-8')
+          )
+        ) {
+          return true;
+        }
+      } catch {
+        return true;
+      }
+    }
+  }
 
   if (shouldGenerateSkills) {
     for (const workflow of knownDesiredWorkflows) {
@@ -83,7 +135,7 @@ export function hasToolProfileOrDeliveryDrift(
         return true;
       }
     }
-  } else {
+  } else if (shouldRemoveSkillsForTool(toolId, delivery) && !hasGlobalSkillTarget(tool)) {
     for (const workflow of ALL_WORKFLOWS) {
       const dirName = WORKFLOW_TO_SKILL_DIR[workflow];
       const skillDir = path.join(skillsDir, dirName);
@@ -111,7 +163,7 @@ export function hasToolProfileOrDeliveryDrift(
         return true;
       }
     }
-  } else if (!shouldGenerateCommands && adapter) {
+  } else if (shouldReconcileCommandFilesForTool(toolId, delivery) && adapter) {
     for (const workflow of ALL_WORKFLOWS) {
       const cmdPath = adapter.getFilePath(workflow);
       const fullPath = path.isAbsolute(cmdPath) ? cmdPath : path.join(projectPath, cmdPath);
@@ -145,10 +197,10 @@ function getInstalledWorkflowsForTool(
   options: { includeSkills: boolean; includeCommands: boolean }
 ): WorkflowId[] {
   const tool = AI_TOOLS.find((t) => t.value === toolId);
-  if (!tool?.skillsDir) return [];
+  if (!tool || !toolSupportsSkills(tool)) return [];
 
   const installed = new Set<WorkflowId>();
-  const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
+  const skillsDir = resolveToolSkillsDir(projectPath, tool);
 
   if (options.includeSkills) {
     for (const workflow of ALL_WORKFLOWS) {
@@ -190,10 +242,10 @@ export function hasProjectConfigDrift(
   }
 
   const desiredSet = new Set(toKnownWorkflows(desiredWorkflows));
-  const includeSkills = delivery !== 'commands';
-  const includeCommands = delivery !== 'skills';
 
   for (const toolId of configuredTools) {
+    const includeSkills = shouldGenerateSkillsForTool(toolId, delivery);
+    const includeCommands = shouldGenerateCommandsForTool(toolId, delivery);
     const installed = getInstalledWorkflowsForTool(projectPath, toolId, { includeSkills, includeCommands });
     if (installed.some((workflow) => !desiredSet.has(workflow))) {
       return true;

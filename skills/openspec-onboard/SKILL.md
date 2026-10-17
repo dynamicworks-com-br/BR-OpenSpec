@@ -211,6 +211,11 @@ Vou elaborar uma com base na nossa tarefa.
 
 **FAÇA:** Elabore o conteúdo da proposal (ainda não salve):
 
+`<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo,
+`user-auth` ou `identity/user-auth`). Use o caminho exato existente para capabilities
+modificadas. Para capabilities novas, siga a organização de specs já estabelecida no
+projeto.
+
 ```
 Aqui está um rascunho de proposal:
 
@@ -227,10 +232,11 @@ Aqui está um rascunho de proposal:
 ## Capabilities
 
 ### Novas Capabilities
-- `<nome-capability>`: [breve descrição]
+- `<capability-path>`: [breve descrição]
 
 ### Capabilities Modificadas
 <!-- Se modificar comportamento existente -->
+- `<existing-capability-path>`: [breve descrição]
 
 ## Impacto
 
@@ -272,9 +278,9 @@ Para uma tarefa pequena como esta, talvez precisemos apenas de um arquivo spec.
 **FAÇA:** Crie o arquivo spec:
 ```bash
 # Unix/macOS
-mkdir -p openspec/changes/<nome>/specs/<nome-capability>
+mkdir -p openspec/changes/<nome>/specs/<capability-path>
 # Windows (PowerShell)
-# New-Item -ItemType Directory -Force -Path "openspec/changes/<nome>/specs/<nome-capability>"
+# New-Item -ItemType Directory -Force -Path "openspec/changes/<nome>/specs/<capability-path>"
 ```
 
 Elabore o conteúdo do spec:
@@ -301,7 +307,7 @@ O sistema SHALL <descrição do que o sistema deve fazer>
 Este formato - WHEN/THEN/AND - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste. Os marcadores estruturais (ADDED Requirements, Requirement, Scenario) e as palavras-chave (WHEN/THEN/AND, SHALL/MUST) ficam SEMPRE em inglês — é o protocolo que o parser e o validador reconhecem. Apenas o conteúdo descritivo é escrito em português.
 ```
 
-Salve em `openspec/changes/<nome>/specs/<capability>/spec.md`.
+Salve em `openspec/changes/<nome>/specs/<capability-path>/spec.md`.
 
 ---
 
@@ -370,12 +376,12 @@ Aqui estão as tarefas de implementação:
 
 ## 1. [Categoria ou arquivo]
 
-- [ ] 1.1 [Tarefa específica]
-- [ ] 1.2 [Tarefa específica]
+- [ ] 1.1 [Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]
+- [ ] 1.2 [Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]
 
-## 2. Verificar
+## 2. Verificação de Integração
 
-- [ ] 2.1 [Etapa de verificação]
+- [ ] 2.1 Verificar [integração mais ampla ou comportamento do sistema] com [teste de ponta a ponta ou resultado observável]
 
 ---
 

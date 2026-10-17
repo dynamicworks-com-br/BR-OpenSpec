@@ -7,13 +7,26 @@ import {
   findMainSpecStructureIssues,
   stripFencedCodeBlocksPreservingLines,
 } from '../../src/core/parsers/spec-structure.js';
+import {
+  PURPOSE_PLACEHOLDER_PREFIX,
+  PURPOSE_PLACEHOLDER_SUFFIX,
+} from '../../src/core/validation/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..', '..');
 const specsRoot = path.join(projectRoot, 'openspec', 'specs');
 
-const PURPOSE_PLACEHOLDER_PATTERN = /TBD - created by archiving change .*?\. Update Purpose after archive\./;
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// The repo specs mirror upstream (EN), so the upstream placeholder is still
+// checked literally; the fork's own placeholder is built from the constants
+// archive writes with, so this guard cannot drift from the writer.
+const PURPOSE_PLACEHOLDER_PATTERN = new RegExp(
+  [
+    'TBD - created by archiving change .*?\\. Update Purpose after archive\\.',
+    `${escapeRegExp(PURPOSE_PLACEHOLDER_PREFIX)}.*?${escapeRegExp(PURPOSE_PLACEHOLDER_SUFFIX)}`,
+  ].join('|')
+);
 const REQUIREMENT_HEADER_PATTERN = /^###\s+Requirement:/gm;
 
 async function getSpecFiles(): Promise<string[]> {
@@ -35,6 +48,39 @@ async function getSpecFiles(): Promise<string[]> {
 }
 
 describe('source-of-truth specs normalization', () => {
+  it('reports duplicate canonical requirement names', () => {
+    const content = [
+      '# Capability',
+      '',
+      '## Purpose',
+      'A purpose.',
+      '',
+      '## Requirements',
+      '',
+      '### Requirement: Same name',
+      'The first definition.',
+      '',
+      '#### Scenario: First',
+      '- **WHEN** something happens',
+      '- **THEN** the first result occurs',
+      '',
+      '### Requirement: Same name',
+      'The second definition.',
+      '',
+      '#### Scenario: Second',
+      '- **WHEN** something else happens',
+      '- **THEN** the second result occurs',
+      '',
+    ].join('\n');
+
+    expect(findMainSpecStructureIssues(content)).toEqual([
+      expect.objectContaining({
+        kind: 'duplicate-requirement',
+        message: expect.stringContaining('Same name'),
+      }),
+    ]);
+  });
+
   it('enforces required sections and bans hidden requirements, placeholders, and delta headers', async () => {
     const files = await getSpecFiles();
     expect(files.length).toBeGreaterThan(0);
