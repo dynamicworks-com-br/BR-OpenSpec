@@ -1,0 +1,68 @@
+name: Relato de bug
+description: Algo no BR-OpenSpec não funciona como deveria.
+labels: ['bug', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar.
+
+        Você também pode rodar `openspec feedback "seu relato"` para abrir uma
+        issue na hora com a versão e a plataforma, ou receber um link de envio
+        se o GitHub CLI não estiver disponível ou autenticado.
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: O que aconteceu
+      description: O comportamento real. Cole o comando que você rodou e a saída, se tiver.
+      placeholder: |
+        Rodei `openspec archive add-login` e ele saiu com código 0 sem escrever a spec principal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que você esperava
+      placeholder: A spec principal em openspec/specs/auth/spec.md deveria ter sido atualizada.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Passos mínimos para reproduzir
+      description: O caminho mais curto de um projeto novo até o problema. É a informação mais útil que você pode dar.
+      placeholder: |
+        1. `openspec init` em um diretório vazio
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versão do BR-OpenSpec
+      description: Saída de `openspec --version`, ou "desconhecida" se a instalação falhou ou o comando não roda.
+      placeholder: '1.11.0'
+    validations:
+      required: true
+
+  - type: input
+    id: agent
+    attributes:
+      label: Agente de código e modelo
+      description: Qual agente e modelo estavam conduzindo o BR-OpenSpec, se houver. O comportamento costuma mudar entre eles.
+      placeholder: Claude Code, Opus 4.6
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: SO e versão do Node
+      placeholder: macOS 15.6, Node 22.11.0
+    validations:
+      required: false

@@ -1,0 +1,44 @@
+name: Pedido de funcionalidade
+description: Algo que o BR-OpenSpec deveria fazer e ainda não faz.
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Se isso mudaria o desenho central do BR-OpenSpec, abra uma
+        [discussão](https://github.com/dynamicworks-com-br/BR-OpenSpec/discussions) em vez disso — veja
+        [CONTRIBUTING.md](https://github.com/dynamicworks-com-br/BR-OpenSpec/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: O problema, em uma ou duas frases
+      description: O que você tentava fazer, e onde o BR-OpenSpec atrapalhou. Descreva o problema, não a solução.
+      placeholder: Não há como saber de qual mudança uma spec veio depois de arquivada.
+    validations:
+      required: true
+
+  - type: textarea
+    id: who
+    attributes:
+      label: Quem isso afeta
+      description: Só você, todo mundo em um agente específico, todo mundo em um fluxo específico, ou todo mundo. O BR-OpenSpec atende muitos agentes e modelos, e isso define se a mudança cabe.
+      placeholder: Qualquer pessoa que arquive mais do que um punhado de mudanças.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: O que você tentou
+      description: Comandos, flags ou contornos que você usou, e por que não bastaram.
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: O que você tem em mente
+      description: Opcional. Um esboço basta — vamos combinar a abordagem antes de alguém construir.
+    validations:
+      required: false
