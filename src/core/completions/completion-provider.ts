@@ -17,6 +17,7 @@ export class CompletionProvider {
   private readonly cacheTTL: number;
   private changeCache: CacheEntry<string[]> | null = null;
   private specCache: CacheEntry<string[]> | null = null;
+  private schemaCache: CacheEntry<string[]> | null = null;
 
   /**
    * Creates a new completion provider
@@ -79,6 +80,34 @@ export class CompletionProvider {
     };
 
     return specIds;
+  }
+
+  /**
+   * Get all schema names for completion
+   *
+   * @returns Array of schema names
+   */
+  async getSchemaNames(): Promise<string[]> {
+    const now = Date.now();
+
+    // Check if cache is valid
+    if (this.schemaCache && now - this.schemaCache.timestamp < this.cacheTTL) {
+      return this.schemaCache.data;
+    }
+
+    // Fetch fresh data. The resolver (and the yaml and zod it parses schemas
+    // with) loads only here: completing changes or specs never needs it, and
+    // the artifact-graph barrel would also pull in tinyglobby.
+    const { listSchemas } = await import('../artifact-graph/resolver.js');
+    const schemaNames = listSchemas(this.projectRoot);
+
+    // Update cache
+    this.schemaCache = {
+      data: schemaNames,
+      timestamp: now,
+    };
+
+    return schemaNames;
   }
 
   /**

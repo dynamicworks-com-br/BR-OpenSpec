@@ -12,10 +12,12 @@ import {
   loadChangeContext,
   generateInstructions,
   resolveSchema,
-  resolveArtifactOutputPath,
   resolveArtifactOutputs,
   type ArtifactInstructions,
 } from '../../core/artifact-graph/index.js';
+import { isSpecsArtifactPath } from '../../core/artifact-graph/outputs.js';
+import { findUnreadDeltaFiles } from '../../utils/spec-discovery.js';
+import { METADATA_FILENAME } from '../../utils/change-metadata.js';
 import {
   validateChangeExists,
   validateSchemaExists,
@@ -124,7 +126,11 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
   } = instructions;
 
   // Opening tag
-  console.log(`<artifact id="${artifactId}" change="${changeName}" schema="${schemaName}">`);
+  console.log(
+    `<artifact id="${escapeEnvelopeAttribute(artifactId)}"` +
+      ` change="${escapeEnvelopeAttribute(changeName)}"` +
+      ` schema="${escapeEnvelopeAttribute(schemaName)}">`
+  );
   console.log();
 
   // Artifacts skipped via skip_specs get no creation directive: emitting the
@@ -132,7 +138,7 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
   // validate then rejects as conflicting with the marker.
   if (instructions.skipped) {
     console.log('<warning>');
-    console.log(instructions.warning ?? WORKFLOW_MESSAGES.artifactSkippedFallback);
+    console.log(escapeEnvelopeTags(instructions.warning ?? WORKFLOW_MESSAGES.artifactSkippedFallback));
     console.log('</warning>');
     console.log();
     console.log('</artifact>');
@@ -151,8 +157,8 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
 
   // Task directive
   console.log('<task>');
-  console.log(WORKFLOW_MESSAGES.createArtifactTask(artifactId, changeName));
-  console.log(description);
+  console.log(escapeEnvelopeTags(WORKFLOW_MESSAGES.createArtifactTask(artifactId, changeName)));
+  console.log(escapeEnvelopeTags(description));
   console.log('</task>');
   console.log();
 
@@ -160,7 +166,7 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
   if (context) {
     console.log('<project_context>');
     console.log('<!-- This is background information for you. Do NOT include this in your output. -->');
-    console.log(context);
+    console.log(escapeEnvelopeTags(context));
     console.log('</project_context>');
     console.log();
   }
@@ -170,7 +176,7 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
     console.log('<rules>');
     console.log('<!-- These are constraints for you to follow. Do NOT include this in your output. -->');
     for (const rule of rules) {
-      console.log(`- ${rule}`);
+      console.log(`- ${escapeEnvelopeTags(rule)}`);
     }
     console.log('</rules>');
     console.log();
@@ -195,7 +201,7 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
       const fullPath = path.join(changeDir, dep.path);
       console.log(`<dependency id="${dep.id}" status="${status}">`);
       console.log(`  <path>${fullPath}</path>`);
-      console.log(`  <description>${dep.description}</description>`);
+      console.log(`  <description>${escapeEnvelopeTags(dep.description)}</description>`);
       console.log('</dependency>');
     }
     console.log('</dependencies>');
@@ -211,7 +217,7 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
   // Instruction (guidance)
   if (instruction) {
     console.log('<instruction>');
-    console.log(instruction.trim());
+    console.log(escapeEnvelopeTags(instruction.trim()));
     console.log('</instruction>');
     console.log();
   }
@@ -219,7 +225,7 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
   // Template
   console.log('<template>');
   console.log('<!-- Use this as the structure for your output file. Fill in the sections. -->');
-  console.log(template.trim());
+  console.log(escapeEnvelopeTags(template.trim()));
   console.log('</template>');
   console.log();
 
@@ -256,7 +262,24 @@ export function printInstructionsText(instructions: ArtifactInstructions, isBloc
  * what puts apply in its "nothing to work on" state, so a file of nothing but
  * text-less checkboxes asks to be rewritten instead of being called done.
  */
-function toTaskItems(parsed: ParsedTask[]): TaskItem[] {
+interface LocatedTask extends ParsedTask {
+  sourcePath: string;
+  line: number;
+}
+
+/** Acrescenta a localização (caminho e linha, base 1) sem mudar o parser de tarefas. */
+function parseLocatedTasks(content: string, sourcePath: string): LocatedTask[] {
+  const tasks: LocatedTask[] = [];
+
+  for (const [index, line] of content.split('\n').entries()) {
+    const [task] = parseTaskLines(line);
+    if (task) tasks.push({ ...task, sourcePath, line: index + 1 });
+  }
+
+  return tasks;
+}
+
+function toTaskItems(parsed: LocatedTask[]): TaskItem[] {
   const tasks: TaskItem[] = [];
 
   for (const task of parsed) {
@@ -265,6 +288,8 @@ function toTaskItems(parsed: ParsedTask[]): TaskItem[] {
       id: `${tasks.length + 1}`,
       description: task.description,
       done: task.done,
+      sourcePath: task.sourcePath,
+      line: task.line,
     });
   }
 
@@ -280,6 +305,142 @@ export interface GenerateApplyInstructionsOptions {
  * Schema-aware: reads apply phase configuration from schema to determine
  * required artifacts, tracking file, and instruction.
  */
+const ENVELOPE_TAGS = [
+  'artifact',
+  'dependencies',
+  'dependency',
+  'description',
+  'instruction',
+  'output',
+  'path',
+  'project_context',
+  'rules',
+  'success_criteria',
+  'task',
+  'template',
+  'unlocks',
+  'warning',
+] as const;
+
+const ENVELOPE_TAG = new RegExp(
+  `<(/?)(${ENVELOPE_TAGS.join('|')})(\\s[^<>]*)?>`,
+  'gi'
+);
+
+/** Neutralizes the envelope's own tags in repo-supplied text. */
+export function escapeEnvelopeTags(value: string): string {
+  return value.replace(
+    ENVELOPE_TAG,
+    (_match, slash: string, tag: string, attrs: string | undefined) =>
+      `&lt;${slash}${tag}${attrs ?? ''}&gt;`
+  );
+}
+
+/** Escapes attribute text printed inside an instruction envelope. */
+export function escapeEnvelopeAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function describeArtifactRemedy(
+  changeName: string,
+  artifactId?: string,
+  options: { many?: boolean } = {}
+): string {
+  const target = artifactId ?? '<artifact>';
+  return options.many
+    ? WORKFLOW_MESSAGES.createEachArtifactWith(target, changeName)
+    : WORKFLOW_MESSAGES.createArtifactWith(target, changeName);
+}
+
+function findArtifactIdFor(
+  schema: { artifacts: { id: string; generates: string }[] },
+  generates: string
+): string | undefined {
+  return schema.artifacts.find((artifact) => artifact.generates === generates)?.id;
+}
+
+/**
+ * Everything still to build before apply can run, in build order.
+ * Apply blocks on `apply.requires` alone, so that list stops at the first hop.
+ * Walking `requires` names the whole chain (#834, #869).
+ */
+function collectMissingPrerequisites(input: {
+  requiredArtifactIds: string[];
+  schema: { artifacts: { id: string; requires: string[] }[] };
+  buildOrder: string[];
+  completed: Set<string>;
+}): string[] {
+  const { requiredArtifactIds, schema, buildOrder, completed } = input;
+  const byId = new Map(schema.artifacts.map((artifact) => [artifact.id, artifact]));
+  const missing = new Set<string>();
+  const queue = [...requiredArtifactIds];
+  const seen = new Set<string>(queue);
+
+  while (queue.length > 0) {
+    const id = queue.shift() as string;
+    const artifact = byId.get(id);
+    if (!artifact) continue;
+    if (!completed.has(id)) missing.add(id);
+    for (const dependency of artifact.requires) {
+      if (seen.has(dependency)) continue;
+      seen.add(dependency);
+      queue.push(dependency);
+    }
+  }
+
+  const order = new Map(buildOrder.map((id, index) => [id, index]));
+  return [...missing].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+}
+
+/**
+ * Avisos que o apply reporta junto da instrução.
+ *
+ * O apply só exige `apply.requires`, então uma alteração cuja tasks foi
+ * escrita antes dos specs parece pronta mesmo sem delta — o estado que
+ * `openspec validate` rejeita. Bloquear aqui mudaria a política; nomear a
+ * lacuna não muda, e impede que o apply seja a única superfície que libera
+ * uma alteração que as outras recusam.
+ *
+ * Só é reportado depois que o apply passou do próprio portão. Um esquema sem
+ * artefato que gere specs carrega `skip_specs` desde a criação, então isto
+ * não dispara nele.
+ */
+async function collectApplyWarnings(input: {
+  state: ApplyInstructions['state'];
+  schema: { artifacts: { id: string; generates: string }[] };
+  changeDir: string;
+  changeName: string;
+  skippedArtifacts?: Set<string>;
+}): Promise<string[]> {
+  const { state, schema, changeDir, changeName, skippedArtifacts } = input;
+  if (state === 'blocked') return [];
+
+  const specArtifacts = schema.artifacts.filter((artifact) =>
+    isSpecsArtifactPath(artifact.generates)
+  );
+  if (specArtifacts.length === 0) return [];
+  if (specArtifacts.some((artifact) => skippedArtifacts?.has(artifact.id))) return [];
+
+  const warnings = (await findUnreadDeltaFiles(path.join(changeDir, 'specs'))).map((file) =>
+    WORKFLOW_MESSAGES.unreadDeltaApplyWarning(changeName, file.path, file.expected)
+  );
+  const hasDeltas = specArtifacts.some(
+    (artifact) => resolveArtifactOutputs(changeDir, artifact.generates).length > 0
+  );
+  if (hasDeltas) return warnings;
+
+  const metadataPath = path.join(changeDir, METADATA_FILENAME);
+  const specTarget = specArtifacts.length === 1 ? specArtifacts[0].id : '<artifact-id>';
+  return [
+    ...warnings,
+    WORKFLOW_MESSAGES.noDeltaSpecsApplyWarning(changeName, specTarget, metadataPath),
+  ];
+}
+
 export async function generateApplyInstructions(
   projectRoot: string,
   changeName: string,
@@ -326,15 +487,27 @@ export async function generateApplyInstructions(
     }
   }
 
-  // Parse tasks if tracking file exists
-  let parsedTasks: ParsedTask[] = [];
+  // Cada arquivo concreto casado por apply.tracks. O caminho pode ser um glob
+  // de um artefato com qualquer id; tratá-lo como um único arquivo literal
+  // perde a evidência de tarefa de esquemas customizados válidos.
+  let parsedTasks: LocatedTask[] = [];
+  const unavailableTrackingFiles: Array<{ path: string; reason: string }> = [];
   let tracksFileExists = false;
   if (tracksFile) {
-    const tracksPath = resolveArtifactOutputPath(changeDir, tracksFile);
-    tracksFileExists = fs.existsSync(tracksPath);
-    if (tracksFileExists) {
-      const tasksContent = await fs.promises.readFile(tracksPath, 'utf-8');
-      parsedTasks = parseTaskLines(tasksContent);
+    const tracksPaths = resolveArtifactOutputs(changeDir, tracksFile);
+    tracksFileExists = tracksPaths.length > 0;
+    for (const tracksPath of tracksPaths) {
+      try {
+        const tasksContent = await fs.promises.readFile(tracksPath, 'utf-8');
+        parsedTasks.push(...parseLocatedTasks(tasksContent, tracksPath));
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException)?.code;
+        const message = error instanceof Error ? error.message : String(error);
+        unavailableTrackingFiles.push({
+          path: tracksPath,
+          reason: code && !message.includes(code) ? `${code}: ${message}` : message,
+        });
+      }
     }
   }
   const tasks = toTaskItems(parsedTasks);
@@ -345,25 +518,56 @@ export async function generateApplyInstructions(
   const complete = parsedTasks.filter((task) => task.done).length;
   const remaining = total - complete;
 
+  const missingPrerequisites = collectMissingPrerequisites({
+    requiredArtifactIds: [...requiredArtifactIds],
+    schema,
+    buildOrder: context.graph.getBuildOrder(),
+    completed: context.completed,
+  });
+
   // Determine state and instruction
   let state: ApplyInstructions['state'];
   let instruction: string;
 
   if (missingArtifacts.length > 0) {
     state = 'blocked';
-    instruction = WORKFLOW_MESSAGES.cannotApplyMissingArtifacts(missingArtifacts.join(', '));
+    const chain =
+      missingPrerequisites.length > missingArtifacts.length
+        ? `\n${WORKFLOW_MESSAGES.notCreatedYetInBuildOrder(missingPrerequisites.join(', '))}`
+        : '';
+    instruction =
+      `${WORKFLOW_MESSAGES.cannotApplyMissingArtifacts(missingArtifacts.join(', '))}${chain}` +
+      `\n${describeArtifactRemedy(
+        changeName,
+        missingPrerequisites.length === 1 ? missingPrerequisites[0] : undefined,
+        { many: missingPrerequisites.length > 1 }
+      )}`;
   } else if (tracksFile && !tracksFileExists) {
     // Tracking file configured but doesn't exist yet
     const tracksFilename = path.basename(tracksFile);
     state = 'blocked';
-    instruction = WORKFLOW_MESSAGES.missingTrackingFile(tracksFilename);
+    instruction = WORKFLOW_MESSAGES.missingTrackingFile(
+      tracksFilename,
+      describeArtifactRemedy(changeName, findArtifactIdFor(schema, tracksFile))
+    );
+  } else if (tracksFile && unavailableTrackingFiles.length > 0 && tasks.length === 0) {
+    state = 'blocked';
+    instruction = WORKFLOW_MESSAGES.noReadableTaskDescriptions;
   } else if (tracksFile && tracksFileExists && tasks.length === 0) {
     // Tracking file exists but lists nothing an agent can work on: either no
     // checkboxes at all, or only checkboxes with no text after them.
     const tracksFilename = path.basename(tracksFile);
     state = 'blocked';
-    instruction = WORKFLOW_MESSAGES.trackingFileNoTasks(tracksFilename);
-  } else if (tracksFile && remaining === 0 && total > 0) {
+    instruction = WORKFLOW_MESSAGES.trackingFileNoTasks(
+      tracksFilename,
+      describeArtifactRemedy(changeName, findArtifactIdFor(schema, tracksFile))
+    );
+  } else if (
+    tracksFile &&
+    unavailableTrackingFiles.length === 0 &&
+    remaining === 0 &&
+    total > 0
+  ) {
     state = 'all_done';
     instruction = WORKFLOW_MESSAGES.allTasksComplete;
   } else if (!tracksFile) {
@@ -375,6 +579,24 @@ export async function generateApplyInstructions(
     instruction = schemaInstruction?.trim() ?? WORKFLOW_MESSAGES.readContextAndWorkTasks;
   }
 
+  if (unavailableTrackingFiles.length > 0) {
+    const unavailableDetails = unavailableTrackingFiles
+      .map((file) => `- ${file.path}: ${file.reason}`)
+      .join('\n');
+    instruction += `\n${WORKFLOW_MESSAGES.taskCompletionNotVerified(unavailableDetails)}`;
+  }
+
+  const warnings = [
+    ...(context.warnings ?? []),
+    ...(await collectApplyWarnings({
+      state,
+      schema,
+      changeDir,
+      changeName,
+      skippedArtifacts: context.skippedArtifacts,
+    })),
+  ];
+
   return {
     changeName,
     changeDir,
@@ -382,8 +604,12 @@ export async function generateApplyInstructions(
     contextFiles,
     progress: { total, complete, remaining },
     tasks,
+    taskTrackingConfigured: tracksFile !== null,
+    ...(unavailableTrackingFiles.length > 0 ? { unavailableTrackingFiles } : {}),
     state,
     missingArtifacts: missingArtifacts.length > 0 ? missingArtifacts : undefined,
+    ...(missingPrerequisites.length > 0 ? { missingPrerequisites } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
     instruction,
     ...operationInputs,
   };
@@ -425,7 +651,7 @@ export async function applyInstructionsCommand(options: ApplyInstructionsOptions
 }
 
 export function printApplyInstructionsText(instructions: ApplyInstructions): void {
-  const { changeName, schemaName, contextFiles, progress, tasks, state, missingArtifacts, instruction } = instructions;
+  const { changeName, schemaName, contextFiles, progress, tasks, state, missingArtifacts, warnings, instruction } = instructions;
 
   console.log(WORKFLOW_MESSAGES.applyTitle(changeName));
   console.log(WORKFLOW_MESSAGES.schemaLabel(schemaName));
@@ -437,6 +663,15 @@ export function printApplyInstructionsText(instructions: ApplyInstructions): voi
     console.log();
     console.log(WORKFLOW_MESSAGES.missingArtifactsLabel(missingArtifacts.join(', ')));
     console.log(WORKFLOW_MESSAGES.createMissingFirst);
+    console.log();
+  }
+
+  if (warnings && warnings.length > 0) {
+    console.log(WORKFLOW_MESSAGES.applyWarningsTitle);
+    console.log();
+    for (const warning of warnings) {
+      console.log(`- ${warning}`);
+    }
     console.log();
   }
 
@@ -542,7 +777,7 @@ function printOperationInputsText(inputs: {
   if (inputs.operationGuidance && inputs.operationGuidance.length > 0) {
     console.log(WORKFLOW_MESSAGES.operationGuidanceTitle);
     for (const guidance of inputs.operationGuidance) {
-      console.log(`- ${guidance}`);
+      console.log(`- ${guidance.replace(/\s*\n\s*/g, ' ')}`);
     }
     console.log();
   }

@@ -108,6 +108,15 @@ export function isCompletionRun(commandPath: string): boolean {
 }
 
 /**
+ * True for the hidden `__complete` resolver alone. It runs on every Tab press,
+ * so the hooks skip telemetry and the completion tip for it entirely.
+ * The user-facing `completion` commands stay tracked.
+ */
+export function isTabCompletionRun(commandPath: string): boolean {
+  return commandPath === '__complete';
+}
+
+/**
  * True when the first-run completions tip must be deferred rather than shown.
  *
  * Deferring keeps the tip unconsumed, so it still reaches the user on a later
@@ -125,6 +134,48 @@ program
   .description(CLI_DESCRIPTIONS.root)
   .version(version);
 
+program
+  .command('version')
+  .description(CLI_DESCRIPTIONS.version)
+  .option('--json', CLI_DESCRIPTIONS.listJson)
+  .option('--check', CLI_DESCRIPTIONS.versionCheck)
+  .action(async (options: { json?: boolean; check?: boolean }) => {
+    const {
+      getCliInstallInfo,
+      checkForCliUpdate,
+      getCliUpdateCommand,
+      canSelfUpgrade,
+      buildVersionReportLines,
+    } = await import('../core/version-check.js');
+    const install = getCliInstallInfo();
+    const update = options.check ? await checkForCliUpdate() : undefined;
+    const command = update?.status === 'available' ? getCliUpdateCommand(install) : null;
+    const output = {
+      schemaVersion: 1,
+      version,
+      install,
+      ...(update
+        ? {
+            update: {
+              ...update,
+              command,
+              canSelfUpgrade:
+                update.status === 'available'
+                  ? canSelfUpgrade(install.location, process.cwd())
+                  : false,
+            },
+          }
+        : {}),
+    };
+
+    if (options.json) {
+      console.log(JSON.stringify(output, null, 2));
+      return;
+    }
+
+    console.log(buildVersionReportLines(version, install, update, command).join('\n'));
+  });
+
 // Global options
 program.option('--no-color', CLI_DESCRIPTIONS.noColor);
 
@@ -136,6 +187,12 @@ program.hook('preAction', async (thisCommand, actionCommand) => {
   const opts = thisCommand.opts();
   if (opts.color === false) {
     process.env.NO_COLOR = '1';
+  }
+
+  // Tab completion runs on every keypress. Skip the notice and telemetry so
+  // the resolver stays quiet and does not record a command per completion.
+  if (isTabCompletionRun(getCommandPath(actionCommand))) {
+    return;
   }
 
   // Show first-run telemetry notice (if not seen). It's written to stderr, so it
@@ -151,6 +208,10 @@ program.hook('preAction', async (thisCommand, actionCommand) => {
 
 // Shutdown telemetry after command completes
 program.hook('postAction', async (_thisCommand, actionCommand) => {
+  if (isTabCompletionRun(getCommandPath(actionCommand))) {
+    return;
+  }
+
   // Show the first-run shell-completions tip (on stderr, so piped stdout stays
   // clean). postAction, not preAction: the tip trails the command's own output
   // instead of pushing an error message or `init`'s setup summary down the
@@ -319,13 +380,31 @@ program
   .option('--changes', CLI_DESCRIPTIONS.listChanges)
   .option('--sort <order>', CLI_DESCRIPTIONS.listSort, 'recent')
   .option('--json', CLI_DESCRIPTIONS.listJson)
-  .action(async (options?: { specs?: boolean; changes?: boolean; sort?: string; json?: boolean }) => {
+  .option('--archived', CLI_DESCRIPTIONS.listArchived)
+  .option('--all', CLI_DESCRIPTIONS.listAllChanges)
+  .action(async (options?: { specs?: boolean; changes?: boolean; sort?: string; json?: boolean; archived?: boolean; all?: boolean }) => {
     try {
       const listCommand = new ListCommand();
       const mode: 'changes' | 'specs' = options?.specs ? 'specs' : 'changes';
       const sort = options?.sort === 'name' ? 'name' : 'recent';
-      await listCommand.execute('.', mode, { sort, json: options?.json });
+      const rootPath = await fs.realpath(process.cwd());
+      await listCommand.execute('.', mode, {
+        sort,
+        json: options?.json,
+        archived: options?.archived,
+        all: options?.all,
+        root: { path: rootPath },
+      });
     } catch (error) {
+      if (options?.json) {
+        const message = error instanceof Error ? error.message : String(error);
+        const status = [{ severity: 'error', code: 'list_error', message }];
+        const body = options.specs
+          ? { specs: [], status }
+          : { changes: [], status };
+        console.log(JSON.stringify(body));
+        process.exit(1);
+      }
       console.log(); // Empty line for spacing
       ora().fail(CLI_MESSAGES.error((error as Error).message));
       process.exit(1);

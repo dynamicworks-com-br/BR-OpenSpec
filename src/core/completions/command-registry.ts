@@ -72,6 +72,17 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
     flags: [],
   },
   {
+    name: 'version',
+    description: CLI_DESCRIPTIONS.version,
+    flags: [
+      COMMON_FLAGS.json,
+      {
+        name: 'check',
+        description: CLI_DESCRIPTIONS.versionCheck,
+      },
+    ],
+  },
+  {
     name: 'list',
     description: CLI_DESCRIPTIONS.list,
     flags: [
@@ -82,6 +93,20 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       {
         name: 'changes',
         description: CLI_DESCRIPTIONS.listChanges,
+      },
+      {
+        name: 'archived',
+        description: CLI_DESCRIPTIONS.listArchived,
+      },
+      {
+        name: 'all',
+        description: CLI_DESCRIPTIONS.listAllChanges,
+      },
+      {
+        name: 'sort',
+        description: CLI_DESCRIPTIONS.listSort,
+        takesValue: true,
+        values: ['recent', 'name'],
       },
     ],
   },
@@ -111,6 +136,12 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       {
         name: 'archived',
         description: CLI_DESCRIPTIONS.validateArchived,
+      },
+      {
+        name: 'report',
+        description: CLI_DESCRIPTIONS.validateReport,
+        takesValue: true,
+        values: ['full', 'findings'],
       },
       COMMON_FLAGS.type,
       COMMON_FLAGS.strict,

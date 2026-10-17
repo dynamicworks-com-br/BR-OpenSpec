@@ -37,7 +37,9 @@ import {
   AI_TOOLS,
   OPENSPEC_DIR_NAME,
   AIToolOption,
+  getUniversalTool,
   resolveToolIdAlias,
+  universalToolFallbackHint,
 } from './config.js';
 import { PALETTE } from './styles/palette.js';
 import { isInteractive } from '../utils/interactive.js';
@@ -45,7 +47,6 @@ import {
   COPILOT_CLOUD_AGENT_MESSAGES,
   INIT_MESSAGES,
   MIGRATION_MESSAGES,
-  ONBOARDING_MESSAGES,
 } from '../messages/index.js';
 import { serializeConfig } from './config-prompts.js';
 import { MAX_CONTEXT_SIZE, readProjectConfig } from './project-config.js';
@@ -70,7 +71,7 @@ import {
   type LegacyDetectionResult,
 } from './legacy-cleanup.js';
 import {
-  SKILL_NAMES,
+  formatIdeRestart,
   getToolsWithSkillsDir,
   getToolSkillStatus,
   getToolStates,
@@ -83,7 +84,8 @@ import {
   type ToolSkillStatus,
 } from './shared/index.js';
 import { getGlobalConfig, type Delivery, type Profile } from './global-config.js';
-import { getProfileWorkflows, CORE_WORKFLOWS } from './profiles.js';
+import { getProfileWorkflows } from './profiles.js';
+import { formatOptionalWorkflowsNote } from './onboarding-commands.js';
 import { getAvailableTools } from './available-tools.js';
 import {
   resolveSharedSkillWriters,
@@ -107,6 +109,34 @@ const { version: OPENSPEC_VERSION } = require('../../package.json');
 // -----------------------------------------------------------------------------
 
 const DEFAULT_SCHEMA = 'spec-driven';
+
+// Git cannot track empty directories. Anchor the conventional ones that stay
+// empty after init (specs/ and changes/archive/). changes/ itself is not
+// empty: it contains archive/.
+const DIRECTORY_ANCHOR_FILE_NAME = '.gitkeep';
+const ANCHORED_OPENSPEC_DIRS = ['openspec/specs', 'openspec/changes/archive'] as const;
+
+function appendUniversalFallback(message: string, offeredToolIds: string[]): string {
+  const hint = universalToolFallbackHint(offeredToolIds);
+  return hint ? `${message}\n${hint}` : message;
+}
+
+/**
+ * Writes `.gitkeep` only when the directory is empty. `wx` refuses to replace
+ * a file or symlink that appears after the emptiness check.
+ */
+async function ensureDirectoryAnchor(projectPath: string, relativeDir: string): Promise<void> {
+  const directory = path.join(projectPath, relativeDir);
+  if ((await fs.promises.readdir(directory)).length > 0) return;
+
+  const absolutePath = path.join(directory, DIRECTORY_ANCHOR_FILE_NAME);
+  try {
+    await fs.promises.writeFile(absolutePath, '', { encoding: 'utf-8', flag: 'wx' });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return;
+    throw error;
+  }
+}
 
 /**
  * Bloco de contexto gravado em `openspec/config.yaml` por `init --language`.
@@ -607,7 +637,10 @@ export class InitCommand {
         return [...detectedToolIds];
       }
       throw new Error(
-        INIT_MESSAGES.noToolsDetected(validTools.join('\n  '))
+        appendUniversalFallback(
+          INIT_MESSAGES.noToolsDetected(validTools.join('\n  ')),
+          validTools
+        )
       );
     }
 
@@ -631,6 +664,7 @@ export class InitCommand {
         return {
           name: tool?.name || toolId,
           value: toolId,
+          searchAliases: tool?.searchAliases,
           configured,
           detected: detected && !configured,
           preSelected: configured || (shouldPreselectDetected && detected && !configured),
@@ -664,10 +698,19 @@ export class InitCommand {
       console.log(INIT_MESSAGES.detectedToolsLabel(detectedOnlyNames.join(', '), detectionLabel));
     }
 
+    // A search that matches nothing is where someone whose assistant is not on
+    // the list gives up (#653), so name the vendor-neutral entry right there.
+    const universalTool = getUniversalTool();
+    const emptyHint =
+      universalTool && validTools.includes(universalTool.value)
+        ? INIT_MESSAGES.toolNotListedHint(universalTool.name)
+        : undefined;
+
     const selectedTools = await searchableMultiSelect({
       message: INIT_MESSAGES.selectToolsPrompt(validTools.length),
       pageSize: 15,
       choices: sortedChoices,
+      emptyHint,
       validate: (selected: string[]) => selected.length > 0 || INIT_MESSAGES.selectAtLeastOneTool,
     });
 
@@ -728,7 +771,10 @@ export class InitCommand {
 
     if (invalidTokens.length > 0) {
       throw new Error(
-        INIT_MESSAGES.invalidTools(invalidTokens.join(', '), availableList)
+        appendUniversalFallback(
+          INIT_MESSAGES.invalidTools(invalidTokens.join(', '), availableList),
+          [...availableSet]
+        )
       );
     }
 
@@ -840,24 +886,6 @@ export class InitCommand {
   // ═══════════════════════════════════════════════════════════
 
   private async createDirectoryStructure(openspecPath: string, extendMode: boolean): Promise<void> {
-    if (extendMode) {
-      // In extend mode, just ensure directories exist without spinner
-      const directories = [
-        openspecPath,
-        path.join(openspecPath, 'specs'),
-        path.join(openspecPath, 'changes'),
-        path.join(openspecPath, 'changes', 'archive'),
-      ];
-
-      for (const dir of directories) {
-        FileSystemUtils.assertProjectArtifactPath(path.dirname(openspecPath), dir);
-        await FileSystemUtils.createDirectory(dir);
-      }
-      return;
-    }
-
-    const spinner = this.startSpinner(INIT_MESSAGES.creatingStructure);
-
     const directories = [
       openspecPath,
       path.join(openspecPath, 'specs'),
@@ -865,15 +893,36 @@ export class InitCommand {
       path.join(openspecPath, 'changes', 'archive'),
     ];
 
+    if (extendMode) {
+      // In extend mode, just ensure directories exist without spinner
+      for (const dir of directories) {
+        FileSystemUtils.assertProjectArtifactPath(path.dirname(openspecPath), dir);
+        await FileSystemUtils.createDirectory(dir);
+      }
+      await this.writeGitkeepFiles(openspecPath);
+      return;
+    }
+
+    const spinner = this.startSpinner(INIT_MESSAGES.creatingStructure);
+
     for (const dir of directories) {
       FileSystemUtils.assertProjectArtifactPath(path.dirname(openspecPath), dir);
       await FileSystemUtils.createDirectory(dir);
     }
 
+    await this.writeGitkeepFiles(openspecPath);
+
     spinner.stopAndPersist({
       symbol: PALETTE.white('▌'),
       text: PALETTE.white(INIT_MESSAGES.structureCreated),
     });
+  }
+
+  private async writeGitkeepFiles(openspecPath: string): Promise<void> {
+    const projectPath = path.dirname(openspecPath);
+    for (const relativeDir of ANCHORED_OPENSPEC_DIRS) {
+      await ensureDirectoryAnchor(projectPath, relativeDir);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1343,9 +1392,11 @@ export class InitCommand {
         )
       );
     }
+    let advertisedAnInvocation = true;
     if (successfulTools.length > 0 && !commandsGenerated && !skillsGenerated) {
       // Nothing was generated for any tool: the correction above is the
       // whole story, so don't advertise an invocation that doesn't exist.
+      advertisedAnInvocation = false;
     } else if (startCommand) {
       console.log(chalk.bold(INIT_MESSAGES.gettingStarted));
       for (const line of startHintLines(startCommand)) {
@@ -1353,6 +1404,22 @@ export class InitCommand {
       }
     } else {
       console.log(INIT_MESSAGES.configureWorkflowsHint);
+      advertisedAnInvocation = false;
+    }
+
+    // Workflows the active profile left out. Setup is the only moment a user
+    // is told what exists, so name them here rather than let a missing
+    // command read as a broken install (#1076). Skipped when the branch above
+    // already pointed at `openspec config profile`, and when no tool received
+    // a workflow surface at all — there, adding workflows writes nothing.
+    if (advertisedAnInvocation && (commandsGenerated || skillsGenerated)) {
+      const optionalWorkflowsNote = formatOptionalWorkflowsNote(activeWorkflows);
+      if (optionalWorkflowsNote) {
+        console.log();
+        for (const line of optionalWorkflowsNote) {
+          console.log(chalk.dim(line));
+        }
+      }
     }
 
     // Links
@@ -1372,23 +1439,15 @@ export class InitCommand {
     // while a co-configured CLI tool got commands. Not "slash commands" either:
     // Amazon Q's generated files are prompt-library entries invoked with @, so a
     // restart line promising slash commands would be wrong for it.
-    const restartCommandsGenerated = successfulTools.some(
-      (tool) =>
-        tool.requiresIdeRestart &&
-        shouldGenerateCommandsForTool(tool.value, activeDelivery)
+    // The rule and wording live in formatIdeRestart so `update` says the same
+    // thing for the same event.
+    const restartHint = formatIdeRestart(
+      successfulTools.map((tool) => tool.value),
+      activeDelivery
     );
-    const restartSkillsGenerated = successfulTools.some(
-      (tool) =>
-        tool.requiresIdeRestart &&
-        shouldGenerateSkillsForTool(tool.value, activeDelivery)
-    );
-    if (restartCommandsGenerated || restartSkillsGenerated) {
+    if (restartHint) {
       console.log();
-      console.log(
-        chalk.white(
-          restartCommandsGenerated ? INIT_MESSAGES.restartIDE : INIT_MESSAGES.restartIDESkills
-        )
-      );
+      console.log(chalk.white(restartHint));
     }
 
     console.log();

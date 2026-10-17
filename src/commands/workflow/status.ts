@@ -6,6 +6,8 @@
 
 import ora from 'ora';
 import chalk from 'chalk';
+import path from 'path';
+import { describeNestedChange, findNestedChangesIn } from '../../utils/nested-change.js';
 import {
   loadChangeContext,
   formatChangeStatus,
@@ -70,8 +72,14 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
     // Single definition of "load one change's status" so the batch and
     // single-change payloads can never drift apart.
-    const loadStatus = (changeName: string): ChangeStatus =>
-      formatChangeStatus(loadChangeContext(projectRoot, changeName, options.schema));
+    const loadStatus = async (changeName: string): Promise<ChangeStatus> => {
+      const changesDir = path.join(projectRoot, 'openspec', 'changes');
+      const nested = await findNestedChangesIn(changesDir, changeName);
+      if (nested) {
+        throw new Error(describeNestedChange(nested));
+      }
+      return formatChangeStatus(loadChangeContext(projectRoot, changeName, options.schema));
+    };
 
     // Handle no-changes case gracefully — status is informational,
     // so "no changes" is a valid state, not an error.
@@ -100,7 +108,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
         const entries: BatchStatusEntry[] = [];
         for (const changeName of available.sort((a, b) => a.localeCompare(b))) {
           try {
-            entries.push(loadStatus(changeName));
+            entries.push(await loadStatus(changeName));
           } catch (error) {
             // One malformed change must not blank the sweep; carry its
             // diagnostic in place and keep going.
@@ -159,7 +167,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     }
 
     // loadChangeContext will auto-detect schema from metadata if not provided
-    const status = loadStatus(changeName);
+    const status = await loadStatus(changeName);
 
     spinner?.stop();
 
@@ -208,5 +216,10 @@ export function printStatusText(status: ChangeStatus): void {
   if (status.isPlanningComplete) {
     console.log();
     console.log(chalk.green(WORKFLOW_MESSAGES.allPlanningArtifactsComplete));
+  }
+
+  if (status.nextSteps && status.nextSteps.length > 0) {
+    console.log();
+    console.log(status.nextSteps[0]);
   }
 }

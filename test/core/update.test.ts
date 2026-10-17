@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { UpdateCommand, scanInstalledWorkflows } from '../../src/core/update.js';
 import { InitCommand } from '../../src/core/init.js';
 import { getConfiguredToolsForProfileSync } from '../../src/core/profile-sync-drift.js';
+import { ALL_WORKFLOWS } from '../../src/core/profiles.js';
 import { FileSystemUtils } from '../../src/utils/file-system.js';
 import { OPENSPEC_MARKERS } from '../../src/core/config.js';
 import type { GlobalConfig } from '../../src/core/global-config.js';
@@ -14,6 +15,24 @@ import fs from 'fs/promises';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import { LEGACY_CLEANUP_MESSAGES, UPDATE_MESSAGES } from '../../src/messages/index.js';
+import { parse as parseToml } from 'smol-toml';
+
+const { confirmMock, searchableMultiSelectMock, interactiveState } = vi.hoisted(() => ({
+  confirmMock: vi.fn(),
+  searchableMultiSelectMock: vi.fn(),
+  interactiveState: { value: false },
+}));
+
+vi.mock('@inquirer/prompts', () => ({ confirm: confirmMock }));
+
+vi.mock('../../src/prompts/searchable-multi-select.js', () => ({
+  searchableMultiSelect: searchableMultiSelectMock,
+}));
+
+vi.mock('../../src/utils/interactive.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/utils/interactive.js')>();
+  return { ...actual, isInteractive: () => interactiveState.value };
+});
 
 // Shared mutable mock config state
 const mockState = {
@@ -49,6 +68,23 @@ async function markCodexTarget(skillsDir: string): Promise<void> {
   await fs.writeFile(path.join(skillsDir, '.openspec-target'), 'codex\n');
 }
 
+async function createLegacyCodexPrompt(): Promise<string> {
+  const prompt = path.join(process.env.CODEX_HOME!, 'prompts', 'opsx-explore.md');
+  await fs.mkdir(path.dirname(prompt), { recursive: true });
+  await fs.writeFile(prompt, 'legacy prompt');
+  return prompt;
+}
+
+function failCodexSkillWrites(): void {
+  const originalWriteFile = FileSystemUtils.writeFile.bind(FileSystemUtils);
+  vi.spyOn(FileSystemUtils, 'writeFile').mockImplementation(async (filePath, content) => {
+    if (filePath.includes(`${path.sep}.agents${path.sep}`) && filePath.endsWith('SKILL.md')) {
+      throw new Error('EACCES: permission denied');
+    }
+    return originalWriteFile(filePath, content);
+  });
+}
+
 describe('UpdateCommand', () => {
   let testDir: string;
   let updateCommand: UpdateCommand;
@@ -81,6 +117,9 @@ describe('UpdateCommand', () => {
 
     // Reset mock config to defaults
     resetMockConfig();
+    interactiveState.value = false;
+    confirmMock.mockReset();
+    searchableMultiSelectMock.mockReset();
 
     // Clear all mocks before each test
     vi.restoreAllMocks();
@@ -201,6 +240,91 @@ Old instructions content
 
       consoleSpy.mockRestore();
     });
+
+    it('should refresh configured DeepSeek Harness skills and stay idempotent', async () => {
+      const skillsDir = path.join(testDir, '.dsh', 'skills');
+      const skillFile = path.join(skillsDir, 'openspec-explore', 'SKILL.md');
+      await fs.mkdir(path.dirname(skillFile), { recursive: true });
+
+      const oldSkillContent = `---
+name: openspec-explore (old)
+description: Old description
+license: MIT
+compatibility: Requires openspec CLI.
+metadata:
+  author: openspec
+  version: "0.9"
+---
+
+Old instructions content
+`;
+      await fs.writeFile(skillFile, oldSkillContent);
+
+      await updateCommand.execute(testDir);
+
+      const refreshed = await fs.readFile(skillFile, 'utf-8');
+      expect(refreshed).toContain('name: openspec-explore');
+      expect(refreshed).not.toContain('Old instructions content');
+      expect(refreshed).toContain('license: MIT');
+
+      const beforeSecondUpdate = await fs.stat(skillFile);
+      const consoleSpy = vi.spyOn(console, 'log');
+      await updateCommand.execute(testDir);
+      expect(consoleSpy.mock.calls.flat().map(String).join('\n')).toContain('atualizadas');
+      consoleSpy.mockRestore();
+
+      expect(await fs.readFile(skillFile, 'utf-8')).toBe(refreshed);
+      expect((await fs.stat(skillFile)).mtimeMs).toBe(beforeSecondUpdate.mtimeMs);
+    });
+
+    it.each(['profile', 'delivery'] as const)(
+      'should preserve custom DeepSeek Harness and shared skills when changing %s',
+      async (setting) => {
+        const customFiles = [
+          path.join(testDir, '.dsh', 'skills', 'my-custom-skill', 'SKILL.md'),
+          path.join(testDir, '.dsh', 'skills', 'openspec-user-notes', 'SKILL.md'),
+          path.join(testDir, '.agents', 'skills', 'shared-custom-skill', 'SKILL.md'),
+        ];
+        for (const file of customFiles) {
+          await fs.mkdir(path.dirname(file), { recursive: true });
+          await fs.writeFile(file, 'custom skill instructions');
+        }
+
+        await new InitCommand({ tools: 'dsh', force: true }).execute(testDir);
+        const skillsDir = path.join(testDir, '.dsh', 'skills');
+        expect(await FileSystemUtils.fileExists(
+          path.join(skillsDir, 'openspec-apply-change', 'SKILL.md')
+        )).toBe(true);
+
+        setMockConfig(setting === 'profile'
+          ? { featureFlags: {}, profile: 'custom', workflows: ['explore'], delivery: 'both' }
+          : { featureFlags: {}, profile: 'core', delivery: 'commands' });
+
+        const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        await updateCommand.execute(testDir);
+
+        const expectedSkills = ['my-custom-skill', 'openspec-user-notes'];
+        if (setting === 'profile') {
+          expectedSkills.push('openspec-explore');
+        } else {
+          const correction = consoleSpy.mock.calls.flat().map(String)
+            .find((entry) => entry.includes('Não restam skills nem comandos'));
+          expect(correction).toContain('DeepSeek Harness');
+          expect(correction).toContain('openspec config set delivery both');
+        }
+        expect((await fs.readdir(skillsDir)).sort()).toEqual(expectedSkills.sort());
+        expect(await FileSystemUtils.directoryExists(path.join(testDir, '.dsh', 'commands'))).toBe(false);
+        expect(await fs.readdir(path.join(testDir, '.agents', 'skills'))).toEqual(['shared-custom-skill']);
+
+        consoleSpy.mockClear();
+        await updateCommand.execute(testDir);
+        expect(consoleSpy.mock.calls.flat().map(String).join('\n')).not.toContain('Updating 1 tool(s)');
+        expect((await fs.readdir(skillsDir)).sort()).toEqual(expectedSkills.sort());
+        for (const file of customFiles) {
+          expect(await fs.readFile(file, 'utf-8')).toBe('custom skill instructions');
+        }
+      }
+    );
 
     it('should update MiniMax Code skills without touching unrelated global skills', async () => {
       const skillsDir = path.join(testDir, 'home', '.minimax', 'skills');
@@ -581,6 +705,21 @@ metadata:
       ).toBe(true);
     });
 
+    it('should refresh an Amp-owned shared skill tree', async () => {
+      await new InitCommand({ tools: 'amp', force: true }).execute(testDir);
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      const skillFile = path.join(skillsDir, 'openspec-propose', 'SKILL.md');
+      await fs.writeFile(skillFile, 'stale Amp skill');
+
+      await new UpdateCommand({ force: true }).execute(testDir);
+
+      expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe('amp\n');
+      const updated = await fs.readFile(skillFile, 'utf-8');
+      expect(updated).toContain('name: openspec-propose');
+      expect(updated).toContain('/openspec-apply-change');
+      expect(updated).not.toContain('stale Amp skill');
+    });
+
     it('should refresh Antigravity workflows without rewriting Codex-owned shared skills', async () => {
       await new InitCommand({ tools: 'antigravity,codex', force: true }).execute(testDir);
 
@@ -703,7 +842,9 @@ metadata:
       expect(configured).not.toContain('codex');
       // The skip names the established owner so the user understands why.
       expect(streamOutput).toMatch(/Codex ignorado/);
-      expect(streamOutput).toMatch(/já é gerenciado por outra ferramenta \(Shared \.agents skills\)/);
+      expect(streamOutput).toMatch(
+        /já é gerenciado por outra ferramenta \(Other \/ Universal \(shared \.agents skills\)\)/
+      );
       // The legacy signal must survive: because Codex was skipped, no
       // replacement skill exists, so the deferred global-prompt cleanup must
       // preserve `~/.codex/prompts` untouched (byte-for-byte) rather than
@@ -1161,6 +1302,30 @@ metadata:
       expect(content).toContain('tags:');
     });
 
+    it('should migrate Kilo commands without deleting unrelated workflows', async () => {
+      const skillsDir = path.join(testDir, '.kilocode', 'skills');
+      await fs.mkdir(path.join(skillsDir, 'openspec-explore'), { recursive: true });
+      await fs.writeFile(
+        path.join(skillsDir, 'openspec-explore', 'SKILL.md'),
+        'old content'
+      );
+
+      const legacyDir = path.join(testDir, '.kilocode', 'workflows');
+      await fs.mkdir(legacyDir, { recursive: true });
+      await fs.writeFile(path.join(legacyDir, 'opsx-explore.md'), 'old OpenSpec command');
+      await fs.writeFile(path.join(legacyDir, 'opsx-custom.md'), 'user workflow');
+
+      await new UpdateCommand({ force: true }).execute(testDir);
+
+      expect(await FileSystemUtils.fileExists(path.join(legacyDir, 'opsx-explore.md'))).toBe(false);
+      expect(await fs.readFile(path.join(legacyDir, 'opsx-custom.md'), 'utf-8')).toBe('user workflow');
+
+      const commandFile = path.join(testDir, '.kilo', 'command', 'opsx-explore.md');
+      expect(await FileSystemUtils.fileExists(commandFile)).toBe(true);
+      expect(await fs.readFile(commandFile, 'utf-8')).toContain('Entre no modo explore');
+    });
+
+
     it('should update core profile opsx commands when tool is configured', async () => {
       // Set up a configured tool
       const skillsDir = path.join(testDir, '.claude', 'skills');
@@ -1220,6 +1385,40 @@ metadata:
       expect(skillContent).not.toContain('/opsx:');
       expect(skillContent).not.toContain('/opsx-');
     });
+
+    it.each(['both', 'commands'] as const)(
+      'should discover and refresh SourceCraft Code Assistant commands with delivery=%s',
+      async (delivery) => {
+        setMockConfig({ featureFlags: {}, profile: 'core', delivery });
+        const commandsDir = path.join(testDir, '.codeassistant', 'commands');
+        await fs.mkdir(commandsDir, { recursive: true });
+        await fs.writeFile(path.join(commandsDir, 'opsx-apply.md'), 'old command content');
+        const skillFile = path.join(testDir, '.codeassistant', 'skills', 'openspec-apply-change', 'SKILL.md');
+        if (delivery === 'both') {
+          await fs.mkdir(path.dirname(skillFile), { recursive: true });
+          await fs.writeFile(skillFile, 'old skill content');
+        }
+
+        await updateCommand.execute(testDir);
+
+        const commandContent = await fs.readFile(path.join(commandsDir, 'opsx-apply.md'), 'utf-8');
+        expect(commandContent).toMatch(/^---\ndescription: /);
+        expect(commandContent).toContain('/opsx-archive');
+        expect(commandContent).not.toContain('/opsx:');
+        expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'opsx-propose.md'))).toBe(true);
+
+        expect(await FileSystemUtils.fileExists(skillFile)).toBe(delivery === 'both');
+        if (delivery === 'both') {
+          const skillContent = await fs.readFile(skillFile, 'utf-8');
+          expect(skillContent).toContain('/opsx-archive');
+          expect(skillContent).not.toContain('/opsx:');
+        }
+
+        const consoleSpy = vi.spyOn(console, 'log');
+        await updateCommand.execute(testDir);
+        expect(consoleSpy.mock.calls.flat().map(String).some((entry) => entry.includes('atualizadas'))).toBe(true);
+      }
+    );
 
     it('should update command files when tool is configured via commands-only delivery without skills', async () => {
       setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
@@ -1316,6 +1515,34 @@ metadata:
       expect(content).toContain('prompt =');
     });
 
+    it('should update GigaCode tool with correct command format', async () => {
+      // Set up GigaCode
+      const gigacodeSkillsDir = path.join(testDir, '.gigacode', 'skills');
+      await fs.mkdir(path.join(gigacodeSkillsDir, 'openspec-explore'), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(gigacodeSkillsDir, 'openspec-explore', 'SKILL.md'),
+        'old'
+      );
+
+      await updateCommand.execute(testDir);
+
+      // Check GigaCode command format (Markdown) - flat path structure like Qwen: opsx-<id>.md
+      const gigacodeCmd = path.join(
+        testDir,
+        '.gigacode',
+        'commands',
+        'opsx-explore.md'
+      );
+      const exists = await FileSystemUtils.fileExists(gigacodeCmd);
+      expect(exists).toBe(true);
+
+      const content = await fs.readFile(gigacodeCmd, 'utf-8');
+      expect(content).toContain('---');
+      expect(content).toContain('description:');
+    });
+
     it('should update Command Code tool and regenerate its flat command', async () => {
       // A configured Command Code install is detected by its skills dir
       const commandCodeSkillsDir = path.join(testDir, '.commandcode', 'skills');
@@ -1343,6 +1570,35 @@ metadata:
       expect(content).not.toMatch(/^---\n/);
       expect(content).toContain('**Argumentos fornecidos**: $ARGUMENTS');
     });
+
+    it.each(['both', 'commands'] as const)(
+      'should repair EasyCode commands with delivery=%s and then be up to date',
+      async (delivery) => {
+        setMockConfig({ featureFlags: {}, profile: 'core', delivery });
+        await new InitCommand({ tools: 'easycode', force: true }).execute(testDir);
+
+        const commandsDir = path.join(testDir, '.easycode', 'commands', 'opsx');
+        const exploreFile = path.join(commandsDir, 'explore.toml');
+        const originalExplore = await fs.readFile(exploreFile, 'utf-8');
+        await fs.writeFile(exploreFile, 'stale command');
+        await fs.unlink(path.join(commandsDir, 'apply.toml'));
+
+        await updateCommand.execute(testDir);
+
+        expect(await fs.readFile(exploreFile, 'utf-8')).toBe(originalExplore);
+        const apply = parseToml(await fs.readFile(path.join(commandsDir, 'apply.toml'), 'utf-8'));
+        expect(apply.prompt).toContain('openspec');
+        expect(await FileSystemUtils.fileExists(
+          path.join(testDir, '.easycode', 'skills', 'openspec-explore', 'SKILL.md')
+        )).toBe(delivery === 'both');
+
+        const consoleSpy = vi.spyOn(console, 'log');
+        await updateCommand.execute(testDir);
+        const logCalls = consoleSpy.mock.calls.flat().map(String);
+        expect(logCalls.some((entry) => entry.includes('atualizadas'))).toBe(true);
+        expect(logCalls.some((entry) => entry.includes('Updating 1 tool(s)'))).toBe(false);
+      }
+    );
 
     it('should repair stale OpenCode commands-only installs once', async () => {
       setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
@@ -1612,6 +1868,84 @@ metadata:
   });
 
   describe('error handling', () => {
+    it('should report a failed legacy-only Codex bootstrap to automation', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
+
+      const prompt = await createLegacyCodexPrompt();
+      failCodexSkillWrites();
+
+      await expect(new UpdateCommand({ force: true }).execute(testDir)).rejects.toThrow(
+        'A atualização do BR-OpenSpec falhou para: Codex'
+      );
+      await expect(fs.access(prompt)).resolves.toBeUndefined();
+      await expect(
+        fs.access(path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md'))
+      ).rejects.toThrow();
+    });
+
+    it('should refresh configured tools after a legacy Codex bootstrap fails', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
+
+      await createLegacyCodexPrompt();
+
+      const cursorCommand = path.join(testDir, '.cursor', 'commands', 'opsx-explore.md');
+      await fs.mkdir(path.dirname(cursorCommand), { recursive: true });
+      await fs.writeFile(cursorCommand, 'old');
+
+      failCodexSkillWrites();
+
+      await expect(new UpdateCommand({ force: true }).execute(testDir)).rejects.toThrow(
+        'A atualização do BR-OpenSpec falhou para: Codex'
+      );
+      expect(await fs.readFile(cursorCommand, 'utf-8')).not.toBe('old');
+    });
+
+    it('should report a failed bootstrap when configured tools are already current', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
+      await new InitCommand({ tools: 'cursor', force: true }).execute(testDir);
+
+      await createLegacyCodexPrompt();
+
+      interactiveState.value = true;
+      confirmMock.mockResolvedValue(true);
+      searchableMultiSelectMock.mockResolvedValue(['codex']);
+
+      failCodexSkillWrites();
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await expect(new UpdateCommand().execute(testDir)).rejects.toThrow(
+        'A atualização do BR-OpenSpec falhou para: Codex'
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Todas as 1 ferramenta(s) estão atualizadas'));
+    });
+
+    it('should report a failed bootstrap after declining an unrelated migration', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
+
+      const legacySkill = path.join(
+        testDir,
+        '.windsurf',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
+      await fs.mkdir(path.dirname(legacySkill), { recursive: true });
+      await fs.writeFile(legacySkill, 'legacy skill');
+
+      await createLegacyCodexPrompt();
+
+      interactiveState.value = true;
+      confirmMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+      searchableMultiSelectMock.mockResolvedValue(['codex']);
+
+      failCodexSkillWrites();
+
+      await expect(new UpdateCommand().execute(testDir)).rejects.toThrow(
+        'A atualização do BR-OpenSpec falhou para: Codex'
+      );
+      expect(await fs.readFile(legacySkill, 'utf-8')).toBe('legacy skill');
+    });
+
     it('should preserve legacy Codex skills and prompts when canonical generation fails', async () => {
       const legacySkill = path.join(
         testDir,
@@ -1908,7 +2242,12 @@ metadata:
       consoleSpy.mockRestore();
     });
 
-    it('should suggest an IDE restart for IDE-resident tools', async () => {
+    it.each([
+      ['both', 'commands'],
+      ['commands', 'commands'],
+      ['skills', 'skills'],
+    ] as const)('should name the generated IDE surface with %s delivery', async (delivery, surface) => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery });
       const skillsDir = path.join(testDir, '.cursor', 'skills');
       await fs.mkdir(path.join(skillsDir, 'openspec-explore'), {
         recursive: true,
@@ -1922,11 +2261,70 @@ metadata:
 
       await updateCommand.execute(testDir);
 
+      const restartHint = surface === 'skills'
+        ? 'Reinicie sua IDE para que as novas skills tenham efeito.'
+        : 'Reinicie sua IDE para que os novos comandos tenham efeito.';
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Reinicie sua IDE')
+        expect.stringContaining(restartHint)
       );
+      expect(await FileSystemUtils.fileExists(
+        path.join(testDir, '.cursor', 'commands', 'opsx-explore.md')
+      )).toBe(delivery !== 'skills');
+      expect(await FileSystemUtils.fileExists(
+        path.join(skillsDir, 'openspec-explore', 'SKILL.md')
+      )).toBe(delivery !== 'commands');
+
+      consoleSpy.mockClear();
+      await updateCommand.execute(testDir);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('atualizadas'));
+      expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('Reinicie sua IDE'));
 
       consoleSpy.mockRestore();
+    });
+
+    it.each(['both', 'commands', 'skills'] as const)(
+      'should describe removal-only IDE updates with %s delivery',
+      async (delivery) => {
+        setMockConfig({ featureFlags: {}, profile: 'core', delivery });
+        await new InitCommand({ tools: 'cursor', force: true }).execute(testDir);
+        setMockConfig({ featureFlags: {}, profile: 'custom', workflows: [], delivery });
+        const consoleSpy = vi.spyOn(console, 'log');
+
+        await updateCommand.execute(testDir);
+
+        expect(await FileSystemUtils.fileExists(
+          path.join(testDir, '.cursor', 'commands', 'opsx-explore.md')
+        )).toBe(false);
+        expect(await FileSystemUtils.fileExists(
+          path.join(testDir, '.cursor', 'skills', 'openspec-explore', 'SKILL.md')
+        )).toBe(false);
+        const surface = delivery === 'skills' ? 'skills' : 'commands';
+        const restartHint = surface === 'skills'
+          ? 'Reinicie sua IDE para que as novas skills tenham efeito.'
+          : 'Reinicie sua IDE para que os novos comandos tenham efeito.';
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining(restartHint)
+        );
+        expect(consoleSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('Restart your IDE')
+        );
+      }
+    );
+
+    it('should not suggest an IDE restart when only a CLI tool needs updating', async () => {
+      await new InitCommand({ tools: 'claude,cursor', force: true }).execute(testDir);
+      await fs.writeFile(
+        path.join(testDir, '.claude', 'skills', 'openspec-explore', 'SKILL.md'),
+        'old'
+      );
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Atualizados: Claude Code'));
+      expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('Atualizados: Cursor'));
+      expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('Reinicie sua IDE'));
     });
   });
 
@@ -2087,9 +2485,9 @@ Legacy content without generatedBy
 
       await updateCommand.execute(testDir);
 
-      // Should show "unknown → version" in the update message
+      // Should show "desconhecida → version" in the update message
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('unknown')
+        expect.stringContaining('desconhecida')
       );
 
       consoleSpy.mockRestore();
@@ -2478,6 +2876,72 @@ ${OPENSPEC_MARKERS.end}
       )).toBe(true);
     });
 
+    it('should print a skill-based getting-started menu when a legacy upgrade newly configures codex', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'skills',
+      });
+
+      // Legacy managed Codex prompt with codex not yet configured: the
+      // upgrade newly configures codex, whose onboarding menu must not
+      // advertise /opsx:* commands (codex has no slash surface).
+      // The prompt is opsx-new.md so the inferred workflow ('new') is one the
+      // onboarding menu actually lists — the menu is now filtered to the
+      // workflows the upgrade installed.
+      const promptDir = path.join(process.env.CODEX_HOME!, 'prompts');
+      await fs.mkdir(promptDir, { recursive: true });
+      await fs.writeFile(path.join(promptDir, 'opsx-new.md'), 'legacy new prompt');
+
+      const consoleSpy = vi.spyOn(console, 'log');
+      const forceUpdateCommand = new UpdateCommand({ force: true });
+      await forceUpdateCommand.execute(testDir);
+
+      const logCalls = consoleSpy.mock.calls.flat().map(String);
+      consoleSpy.mockRestore();
+
+      expect(logCalls.some((entry) => entry.includes('Início rápido'))).toBe(true);
+      const menuLines = logCalls.filter((entry) => entry.includes('Criar alteração'));
+      expect(menuLines).toHaveLength(1);
+      expect(menuLines[0]).toContain('$openspec-new-change');
+      expect(logCalls.some((entry) => entry.includes('/opsx:new'))).toBe(false);
+      expect(logCalls.some((entry) => entry.includes('/opsx:continue'))).toBe(false);
+      expect(logCalls.some((entry) => entry.includes('/opsx:apply'))).toBe(false);
+      // Só o workflow inferido entra no menu, não o resto do perfil.
+      expect(logCalls.some((entry) => entry.includes('Próximo artefato'))).toBe(false);
+      expect(logCalls.some((entry) => entry.includes('Executar tarefas'))).toBe(false);
+    });
+
+    it('should print the hyphen getting-started menu when a legacy upgrade newly configures cursor', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      // A pre-opsx Cursor project: legacy .cursor/commands/openspec-*.md files
+      // make the upgrade newly configure cursor, whose menu must name the
+      // commands its palette registers (/opsx-propose), not /opsx:propose.
+      const legacyDir = path.join(testDir, '.cursor', 'commands');
+      await fs.mkdir(legacyDir, { recursive: true });
+      await fs.writeFile(path.join(legacyDir, 'openspec-proposal.md'), 'legacy proposal command');
+
+      const consoleSpy = vi.spyOn(console, 'log');
+      await new UpdateCommand({ force: true }).execute(testDir);
+      const logCalls = consoleSpy.mock.calls.flat().map(String);
+      consoleSpy.mockRestore();
+
+      const menuLines = logCalls.filter((entry) => entry.includes('Iniciar alteração'));
+      expect(menuLines).toHaveLength(1);
+      expect(menuLines[0]).toContain('/opsx-propose');
+      expect(logCalls.some((entry) => entry.includes('/opsx:propose'))).toBe(false);
+      expect(
+        logCalls.some((entry) =>
+          entry.includes('Reinicie sua IDE para que os novos comandos tenham efeito.')
+        )
+      ).toBe(true);
+    });
+
     it('should preserve legacy Codex prompts when a configured Codex tool lacks the replacement workflow', async () => {
       setMockConfig({
         featureFlags: {},
@@ -2588,12 +3052,13 @@ ${OPENSPEC_MARKERS.end}
         'old'
       );
 
-      // Create legacy slash command directory
+      // Create legacy slash command directory holding a command OpenSpec wrote.
+      // Only those files are removed; any other file here is the user's.
       const legacyCommandDir = path.join(testDir, '.claude', 'commands', 'openspec');
       await fs.mkdir(legacyCommandDir, { recursive: true });
       await fs.writeFile(
-        path.join(legacyCommandDir, 'old-command.md'),
-        'old command'
+        path.join(legacyCommandDir, 'proposal.md'),
+        '<!-- OPENSPEC:START -->\nold command\n<!-- OPENSPEC:END -->\n'
       );
 
       const consoleSpy = vi.spyOn(console, 'log');
@@ -2743,7 +3208,7 @@ More user content after markers.
       await fs.mkdir(legacyCommandDir, { recursive: true });
       await fs.writeFile(
         path.join(legacyCommandDir, 'proposal.md'),
-        'old command content'
+        '<!-- OPENSPEC:START -->\nold command content\n<!-- OPENSPEC:END -->\n'
       );
 
       const consoleSpy = vi.spyOn(console, 'log');
@@ -2794,7 +3259,7 @@ More user content after markers.
       await fs.mkdir(path.join(testDir, '.claude', 'commands', 'openspec'), { recursive: true });
       await fs.writeFile(
         path.join(testDir, '.claude', 'commands', 'openspec', 'proposal.md'),
-        'content'
+        '<!-- OPENSPEC:START -->\ncontent\n<!-- OPENSPEC:END -->\n'
       );
 
       await fs.mkdir(path.join(testDir, '.cursor', 'commands'), { recursive: true });
@@ -2866,7 +3331,7 @@ More user content after markers.
       await fs.mkdir(legacyCommandDir, { recursive: true });
       await fs.writeFile(
         path.join(legacyCommandDir, 'proposal.md'),
-        'old command'
+        '<!-- OPENSPEC:START -->\nold command\n<!-- OPENSPEC:END -->\n'
       );
 
       const consoleSpy = vi.spyOn(console, 'log');
@@ -2910,7 +3375,7 @@ More user content after markers.
       await fs.mkdir(path.join(testDir, '.claude', 'commands', 'openspec'), { recursive: true });
       await fs.writeFile(
         path.join(testDir, '.claude', 'commands', 'openspec', 'proposal.md'),
-        'content'
+        '<!-- OPENSPEC:START -->\ncontent\n<!-- OPENSPEC:END -->\n'
       );
 
       await fs.mkdir(path.join(testDir, '.cursor', 'commands'), { recursive: true });
@@ -2979,7 +3444,7 @@ More user content after markers.
       await fs.mkdir(legacyCommandDir, { recursive: true });
       await fs.writeFile(
         path.join(legacyCommandDir, 'proposal.md'),
-        'old command content'
+        '<!-- OPENSPEC:START -->\nold command content\n<!-- OPENSPEC:END -->\n'
       );
 
       const consoleSpy = vi.spyOn(console, 'log');
@@ -3058,7 +3523,7 @@ More user content after markers.
       await fs.mkdir(path.join(testDir, '.claude', 'commands', 'openspec'), { recursive: true });
       await fs.writeFile(
         path.join(testDir, '.claude', 'commands', 'openspec', 'proposal.md'),
-        'content'
+        '<!-- OPENSPEC:START -->\ncontent\n<!-- OPENSPEC:END -->\n'
       );
 
       // Create update command with force option
@@ -3091,7 +3556,7 @@ More user content after markers.
       await fs.mkdir(path.join(testDir, '.claude', 'commands', 'openspec'), { recursive: true });
       await fs.writeFile(
         path.join(testDir, '.claude', 'commands', 'openspec', 'proposal.md'),
-        'content'
+        '<!-- OPENSPEC:START -->\ncontent\n<!-- OPENSPEC:END -->\n'
       );
 
       // Create update command with force option
@@ -3116,7 +3581,7 @@ More user content after markers.
       await fs.mkdir(path.join(testDir, '.claude', 'commands', 'openspec'), { recursive: true });
       await fs.writeFile(
         path.join(testDir, '.claude', 'commands', 'openspec', 'proposal.md'),
-        'content'
+        '<!-- OPENSPEC:START -->\ncontent\n<!-- OPENSPEC:END -->\n'
       );
 
       const forceUpdateCommand = new UpdateCommand({ force: true });
@@ -3141,6 +3606,101 @@ More user content after markers.
   });
 
   describe('profile-aware updates', () => {
+    it('should prune EasyCode profile and delivery changes while preserving user files', async () => {
+      await new InitCommand({ tools: 'easycode', force: true }).execute(testDir);
+
+      const commandsDir = path.join(testDir, '.easycode', 'commands', 'opsx');
+      const skillsDir = path.join(testDir, '.easycode', 'skills');
+      const userCommand = path.join(commandsDir, 'personal.toml');
+      const userSkill = path.join(skillsDir, 'personal', 'SKILL.md');
+      await fs.writeFile(userCommand, 'prompt = "Keep my command"\n');
+      await fs.mkdir(path.dirname(userSkill), { recursive: true });
+      await fs.writeFile(userSkill, 'Keep my skill');
+
+      setMockConfig({ featureFlags: {}, profile: 'custom', delivery: 'commands', workflows: ['explore', 'new'] });
+      await updateCommand.execute(testDir);
+
+      expect((await fs.readdir(commandsDir)).sort()).toEqual(['explore.toml', 'new.toml', 'personal.toml']);
+      const newCommand = parseToml(await fs.readFile(path.join(commandsDir, 'new.toml'), 'utf-8'));
+      expect(newCommand.prompt).toContain('openspec');
+      expect(await FileSystemUtils.fileExists(path.join(skillsDir, 'openspec-explore', 'SKILL.md'))).toBe(false);
+      expect(await FileSystemUtils.fileExists(path.join(skillsDir, 'openspec-propose', 'SKILL.md'))).toBe(false);
+
+      setMockConfig({ featureFlags: {}, profile: 'custom', delivery: 'skills', workflows: ['explore', 'new'] });
+      await updateCommand.execute(testDir);
+
+      expect(await fs.readdir(commandsDir)).toEqual(['personal.toml']);
+      for (const skillName of ['openspec-explore', 'openspec-new-change']) {
+        expect(await fs.readFile(path.join(skillsDir, skillName, 'SKILL.md'), 'utf-8')).toContain(`name: ${skillName}`);
+      }
+      expect(await fs.readFile(userCommand, 'utf-8')).toBe('prompt = "Keep my command"\n');
+      expect(await fs.readFile(userSkill, 'utf-8')).toBe('Keep my skill');
+    });
+
+    it.each(['both', 'skills', 'commands'] as const)(
+      'should sync AtomCode profile and %s delivery while preserving custom files',
+      async (delivery) => {
+        setMockConfig({
+          featureFlags: {}, profile: 'custom', delivery: 'both', workflows: ['explore', 'new'],
+        });
+        await new InitCommand({ tools: 'atomcode', force: true }).execute(testDir);
+
+        const skillsDir = path.join(testDir, '.atomcode', 'skills');
+        const commandsDir = path.join(testDir, '.atomcode', 'commands');
+        const customSkill = path.join(skillsDir, 'my-custom-skill', 'SKILL.md');
+        const customCommand = path.join(commandsDir, 'opsx-custom.md');
+        await fs.mkdir(path.dirname(customSkill), { recursive: true });
+        await fs.writeFile(customSkill, 'my custom skill');
+        await fs.writeFile(customCommand, 'my custom command');
+
+        setMockConfig({ featureFlags: {}, profile: 'core', delivery });
+        await updateCommand.execute(testDir);
+
+        expect(await FileSystemUtils.fileExists(
+          path.join(skillsDir, 'openspec-new-change', 'SKILL.md')
+        )).toBe(false);
+        expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'opsx-new.md'))).toBe(false);
+        expect(await FileSystemUtils.fileExists(
+          path.join(skillsDir, 'openspec-propose', 'SKILL.md')
+        )).toBe(delivery !== 'commands');
+        expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'opsx-propose.md')))
+          .toBe(delivery !== 'skills');
+        expect(await FileSystemUtils.fileExists(
+          path.join(skillsDir, 'openspec-explore', 'SKILL.md')
+        )).toBe(delivery !== 'commands');
+        expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'opsx-explore.md')))
+          .toBe(delivery !== 'skills');
+        expect(await fs.readFile(customSkill, 'utf-8')).toBe('my custom skill');
+        expect(await fs.readFile(customCommand, 'utf-8')).toBe('my custom command');
+        expect(getConfiguredToolsForProfileSync(testDir)).toContain('atomcode');
+
+        const consoleSpy = vi.spyOn(console, 'log');
+        await updateCommand.execute(testDir);
+        expect(consoleSpy.mock.calls.flat().map(String).some((line) => line.includes('atualizadas')))
+          .toBe(true);
+      }
+    );
+
+    it('should detect and repair an AtomCode commands-only install', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
+      const commandsDir = path.join(testDir, '.atomcode', 'commands');
+      const commandFile = path.join(commandsDir, 'opsx-explore.md');
+      await fs.mkdir(commandsDir, { recursive: true });
+      await fs.writeFile(commandFile, '---\ndescription: old command\n---\nold body');
+
+      expect(getConfiguredToolsForProfileSync(testDir)).toContain('atomcode');
+      expect(scanInstalledWorkflows(testDir, ['atomcode'])).toEqual(['explore']);
+
+      await updateCommand.execute(testDir);
+
+      const content = await fs.readFile(commandFile, 'utf-8');
+      expect(content).toContain('name: opsx-explore');
+      expect(content).toContain('$ARGUMENTS');
+      expect(content).not.toContain('old body');
+      expect(await FileSystemUtils.fileExists(path.join(commandsDir, 'opsx-propose.md'))).toBe(true);
+      expect(await FileSystemUtils.directoryExists(path.join(testDir, '.atomcode', 'skills'))).toBe(false);
+    });
+
     it('should generate only profile workflows when custom profile is set', async () => {
       // Set custom profile with only explore and new
       setMockConfig({
@@ -3285,6 +3845,104 @@ More user content after markers.
       consoleSpy.mockRestore();
     });
 
+    it('should name the workflows the core profile leaves out (#1076)', async () => {
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+      await initCommand.execute(testDir);
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      // The up-to-date path is where a user chasing a missing command lands:
+      // troubleshooting tells them to run `openspec update` first.
+      await updateCommand.execute(testDir);
+
+      const calls = consoleSpy.mock.calls.map(call =>
+        call.map(arg => String(arg)).join(' ')
+      );
+      const note = calls.find(call => call.includes('fluxos de trabalho disponíveis'));
+      expect(note).toBeTruthy();
+      for (const workflow of ['new', 'continue', 'ff', 'bulk-archive', 'verify', 'onboard']) {
+        expect(note).toContain(workflow);
+      }
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should not repeat the profile pointer when the missing-core note already gave it', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'custom',
+        delivery: 'both',
+        workflows: ['propose', 'explore', 'apply', 'sync', 'archive'],
+      });
+
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+      await initCommand.execute(testDir);
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      const calls = consoleSpy.mock.calls.map(call =>
+        call.map(arg => String(arg)).join(' ')
+      );
+      expect(calls.some(call => call.includes('seu perfil personalizado não inclui'))).toBe(true);
+      expect(calls.some(call => call.includes('fluxos de trabalho disponíveis'))).toBe(false);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should not advertise missing workflows when the profile installs all of them', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'custom',
+        delivery: 'both',
+        workflows: [...ALL_WORKFLOWS],
+      });
+
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+      await initCommand.execute(testDir);
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      const calls = consoleSpy.mock.calls.map(call =>
+        call.map(arg => String(arg)).join(' ')
+      );
+      expect(calls.some(call => call.includes('fluxos de trabalho disponíveis'))).toBe(false);
+      expect(calls.some(call => call.includes('fluxo de trabalho disponível'))).toBe(false);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should not advertise missing workflows when no tool can receive one', async () => {
+      // A project set up for a skills-only tool, then switched to
+      // delivery=commands: the tool stays configured but can receive nothing,
+      // so adding workflows would write nothing and the pointer would send the
+      // user the wrong way. `update` prints its delivery correction instead.
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+
+      const initCommand = new InitCommand({ tools: 'kimi', force: true });
+      await initCommand.execute(testDir);
+
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
+
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      const calls = consoleSpy.mock.calls.map(call =>
+        call.map(arg => String(arg)).join(' ')
+      );
+      // Proves the run got as far as the notes rather than bailing earlier
+      expect(calls.some(call => call.includes('Não restam skills nem comandos'))).toBe(true);
+      expect(calls.some(call => call.includes('fluxos de trabalho disponíveis'))).toBe(false);
+
+      consoleSpy.mockRestore();
+    });
+
     it('should respect skills-only delivery setting', async () => {
       setMockConfig({
         featureFlags: {},
@@ -3328,6 +3986,34 @@ More user content after markers.
       expect(updateSkillContent).not.toContain('/opsx-');
       expect(updateSkillContent).toContain('/openspec-');
     });
+
+    it.each(['skills', 'commands'] as const)(
+      'should switch SourceCraft Code Assistant to delivery=%s without deleting custom files',
+      async (delivery) => {
+        await new InitCommand({ tools: 'codeassistant', force: true }).execute(testDir);
+        const toolDir = path.join(testDir, '.codeassistant');
+        const customCommand = path.join(toolDir, 'commands', 'opsx-custom.md');
+        const customSkill = path.join(toolDir, 'skills', 'custom-review', 'SKILL.md');
+        await fs.mkdir(path.dirname(customSkill), { recursive: true });
+        await fs.writeFile(customCommand, 'custom command');
+        await fs.writeFile(customSkill, 'custom skill');
+
+        setMockConfig({ featureFlags: {}, profile: 'core', delivery });
+        await updateCommand.execute(testDir);
+
+        expect(await FileSystemUtils.fileExists(path.join(toolDir, 'commands', 'opsx-apply.md'))).toBe(delivery === 'commands');
+        const skillFile = path.join(toolDir, 'skills', 'openspec-apply-change', 'SKILL.md');
+        expect(await FileSystemUtils.fileExists(skillFile)).toBe(delivery === 'skills');
+        if (delivery === 'skills') {
+          const skillContent = await fs.readFile(skillFile, 'utf-8');
+          expect(skillContent).toContain('a skill openspec-archive-change');
+          expect(skillContent).not.toContain('/openspec-');
+          expect(skillContent).not.toContain('/opsx-');
+        }
+        expect(await fs.readFile(customCommand, 'utf-8')).toBe('custom command');
+        expect(await fs.readFile(customSkill, 'utf-8')).toBe('custom skill');
+      }
+    );
 
     it('should respect commands-only delivery setting', async () => {
       setMockConfig({
@@ -3405,6 +4091,96 @@ More user content after markers.
         expect(await FileSystemUtils.fileExists(promptFile)).toBe(false);
       }
     );
+
+    it.each(['both', 'skills'] as const)(
+      'should refresh Grok Build skills and preserve user files when delivery=%s',
+      async (delivery) => {
+        setMockConfig({ featureFlags: {}, profile: 'core', delivery });
+
+        const grokDir = path.join(testDir, '.grok');
+        const skillsDir = path.join(grokDir, 'skills');
+        const exploreSkill = path.join(skillsDir, 'openspec-explore', 'SKILL.md');
+        const userNotes = path.join(skillsDir, 'openspec-explore', 'notes.md');
+        const customSkill = path.join(skillsDir, 'my-custom-skill', 'SKILL.md');
+        const userConfig = path.join(grokDir, 'settings.json');
+        await fs.mkdir(path.dirname(exploreSkill), { recursive: true });
+        await fs.writeFile(exploreSkill, 'old instructions: /opsx:explore');
+        await fs.writeFile(userNotes, 'my exploration notes');
+        await fs.mkdir(path.dirname(customSkill), { recursive: true });
+        await fs.writeFile(customSkill, 'my custom skill');
+        await fs.writeFile(userConfig, '{"custom":true}\n');
+
+        await updateCommand.execute(testDir);
+
+        for (const skillName of ['openspec-explore', 'openspec-update-change']) {
+          const content = await fs.readFile(path.join(skillsDir, skillName, 'SKILL.md'), 'utf-8');
+          expect(content).toContain(`name: ${skillName}`);
+          expect(content).toContain('/openspec-');
+          expect(content).not.toMatch(/\/opsx[:-]/);
+          expect(content).not.toContain('old instructions');
+        }
+        expect(await fs.readFile(userNotes, 'utf-8')).toBe('my exploration notes');
+        expect(await fs.readFile(customSkill, 'utf-8')).toBe('my custom skill');
+        expect(await fs.readFile(userConfig, 'utf-8')).toBe('{"custom":true}\n');
+        expect((await fs.readdir(grokDir)).sort()).toEqual(['settings.json', 'skills']);
+      }
+    );
+
+    it('should remove only managed Grok Build skills when switching to commands-only delivery', async () => {
+      await new InitCommand({ tools: 'grok', force: true }).execute(testDir);
+      const grokDir = path.join(testDir, '.grok');
+      const skillsDir = path.join(grokDir, 'skills');
+      const customSkill = path.join(skillsDir, 'openspec-custom', 'SKILL.md');
+      await fs.mkdir(path.dirname(customSkill));
+      await fs.writeFile(customSkill, 'my custom skill');
+      await fs.writeFile(path.join(grokDir, 'notes.md'), 'my Grok notes');
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'commands' });
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await updateCommand.execute(testDir);
+
+      expect(await fs.readdir(skillsDir)).toEqual(['openspec-custom']);
+      expect(await fs.readFile(customSkill, 'utf-8')).toBe('my custom skill');
+      expect(await fs.readFile(path.join(grokDir, 'notes.md'), 'utf-8')).toBe('my Grok notes');
+      expect((await fs.readdir(grokDir)).sort()).toEqual(['notes.md', 'skills']);
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining(
+        "Não restam skills nem comandos para Grok Build: a entrega está definida como 'commands', mas ela suporta apenas skills."
+      ));
+    });
+
+    it('should sync Grok Build from a custom profile to core without removing unrelated files', async () => {
+      setMockConfig({
+        featureFlags: {},
+        profile: 'custom',
+        workflows: ['explore', 'new'],
+        delivery: 'both',
+      });
+      await new InitCommand({ tools: 'grok', force: true }).execute(testDir);
+
+      const grokDir = path.join(testDir, '.grok');
+      const skillsDir = path.join(grokDir, 'skills');
+      expect((await fs.readdir(skillsDir)).sort()).toEqual(['openspec-explore', 'openspec-new-change']);
+      const customSkill = path.join(skillsDir, 'openspec-custom', 'SKILL.md');
+      await fs.mkdir(path.dirname(customSkill));
+      await fs.writeFile(customSkill, 'my custom skill');
+      await fs.writeFile(path.join(grokDir, 'notes.md'), 'my Grok notes');
+
+      setMockConfig({ featureFlags: {}, profile: 'core', delivery: 'both' });
+      await updateCommand.execute(testDir);
+
+      expect((await fs.readdir(skillsDir)).sort()).toEqual([
+        'openspec-apply-change',
+        'openspec-archive-change',
+        'openspec-custom',
+        'openspec-explore',
+        'openspec-propose',
+        'openspec-sync-specs',
+        'openspec-update-change',
+      ]);
+      expect(await fs.readFile(customSkill, 'utf-8')).toBe('my custom skill');
+      expect(await fs.readFile(path.join(grokDir, 'notes.md'), 'utf-8')).toBe('my Grok notes');
+      expect((await fs.readdir(grokDir)).sort()).toEqual(['notes.md', 'skills']);
+    });
 
     it('should report Codex command generation as skipped because it uses skills', async () => {
       setMockConfig({

@@ -4,6 +4,7 @@ import os from 'os';
 import { FileSystemUtils } from '../../../utils/file-system.js';
 import { COMPLETION_MESSAGES } from '../../../messages/index.js';
 import { InstallationResult } from '../factory.js';
+import { shellSingleQuote } from './shell-quote.js';
 
 /**
  * Installer for Bash completion scripts.
@@ -116,10 +117,11 @@ export class BashInstaller {
    * @returns Configuration content
    */
   private generateBashrcConfig(completionsDir: string): string {
+    const quotedDir = shellSingleQuote(completionsDir);
     return [
-      '# BR-OpenSpec shell completions configuration',
-      `if [ -d "${completionsDir}" ]; then`,
-      `  for f in "${completionsDir}"/*; do`,
+      COMPLETION_MESSAGES.shellCompletionsConfigHeader,
+      `if [ -d ${quotedDir} ]; then`,
+      `  for f in ${quotedDir}/*; do`,
       '    [ -f "$f" ] && . "$f"',
       '  done',
       'fi',
@@ -159,7 +161,7 @@ export class BashInstaller {
       return true;
     } catch (error: any) {
       // Fail gracefully - don't break installation
-      console.debug(`Unable to configure .bashrc for completions: ${error.message}`);
+      console.debug(COMPLETION_MESSAGES.unableToConfigureBashrc(error.message));
       return false;
     }
   }
@@ -204,9 +206,11 @@ export class BashInstaller {
       // Remove lines between markers (inclusive)
       lines.splice(startIndex, endIndex - startIndex + 1);
 
-      // Remove trailing empty lines
-      while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
-        lines.pop();
+      // Install puts the block at the top of the file followed by one blank
+      // separator line; drop that line too so the file reads as it did before.
+      // Everything else, including the file's final newline, is left as is.
+      if (startIndex === 0 && lines.length > 0 && lines[0].trim() === '') {
+        lines.shift();
       }
 
       // Write back
@@ -215,7 +219,7 @@ export class BashInstaller {
       return true;
     } catch (error: any) {
       // Fail gracefully
-      console.debug(`Unable to remove .bashrc configuration: ${error.message}`);
+      console.debug(COMPLETION_MESSAGES.unableToRemoveBashrc(error.message));
       return false;
     }
   }
@@ -253,7 +257,7 @@ export class BashInstaller {
         isUpdate = true;
       } catch (error: any) {
         // File doesn't exist or can't be read, proceed with installation
-        console.debug(`Unable to read existing completion file at ${targetPath}: ${error.message}`);
+        console.debug(COMPLETION_MESSAGES.unableToReadCompletionFile(targetPath, error.message));
       }
 
       if (!(await FileSystemUtils.canWriteFile(targetPath))) {
@@ -329,14 +333,19 @@ export class BashInstaller {
   private generateInstructions(installedPath: string): string[] {
     const completionsDir = path.dirname(installedPath);
 
+    // Quoted exactly like the auto-configured block: these lines are printed
+    // for the user to paste into their own rc file, so an expansion left in
+    // them runs on every future shell start.
+    const quotedDir = shellSingleQuote(completionsDir);
+
     return [
       COMPLETION_MESSAGES.bashScriptInstalled,
       '',
       COMPLETION_MESSAGES.bashAddToBashrc,
       '',
       `  ${COMPLETION_MESSAGES.bashSourceComment}`,
-      `  if [ -d "${completionsDir}" ]; then`,
-      `    for f in "${completionsDir}"/*; do`,
+      `  if [ -d ${quotedDir} ]; then`,
+      `    for f in ${quotedDir}/*; do`,
       '      [ -f "$f" ] && . "$f"',
       '    done',
       '  fi',

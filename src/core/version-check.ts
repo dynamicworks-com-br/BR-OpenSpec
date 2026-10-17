@@ -5,8 +5,10 @@ import path from 'path';
 import { createRequire } from 'module';
 import chalk from 'chalk';
 import { isCiEnvironment } from '../utils/ci.js';
-import { getGlobalConfig } from './global-config.js';
+import { isTelemetryOptedOutByEnv } from '../telemetry/opt-out.js';
 import { VERSION_CHECK_MESSAGES } from '../messages/index.js';
+import { FileSystemUtils } from '../utils/file-system.js';
+import { getGlobalConfig, isGlobalConfigUnreadable } from './global-config.js';
 
 const require = createRequire(import.meta.url);
 const { name: PACKAGE_NAME, version: OPENSPEC_VERSION } = require('../../package.json');
@@ -33,27 +35,56 @@ const SAFE_VERSION = /^\d{1,10}\.\d{1,10}\.\d{1,10}(?:-[0-9A-Za-z.-]{1,64})?(?:\
  */
 function isCheckEnabled(): boolean {
   if (process.env.OPENSPEC_NO_UPDATE_CHECK !== undefined) return false;
-  if (process.env.DO_NOT_TRACK === '1') return false;
-  if (process.env.OPENSPEC_TELEMETRY === '0') return false;
+  if (isTelemetryOptedOutByEnv()) return false;
   if (isCiEnvironment()) return false;
   if (process.env.NODE_ENV === 'test') return false;
   // Same config opt-out as telemetry (env remains the hard override above).
   if (getGlobalConfig().telemetry?.enabled === false) return false;
+  // A config that cannot be parsed may be hiding that opt-out.
+  if (isGlobalConfigUnreadable()) return false;
   return true;
 }
 
 /**
- * The registry to ask: only the environment variable npm exports (under
- * `npm run`, or an explicit export). Deliberately not a `registry=` line from
- * any .npmrc — letting file contents choose the destination of an outbound
- * request is a flow worth avoiding for a convenience this small, and a project
- * file would travel with a cloned repository. Anyone on a private mirror can
- * export `npm_config_registry`, or turn the check off entirely.
+ * The configured registry, if npm exported one. Not trustworthy: npm exports
+ * every config source it read, including a `registry=` line in a
+ * repository-local .npmrc that travels with a clone.
  */
-export function registryUrl(): string {
+function configuredRegistry(): string | undefined {
   const configured = process.env.npm_config_registry?.trim();
-  const base = configured && /^https?:\/\//i.test(configured) ? configured : DEFAULT_REGISTRY;
+  return configured ? configured : undefined;
+}
+
+/**
+ * The registry to ask. A configured registry is honored only over TLS: a
+ * cleartext hop would aim the request at a link-local or internal address and
+ * let anyone on the path choose the "newer version" answer.
+ *
+ * A rejected registry disables the check rather than falling back to public
+ * npm. Falling back would send a request an organization on an internal mirror
+ * deliberately avoided, and would then report a version resolved against a
+ * registry the eventual `npm install -g` does not use.
+ */
+export function registryUrl(): string | null {
+  const configured = configuredRegistry();
+  if (configured && !/^https:\/\//i.test(configured)) return null;
+  const base = configured ?? DEFAULT_REGISTRY;
   return `${base.replace(/\/+$/, '')}/${PACKAGE_NAME}/latest`;
+}
+
+/**
+ * True when the check is talking to the public npm registry. Read from the raw
+ * env var, not from registryUrl(), so a registry that was rejected above still
+ * disqualifies a self-upgrade instead of looking like the default.
+ */
+function isDefaultRegistry(): boolean {
+  const configured = configuredRegistry();
+  if (!configured) return true;
+  try {
+    return new URL(configured).origin === new URL(DEFAULT_REGISTRY).origin;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -141,7 +172,12 @@ function fetchLatestVersion(): Promise<string | null> {
 
     let url: URL;
     try {
-      url = new URL(registryUrl());
+      const resolved = registryUrl();
+      if (resolved === null) {
+        resolve(null);
+        return;
+      }
+      url = new URL(resolved);
     } catch {
       resolve(null);
       return;
@@ -175,10 +211,13 @@ function fetchLatestVersion(): Promise<string | null> {
             redirectsLeft -= 1;
             try {
               const next = new URL(location, target);
-              // Never follow a downgrade to plain http: a MITM on the reply
-              // would control the "newer version" answer.
-              const downgrade = target.protocol === 'https:' && next.protocol === 'http:';
-              if (!downgrade && (next.protocol === 'http:' || next.protocol === 'https:')) {
+              // Cross-host is allowed - that is the whole point of following a
+              // redirect for a mirror or corporate front-end - but never off
+              // TLS: a MITM on a cleartext hop would control the "newer
+              // version" answer, and the reply cannot install anything on its
+              // own (canSelfUpgrade refuses a non-default registry, and the
+              // version is re-validated against a strict pattern).
+              if (next.protocol === 'https:') {
                 send(next);
                 return;
               }
@@ -240,20 +279,41 @@ function fetchLatestVersion(): Promise<string | null> {
   });
 }
 
+export type CliUpdateStatus = 'available' | 'current' | 'disabled' | 'offline';
+
+export interface CliUpdateCheck {
+  status: CliUpdateStatus;
+  latest: string | null;
+}
+
 /**
- * Returns the published version when the installed CLI is behind it, otherwise
- * null. Never throws and never blocks for longer than the request timeout.
+ * Checks the registry while preserving enough detail for callers to explain
+ * why no newer version was reported. Never throws.
  */
-export async function getAvailableCliUpdate(): Promise<string | null> {
-  if (!isCheckEnabled()) return null;
+export async function checkForCliUpdate(): Promise<CliUpdateCheck> {
+  if (!isCheckEnabled() || registryUrl() === null) {
+    return { status: 'disabled', latest: null };
+  }
 
   try {
     const latest = await fetchLatestVersion();
-    if (!latest) return null;
-    return compareVersions(latest, OPENSPEC_VERSION) > 0 ? latest : null;
+    if (!latest) return { status: 'offline', latest: null };
+    return {
+      status: compareVersions(latest, OPENSPEC_VERSION) > 0 ? 'available' : 'current',
+      latest,
+    };
   } catch {
-    return null;
+    return { status: 'offline', latest: null };
   }
+}
+
+/**
+ * Returns the published version when the installed CLI is behind it, otherwise
+ * null. Kept as the compatibility surface used by `openspec update`.
+ */
+export async function getAvailableCliUpdate(): Promise<string | null> {
+  const result = await checkForCliUpdate();
+  return result.status === 'available' ? result.latest : null;
 }
 
 /**
@@ -289,8 +349,8 @@ export function isProjectLocalInstall(
     process.platform === 'win32' ? value.toLowerCase() : value;
 
   try {
-    let dir = path.resolve(projectPath);
-    const target = normalize(installDir);
+    let dir = FileSystemUtils.canonicalizeExistingPath(projectPath);
+    const target = normalize(FileSystemUtils.canonicalizeExistingPath(installDir));
 
     for (;;) {
       if (target.startsWith(normalize(path.join(dir, 'node_modules') + path.sep))) {
@@ -431,29 +491,33 @@ export function isSourceCheckout(installDir: string | null): boolean {
 }
 
 export type PackageManager = 'npm' | 'pnpm' | 'bun' | 'yarn' | 'volta';
+export type InstallScope = 'global' | 'project' | 'temporary' | 'source';
+
+export interface CliInstallInfo {
+  location: string | null;
+  packageManager: PackageManager | null;
+  scope: InstallScope | null;
+}
+
+function detectKnownPackageManager(installDir: string | null): PackageManager | null {
+  const segments = (installDir ?? '').split(/[\\/]/).map((segment) => segment.toLowerCase());
+  const has = (...names: string[]) => names.some((name) => segments.includes(name));
+
+  if (has('.volta') || (has('volta') && has('tools') && has('image'))) return 'volta';
+  if (has('.bun', '_bunx', 'bun-cache')) return 'bun';
+  if (has('_npx')) return 'npm';
+  if (has('.pnpm', '.pnpm-global', 'pnpm-cache')) return 'pnpm';
+  if (has('pnpm') && has('global', 'dlx', 'store')) return 'pnpm';
+  if (has('.yarn') || (has('yarn') && has('global'))) return 'yarn';
+  return null;
+}
 
 /**
  * The package manager that owns this copy, so the printed command is one the
  * user's setup will actually honor.
  */
 export function detectPackageManager(installDir: string | null): PackageManager {
-  // Lowercased because the Windows directories are capitalized and undotted:
-  // %LOCALAPPDATA%\\Volta, \\Yarn\\Data, \\pnpm-cache.
-  const segments = (installDir ?? '').split(/[\\/]/).map((segment) => segment.toLowerCase());
-  const has = (...names: string[]) => names.some((name) => segments.includes(name));
-
-  // The undotted spelling exists for Windows (%LOCALAPPDATA%\Volta), whose
-  // layout nests tools\image; require both segments so a user or project
-  // directory merely named "volta" (even one with its own "tools" dir) does
-  // not steal the install.
-  if (has('.volta') || (has('volta') && has('tools') && has('image'))) return 'volta';
-  if (has('.bun')) return 'bun';
-  // These two need a corroborating segment: a directory merely named "pnpm" or
-  // "yarn" (a user's home, a project) is not a global install of one.
-  if (has('.pnpm-global', 'pnpm-cache')) return 'pnpm';
-  if (has('pnpm') && has('global', 'dlx', 'store')) return 'pnpm';
-  if (has('.yarn') || (has('yarn') && has('global'))) return 'yarn';
-  return 'npm';
+  return detectKnownPackageManager(installDir) ?? 'npm';
 }
 
 const GLOBAL_UPGRADE_COMMANDS: Record<PackageManager, string> = {
@@ -463,6 +527,88 @@ const GLOBAL_UPGRADE_COMMANDS: Record<PackageManager, string> = {
   yarn: `yarn global add ${PACKAGE_NAME}@latest`,
   volta: `volta install ${PACKAGE_NAME}@latest`,
 };
+
+function detectGlobalPackageManager(installDir: string | null): PackageManager | null {
+  if (isNpmGlobalInstall(installDir)) return 'npm';
+  if (!installDir) return null;
+
+  const segments = installDir.split(/[\\/]/).map((segment) => segment.toLowerCase());
+  const has = (...names: string[]) => names.some((name) => segments.includes(name));
+  const hasSequence = (...names: string[]) =>
+    segments.some((_, index) => names.every((name, offset) => segments[index + offset] === name));
+
+  if (hasSequence('.volta', 'tools', 'image') || hasSequence('volta', 'tools', 'image')) {
+    return 'volta';
+  }
+  if (has('.pnpm-global') || hasSequence('pnpm', 'global')) return 'pnpm';
+  if (hasSequence('yarn', 'global') || hasSequence('yarn', 'data', 'global')) return 'yarn';
+  if (hasSequence('.bun', 'install', 'global')) return 'bun';
+  return null;
+}
+
+/** Describes the running copy without guessing when its owner is ambiguous. */
+export function getCliInstallInfo(
+  installDir: string | null = getInstallDir(),
+  projectPath: string = '.'
+): CliInstallInfo {
+  if (!installDir) {
+    return { location: null, packageManager: null, scope: null };
+  }
+  if (isSourceCheckout(installDir)) {
+    return { location: installDir, packageManager: null, scope: 'source' };
+  }
+  if (isEphemeralRunnerInstall(installDir)) {
+    return {
+      location: installDir,
+      packageManager: detectKnownPackageManager(installDir),
+      scope: 'temporary',
+    };
+  }
+  if (isProjectLocalInstall(installDir, projectPath)) {
+    return {
+      location: installDir,
+      packageManager: detectKnownPackageManager(installDir),
+      scope: 'project',
+    };
+  }
+
+  const packageManager = detectGlobalPackageManager(installDir);
+  return {
+    location: installDir,
+    packageManager,
+    scope: packageManager ? 'global' : null,
+  };
+}
+
+/** Returns a safe update command only for an install with known global ownership. */
+export function getCliUpdateCommand(install: CliInstallInfo): string | null {
+  if (install.scope !== 'global' || install.packageManager === null) return null;
+  return GLOBAL_UPGRADE_COMMANDS[install.packageManager];
+}
+
+/** Builds the concise human-readable form of the version report. */
+export function buildVersionReportLines(
+  version: string,
+  install: CliInstallInfo,
+  update?: CliUpdateCheck,
+  command: string | null = null
+): string[] {
+  const details = [install.packageManager, install.scope].filter(Boolean).join(', ');
+  const lines = [VERSION_CHECK_MESSAGES.versionReport(version, details)];
+  if (!update) return lines;
+
+  if (update.status === 'available') {
+    lines.push(VERSION_CHECK_MESSAGES.updateAvailable(update.latest ?? ''));
+    if (command) lines.push(`  ${command}`);
+  } else if (update.status === 'current') {
+    lines.push(VERSION_CHECK_MESSAGES.upToDate);
+  } else if (update.status === 'disabled') {
+    lines.push(VERSION_CHECK_MESSAGES.updateCheckDisabled);
+  } else {
+    lines.push(VERSION_CHECK_MESSAGES.couldNotCheckUpdates);
+  }
+  return lines;
+}
 
 /**
  * Builds the hint, with the upgrade command chosen for how this copy of the CLI
@@ -533,9 +679,15 @@ function loadSpawn(): typeof import('child_process').spawn {
  * that may not be the one on PATH, a project dependency belongs to that
  * project's package manager, an npx/dlx cache has nothing to upgrade, and a
  * source checkout is not an install at all.
+ *
+ * A non-default registry is also disqualifying. `npm install -g` resolves
+ * against whatever `npm_config_registry` says, which npm may have read from a
+ * cloned repository's .npmrc — so such a registry may still inform the check,
+ * but must never be the thing that offers to install a global package.
  */
 export function canSelfUpgrade(installDir: string | null, projectPath: string): boolean {
   if (!installDir) return false;
+  if (!isDefaultRegistry()) return false;
   if (isEphemeralRunnerInstall(installDir)) return false;
   // Both anchors matter: `openspec update ../other` from a project that owns
   // the CLI as a dependency is still a project-local install.

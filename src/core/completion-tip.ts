@@ -17,13 +17,16 @@
  * - the caller passes `silent` — JSON runs, `openspec completion ...`, and
  *   non-TTY runs, which are deferred rather than consumed (see `silent`)
  */
+import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getGlobalConfigPath } from './global-config.js';
 import { isCiEnvironment } from '../utils/ci.js';
 import { detectShell } from '../utils/shell-detection.js';
-import { CompletionFactory } from './completions/factory.js';
 import { COMPLETION_TIP_MESSAGES } from '../messages/index.js';
+
+/** Owner-only. A default-mode write is world-readable once the umask is applied. */
+const PRIVATE_FILE_MODE = 0o600;
 
 export const COMPLETION_TIP_MESSAGE = COMPLETION_TIP_MESSAGES.firstRunTip;
 
@@ -67,6 +70,9 @@ async function decideTip(): Promise<'show' | 'retire'> {
     if (!shell) {
       return 'retire';
     }
+    // Loaded only here: every shell's generator and installer, needed only on
+    // the rare run that still owes the tip.
+    const { CompletionFactory } = await import('./completions/factory.js');
     return (await CompletionFactory.createInstaller(shell).isInstalled())
       ? 'retire'
       : 'show';
@@ -109,18 +115,30 @@ function readRawConfig(): Record<string, unknown> | null {
  * write down to this one key, and the rename keeps a reader from ever seeing a
  * half-written config.
  */
-function markTipSeen(): void {
+async function markTipSeen(): Promise<void> {
   const configPath = getGlobalConfigPath();
   const current = readRawConfig() ?? {};
-  const tempPath = `${configPath}.${process.pid}.tmp`;
-
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(
-    tempPath,
-    JSON.stringify({ ...current, completionTipSeen: true }, null, 2) + '\n',
-    'utf-8'
+  const dirPath = path.dirname(configPath);
+  // Randomized temp name, owner-only mode, temp file removed on failure. A
+  // predictable `<config>.<pid>.tmp` at the default mode is both guessable and
+  // world-readable once renamed over the config.
+  const tempPath = path.join(
+    dirPath,
+    `.${path.basename(configPath)}.${process.pid}.${Date.now()}.${randomBytes(6).toString('hex')}.tmp`
   );
-  fs.renameSync(tempPath, configPath);
+
+  fs.mkdirSync(dirPath, { recursive: true });
+  try {
+    fs.writeFileSync(
+      tempPath,
+      JSON.stringify({ ...current, completionTipSeen: true }, null, 2) + '\n',
+      { encoding: 'utf-8', mode: PRIVATE_FILE_MODE }
+    );
+    fs.renameSync(tempPath, configPath);
+  } catch (error) {
+    fs.rmSync(tempPath, { force: true });
+    throw error;
+  }
 }
 
 /**
@@ -148,7 +166,7 @@ export async function maybeShowCompletionTip(
 
     // Record before printing: if the flag cannot be persisted, staying quiet
     // beats reprinting the tip on every future run.
-    markTipSeen();
+    await markTipSeen();
     if (decision === 'show') {
       console.error(`\n${COMPLETION_TIP_MESSAGE}`);
     }

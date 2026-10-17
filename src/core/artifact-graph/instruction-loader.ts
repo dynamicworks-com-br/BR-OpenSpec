@@ -3,14 +3,16 @@ import * as path from 'node:path';
 import { getSchemaDir, resolveSchema, listSchemasWithInfo } from './resolver.js';
 import { ArtifactGraph } from './graph.js';
 import { detectCompleted } from './state.js';
+import { isSpecsArtifactPath, resolveArtifactOutputPath, resolveArtifactOutputs } from './outputs.js';
 import {
-  isSpecsArtifactPath,
-  resolveArtifactOutputPath,
-  resolveArtifactOutputs,
-} from './outputs.js';
-import { resolveSchemaForChange, readChangeMetadata } from '../../utils/change-metadata.js';
-import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
+  formatUnknownChangeMetadataKeysMessage,
+  readChangeMetadata,
+  readUnknownChangeMetadataKeys,
+  resolveSchemaForChange,
+  type ChangeMetadata,
+} from '../../utils/change-metadata.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
+import { WORKFLOW_MESSAGES, ARTIFACT_GRAPH_MESSAGES } from '../../messages/index.js';
 import { readProjectConfig, validateConfigRules, type ProjectConfig } from '../project-config.js';
 import type { Artifact, CompletedSet } from './types.js';
 
@@ -46,6 +48,10 @@ export interface ChangeContext {
   changeDir: string;
   /** Project root directory */
   projectRoot: string;
+  /** Parsed change metadata, when present */
+  metadata?: ChangeMetadata;
+  /** Non-fatal metadata diagnostics for text and JSON command surfaces */
+  warnings?: string[];
   /**
    * Artifact IDs counted as complete only because the change declares
    * skip_specs, not because their files exist. Kept separate so status can
@@ -86,6 +92,12 @@ export interface ArtifactInstructions {
   skipped?: boolean;
   /** Present only when skipped: tells the consumer not to create the artifact */
   warning?: string;
+  /** Non-fatal metadata diagnostics */
+  warnings?: string[];
+  /** Concrete files this artifact already has. Empty when the artifact is skipped. */
+  existingOutputPaths?: string[];
+  /** changeDir joined with the artifact's generates pattern. */
+  resolvedOutputPath?: string;
 }
 
 /**
@@ -133,11 +145,21 @@ export interface ArtifactStatus {
 /**
  * Formatted change status.
  */
+export interface ArtifactPathSummary {
+  outputPath: string;
+  resolvedOutputPath: string;
+  existingOutputPaths: string[];
+}
+
 export interface ChangeStatus {
   /** Change name */
   changeName: string;
   /** Schema name */
   schemaName: string;
+  /** Full path to the change root */
+  changeRoot: string;
+  /** Absolute artifact path details keyed by artifact ID */
+  artifactPaths: Record<string, ArtifactPathSummary>;
   /** Whether all planning artifacts are complete */
   isPlanningComplete: boolean;
   /** Compatibility alias for isPlanningComplete */
@@ -146,14 +168,13 @@ export interface ChangeStatus {
   applyRequires: string[];
   /** Status of each artifact */
   artifacts: ArtifactStatus[];
-  /** Absolute artifact path details keyed by artifact ID */
-  artifactPaths: Record<string, ArtifactPathSummary>;
-}
-
-export interface ArtifactPathSummary {
-  outputPath: string;
-  resolvedOutputPath: string;
-  existingOutputPaths: string[];
+  /** Non-fatal metadata diagnostics */
+  warnings?: string[];
+  /**
+   * The same next-step sentence the text status prints, so `--json` and the
+   * dashboard name one command.
+   */
+  nextSteps?: string[];
 }
 
 /**
@@ -242,7 +263,12 @@ export function loadChangeContext(
     path.join(projectRoot, 'openspec', 'changes', changeName)
   );
 
-  // Resolve schema: explicit > metadata > default
+  const metadata = readChangeMetadata(changeDir, projectRoot) ?? undefined;
+  const unknownMetadataKeys = readUnknownChangeMetadataKeys(changeDir);
+  const warnings =
+    unknownMetadataKeys.length > 0
+      ? [formatUnknownChangeMetadataKeysMessage(unknownMetadataKeys)]
+      : [];
   const resolvedSchemaName = resolveSchemaForChange(changeDir, schemaName, projectRoot, {
     projectConfig: options.projectConfig,
   });
@@ -281,6 +307,8 @@ export function loadChangeContext(
     changeName,
     changeDir,
     projectRoot,
+    ...(metadata ? { metadata } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
     ...(skippedArtifacts.size > 0 ? { skippedArtifacts } : {}),
   };
 }
@@ -362,12 +390,17 @@ export function generateInstructions(
     instruction: artifact.instruction,
     context: configContext,
     rules: configRules,
+    ...(context.warnings ? { warnings: context.warnings } : {}),
     ...(context.skippedArtifacts?.has(artifact.id)
       ? { skipped: true, warning: SKIP_SPECS_INSTRUCTIONS_WARNING }
       : {}),
     template: templateContent,
     dependencies,
     unlocks,
+    resolvedOutputPath: resolveArtifactOutputPath(context.changeDir, artifact.generates),
+    existingOutputPaths: context.skippedArtifacts?.has(artifact.id)
+      ? []
+      : resolveArtifactOutputs(context.changeDir, artifact.generates),
   };
 }
 
@@ -476,14 +509,22 @@ export function formatChangeStatus(context: ChangeContext): ChangeStatus {
   artifactStatuses.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
 
   const isPlanningComplete = context.graph.isComplete(context.completed);
+  const nextArtifact = artifactStatuses.find((artifact) => artifact.status === 'ready');
+  const nextId = nextArtifact?.id ?? (isPlanningComplete ? 'apply' : undefined);
+  const nextSteps = nextId
+    ? [WORKFLOW_MESSAGES.nextInstruction(nextId, context.changeName)]
+    : undefined;
 
   return {
     changeName: context.changeName,
     schemaName: context.schemaName,
+    changeRoot: context.changeDir,
+    artifactPaths,
     isPlanningComplete,
     isComplete: isPlanningComplete,
     applyRequires,
     artifacts: artifactStatuses,
-    artifactPaths,
+    ...(context.warnings ? { warnings: context.warnings } : {}),
+    ...(nextSteps ? { nextSteps } : {}),
   };
 }

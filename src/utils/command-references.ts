@@ -81,15 +81,15 @@ const SKILL_INVOCATION_PREFIX: Record<string, string> = {
 };
 
 /**
- * Tools that have no slash-command surface at all: skills are matched
- * automatically or invoked by natural-language prompts, never by typing a
- * `/<name>` command. Rovo Dev CLI is such a tool — `/skills` only manages
- * skills, and any `/openspec-*` form would be a dead command (see
- * docs/supported-tools.md). References for these tools are spelled as prose
- * ("a skill openspec-propose") so generated content never tells the user to
- * type a command their CLI does not register.
+ * Ferramentas sem invocação documentada por barra para skills: usam
+ * correspondência automática ou prompts em linguagem natural. O SourceCraft
+ * Code Assistant tem arquivos de comando separados, mas as skills dele usam
+ * correspondência pela descrição. O `/skills` do Rovo Dev só gerencia skills
+ * (veja docs/supported-tools.md). Referências de skill para essas ferramentas
+ * são escritas em prosa ("a skill openspec-propose") para que a entrega só de
+ * skills não anuncie comandos não registrados.
  */
-const NATURAL_LANGUAGE_SKILL_TOOLS = new Set<string>(['rovodev']);
+const NATURAL_LANGUAGE_SKILL_TOOLS = new Set<string>(['gsd', 'rovodev', 'codeassistant']);
 
 /**
  * Whether a tool references skills by natural language rather than a slash
@@ -173,11 +173,11 @@ export function getSkillReferenceTransformer(toolId: string): (text: string) => 
  *
  * Skill references are used whenever the tool ends up without `/opsx:*`
  * commands — because delivery is skills-only, because the tool has no command
- * surface at all (capability 'none', e.g. Kimi Code, ForgeCode, Trae or
- * Mistral Vibe), or because the tool invokes skills directly and OpenSpec
- * generates no command files for it (capability 'skills-invocable', i.e.
- * Codex, whose skills are invoked as `$openspec-*`) — so those skills never
- * point at commands that were not generated.
+ * surface at all (capability 'none', e.g. Kimi Code, ForgeCode, Trae ou
+ * Mistral Vibe), ou porque a ferramenta invoca skills diretamente e o
+ * BR-OpenSpec não gera arquivos de comando para ela (capability
+ * 'skills-invocable', ex.: Codex ou Warp) — então essas skills nunca apontam
+ * para comandos que não foram gerados.
  *
  * When commands are generated, the spelling follows the tool's invocation: a
  * `flat` adapter names the command by filename (`.cursor/commands/opsx-apply.md`

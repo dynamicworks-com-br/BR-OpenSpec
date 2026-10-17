@@ -3,6 +3,8 @@ import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import os from 'os';
+import { parse as parseToml } from 'smol-toml';
+import { parse as parseYaml } from 'yaml';
 import { InitCommand } from '../../src/core/init.js';
 import { saveGlobalConfig, getGlobalConfig } from '../../src/core/global-config.js';
 import { MAX_CONTEXT_SIZE, readProjectConfig } from '../../src/core/project-config.js';
@@ -12,6 +14,7 @@ import {
   INIT_MESSAGES,
   LEGACY_CLEANUP_MESSAGES,
 } from '../../src/messages/index.js';
+import { ALL_WORKFLOWS } from '../../src/core/profiles.js';
 
 const { confirmMock, showWelcomeScreenMock, searchableMultiSelectMock } = vi.hoisted(() => ({
   confirmMock: vi.fn(),
@@ -80,6 +83,81 @@ describe('InitCommand', () => {
       expect(await directoryExists(path.join(openspecPath, 'changes', 'archive'))).toBe(true);
     });
 
+    it('should create .gitkeep files in empty directories', async () => {
+      const initCommand = new InitCommand({ tools: 'claude', force: true });
+
+      await initCommand.execute(testDir);
+
+      const openspecPath = path.join(testDir, 'openspec');
+      expect(await fileExists(path.join(openspecPath, 'specs', '.gitkeep'))).toBe(true);
+      // The archive anchor also keeps its parent changes/ directory in Git.
+      expect(await fileExists(path.join(openspecPath, 'changes', '.gitkeep'))).toBe(false);
+      expect(await fileExists(path.join(openspecPath, 'changes', 'archive', '.gitkeep'))).toBe(true);
+    });
+
+    it('should restore missing directories and anchors in extend mode', async () => {
+      const initCommand1 = new InitCommand({ tools: 'claude', force: true });
+      await initCommand1.execute(testDir);
+
+      const openspecPath = path.join(testDir, 'openspec');
+
+      // Older projects may lose these empty directories when cloned.
+      await fs.rm(path.join(openspecPath, 'specs'), { recursive: true });
+      await fs.rm(path.join(openspecPath, 'changes'), { recursive: true });
+
+      // Re-run init (triggers extend mode since openspec dir already exists)
+      const initCommand2 = new InitCommand({ tools: 'claude', force: true });
+      await initCommand2.execute(testDir);
+
+      expect(await fileExists(path.join(openspecPath, 'specs', '.gitkeep'))).toBe(true);
+      expect(await fileExists(path.join(openspecPath, 'changes', '.gitkeep'))).toBe(false);
+      expect(await fileExists(path.join(openspecPath, 'changes', 'archive', '.gitkeep'))).toBe(true);
+    });
+
+    it('should preserve existing directory anchor contents when re-running init', async () => {
+      const marker = path.join(testDir, 'openspec', 'specs', '.gitkeep');
+      await fs.mkdir(path.dirname(marker), { recursive: true });
+      await fs.writeFile(marker, 'Keep this directory in Git.\n');
+
+      await new InitCommand({ tools: 'none', force: true }).execute(testDir);
+
+      expect(await fs.readFile(marker, 'utf-8')).toBe('Keep this directory in Git.\n');
+    });
+
+    it('should not add anchors to populated directories', async () => {
+      const specsPath = path.join(testDir, 'openspec', 'specs');
+      const archivePath = path.join(testDir, 'openspec', 'changes', 'archive');
+      await fs.mkdir(specsPath, { recursive: true });
+      await fs.mkdir(archivePath, { recursive: true });
+      await fs.writeFile(path.join(specsPath, '.custom'), 'keep me');
+      await fs.mkdir(path.join(archivePath, '2026-08-27-example'));
+
+      await new InitCommand({ tools: 'none', force: true }).execute(testDir);
+
+      expect(await fs.readdir(specsPath)).toEqual(['.custom']);
+      expect(await fs.readdir(archivePath)).toEqual(['2026-08-27-example']);
+    });
+
+    it.skipIf(process.platform === 'win32').each([false, true])(
+      'should leave anchor symlinks untouched (dangling: %s)',
+      async (dangling) => {
+        const target = path.join(configTempDir, 'outside-target');
+        if (!dangling) await fs.writeFile(target, 'do not overwrite');
+        const marker = path.join(testDir, 'openspec', 'specs', '.gitkeep');
+        await fs.mkdir(path.dirname(marker), { recursive: true });
+        await fs.symlink(target, marker);
+
+        await new InitCommand({ tools: 'none', force: true }).execute(testDir);
+
+        expect(await fs.readlink(marker)).toBe(target);
+        if (dangling) {
+          expect(await fileExists(target)).toBe(false);
+        } else {
+          expect(await fs.readFile(target, 'utf-8')).toBe('do not overwrite');
+        }
+      },
+    );
+
     it('should create config.yaml with default schema', async () => {
       const initCommand = new InitCommand({ tools: 'claude', force: true });
 
@@ -90,6 +168,22 @@ describe('InitCommand', () => {
 
       const content = await fs.readFile(configPath, 'utf-8');
       expect(content).toContain('schema: spec-driven');
+    });
+
+    it('should guide project.md migration without copying or deleting it', async () => {
+      const openspecPath = path.join(testDir, 'openspec');
+      const projectMdPath = path.join(openspecPath, 'project.md');
+      await fs.mkdir(openspecPath, { recursive: true });
+      await fs.writeFile(projectMdPath, '# Migrate me later\n');
+
+      await new InitCommand({ tools: 'none', force: true }).execute(testDir);
+
+      expect(readProjectConfig(testDir)?.context).toBeUndefined();
+      expect(await fs.readFile(projectMdPath, 'utf-8')).toBe('# Migrate me later\n');
+      expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
+        'Peça ao seu assistente de IA:'
+      );
+      expect(confirmMock).not.toHaveBeenCalled();
     });
 
     it('should add the requested artifact language to a new config', async () => {
@@ -179,7 +273,11 @@ describe('InitCommand', () => {
     });
 
     it('should reject an unwritable language config before creating other files', async () => {
-      const configPath = path.join(testDir, 'openspec', 'config.yaml');
+      const configPath = path.join(
+        FileSystemUtils.canonicalizeExistingPath(testDir),
+        'openspec',
+        'config.yaml'
+      );
       vi.spyOn(FileSystemUtils, 'canWriteFile').mockResolvedValue(false);
       const initCommand = new InitCommand({ tools: 'claude', force: true, language: 'French' });
 
@@ -429,45 +527,78 @@ describe('InitCommand', () => {
 
       await initCommand.execute(testDir);
 
-      // Upstream also pins the sticky `--store <id>` guidance here; the stores
-      // subsystem is deferred in the fork (D1), so only the store-free half of
-      // the assertions is ported.
-      const updateVariants: Array<[string, string]> = [
-        [
-          await fs.readFile(
-            path.join(
-              testDir,
-              '.claude',
-              'skills',
-              'openspec-update-change',
-              'SKILL.md'
-            ),
-            'utf-8'
+      const generatedFiles = [
+        ...[
+          'openspec-propose',
+          'openspec-explore',
+          'openspec-apply-change',
+          'openspec-update-change',
+          'openspec-sync-specs',
+          'openspec-archive-change',
+        ].map((name) => path.join(testDir, '.claude', 'skills', name, 'SKILL.md')),
+        ...['propose', 'explore', 'apply', 'update', 'sync', 'archive'].map((name) =>
+          path.join(testDir, '.claude', 'commands', 'opsx', `${name}.md`)
+        ),
+      ];
+      const generatedContents = await Promise.all(
+        generatedFiles.map((file) => fs.readFile(file, 'utf-8'))
+      );
+
+      for (const content of generatedContents) {
+        expect(content).not.toContain('--store');
+      }
+
+      // The default profile installs six workflows; `continue` and `new` are
+      // not among them. Nothing it generates may name them (#1734) - it would
+      // send the agent to a skill that was never written. The CLI fallback is
+      // stated outright instead of behind a runtime availability check.
+      const updateVariants = [
+        await fs.readFile(
+          path.join(
+            testDir,
+            '.claude',
+            'skills',
+            'openspec-update-change',
+            'SKILL.md'
           ),
-          '`/opsx:continue`',
-        ],
-        [
-          await fs.readFile(
-            path.join(testDir, '.claude', 'commands', 'opsx', 'update.md'),
-            'utf-8'
-          ),
-          '`/opsx:continue`',
-        ],
+          'utf-8'
+        ),
+        await fs.readFile(
+          path.join(testDir, '.claude', 'commands', 'opsx', 'update.md'),
+          'utf-8'
+        ),
       ];
 
-      for (const [content, continueReference] of updateVariants) {
-        const availabilityGuidance = content.indexOf(
-          `${continueReference} é um workflow opcional e pode não estar instalado`
-        );
-        const nextReference = content.indexOf(
-          continueReference,
-          availabilityGuidance + continueReference.length
-        );
-
-        expect(availabilityGuidance).toBeGreaterThanOrEqual(0);
-        expect(content.indexOf(continueReference)).toBe(availabilityGuidance);
-        expect(nextReference).toBeGreaterThan(availabilityGuidance);
+      for (const content of updateVariants) {
+        expect(content).not.toContain('/opsx:continue');
+        expect(content).not.toContain('/opsx:new');
+        expect(content).not.toContain('é um workflow opcional e pode não estar instalado');
+        expect(content).toContain('ele nunca cria os que faltam');
         expect(content).toContain('openspec status --change "<nome>" --json');
+        expect(content).toContain(
+          'openspec instructions "<artifact-id>" --change "<nome>" --json'
+        );
+        expect(content).toContain('openspec new change "<novo-nome-da-change>"');
+      }
+
+      const applyVariants = [
+        await fs.readFile(
+          path.join(testDir, '.claude', 'skills', 'openspec-apply-change', 'SKILL.md'),
+          'utf-8'
+        ),
+        await fs.readFile(
+          path.join(testDir, '.claude', 'commands', 'opsx', 'apply.md'),
+          'utf-8'
+        ),
+      ];
+
+      for (const content of applyVariants) {
+        // The core profile has no `continue`, so the blocked-state handoff
+        // must be the CLI recovery in full, not a workflow this install lacks.
+        expect(content).not.toContain('/opsx:continue');
+        expect(content).not.toContain('--store');
+        expect(content).toContain('openspec status --change "<nome>" --json');
+        expect(content).toContain('próximo artifact `ready` (não `skipped` nem `blocked`)');
         expect(content).toContain(
           'openspec instructions "<artifact-id>" --change "<nome>" --json'
         );
@@ -517,6 +648,122 @@ describe('InitCommand', () => {
       expect(
         await fileExists(path.join(testDir, '.windsurf', 'skills', 'openspec-explore', 'SKILL.md'))
       ).toBe(false);
+    });
+
+    it.each(['both', 'skills', 'commands'] as const)(
+      'should initialize SourceCraft Code Assistant with delivery=%s and working invocation hints',
+      async (delivery) => {
+        if (delivery !== 'both') {
+          saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery });
+        }
+
+        await new InitCommand({ tools: 'codeassistant', force: true }).execute(testDir);
+
+        const skillFile = path.join(testDir, '.codeassistant', 'skills', 'openspec-apply-change', 'SKILL.md');
+        const commandFile = path.join(testDir, '.codeassistant', 'commands', 'opsx-apply.md');
+        expect(await fileExists(skillFile)).toBe(delivery !== 'commands');
+        expect(await fileExists(commandFile)).toBe(delivery !== 'skills');
+
+        if (delivery !== 'commands') {
+          const skillContent = await fs.readFile(skillFile, 'utf-8');
+          expect(skillContent).toContain(delivery === 'skills' ? 'a skill openspec-archive-change' : '/opsx-archive');
+          expect(skillContent).not.toContain('/opsx:');
+          if (delivery === 'skills') {
+            expect(skillContent).not.toContain('/openspec-');
+            expect(skillContent).not.toContain('/opsx-');
+          }
+        }
+        if (delivery !== 'skills') {
+          const commandContent = await fs.readFile(commandFile, 'utf-8');
+          expect(commandContent).toMatch(/^---\ndescription: /);
+          expect(commandContent).toContain('/opsx-archive');
+          expect(commandContent).not.toContain('/opsx:');
+        }
+
+        const logCalls = vi.mocked(console.log).mock.calls.flat().map(String);
+        const startHint = logCalls.find((entry) => entry.includes('Inicie sua primeira alteração'));
+        expect(startHint).toContain(delivery === 'skills'
+          ? 'peça ao SourceCraft Code Assistant para usar a skill openspec-propose com "sua ideia"'
+          : '/opsx-propose');
+      }
+    );
+
+    it('should support the shared agents target as an adapterless skills-only tool', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      const initCommand = new InitCommand({ tools: 'agents', force: true });
+      await initCommand.execute(testDir);
+
+      const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      const commandsDir = path.join(testDir, '.agents', 'commands');
+      expect(await directoryExists(commandsDir)).toBe(false);
+
+      const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+      expect(
+        logCalls.some(
+          (entry) => entry.includes('Comandos ignorados para: agents') && entry.includes('(sem adaptador)'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should support Amp through its shared Agent Skills directory', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      await new InitCommand({ tools: 'amp', force: true }).execute(testDir);
+
+      const skillsDir = path.join(testDir, '.agents', 'skills');
+      const skillFile = path.join(skillsDir, 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+      expect(await fs.readFile(path.join(skillsDir, '.openspec-target'), 'utf-8')).toBe('amp\n');
+
+      const skillContent = await fs.readFile(skillFile, 'utf-8');
+      expect(skillContent).toContain('name: openspec-explore');
+      expect(skillContent).toContain('/openspec-');
+      expect(skillContent).not.toContain('/opsx:');
+      expect(await directoryExists(path.join(testDir, '.agents', 'commands'))).toBe(false);
+
+      const logCalls = vi.mocked(console.log).mock.calls.flat().map(String);
+      expect(
+        logCalls.some(
+          (entry) => entry.includes('Comandos ignorados para: amp') && entry.includes('(sem adaptador)')
+        )
+      ).toBe(true);
+    });
+
+    it('should support GSD through project skills without writing subagent definitions', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      const initCommand = new InitCommand({ tools: 'gsd', force: true });
+      await initCommand.execute(testDir);
+
+      const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+      expect(await directoryExists(path.join(testDir, '.gsd', 'agents'))).toBe(false);
+
+      const skillContent = await fs.readFile(skillFile, 'utf-8');
+      expect(skillContent).toContain('a skill openspec-propose');
+      expect(skillContent).not.toContain('/opsx:propose');
+
+      const logCalls = vi.mocked(console.log).mock.calls.flat().map(String);
+      expect(
+        logCalls.some(
+          (entry) => entry.includes('Comandos ignorados para: gsd') && entry.includes('(sem adaptador)'),
+        ),
+      ).toBe(true);
     });
 
     it('should install MiniMax Code skills only in the user-home target', async () => {
@@ -721,6 +968,145 @@ describe('InitCommand', () => {
       expect(hintLine).toContain('a skill openspec-propose');
     });
 
+    it('should support DeepSeek Harness as an adapterless skills-only tool', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      const initCommand = new InitCommand({ tools: 'dsh', force: true });
+      await initCommand.execute(testDir);
+
+      const skillFile = path.join(testDir, '.dsh', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      const commandsDir = path.join(testDir, '.dsh', 'commands');
+      expect(await directoryExists(commandsDir)).toBe(false);
+
+      const skillsRoot = path.join(testDir, '.dsh', 'skills');
+      const skillDirs = await fs.readdir(skillsRoot);
+      expect(skillDirs.length).toBeGreaterThan(0);
+      for (const dir of skillDirs) {
+        const body = await fs.readFile(path.join(skillsRoot, dir, 'SKILL.md'), 'utf-8');
+        const frontmatterMatch = body.match(/^---\n([\s\S]*?)\n---\n/);
+        expect(frontmatterMatch, `${dir}/SKILL.md must begin with YAML frontmatter`).not.toBeNull();
+        const frontmatter = parseYaml(frontmatterMatch![1]);
+        expect(frontmatter.name).toBe(dir);
+        expect(frontmatter.name).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+        expect(typeof frontmatter.description).toBe('string');
+        expect(frontmatter.description.trim().length).toBeGreaterThan(0);
+        expect(body, `${dir}/SKILL.md should not reference /opsx commands`).not.toMatch(/\/opsx[:-]/);
+      }
+      const applyBody = await fs.readFile(
+        path.join(skillsRoot, 'openspec-apply-change', 'SKILL.md'),
+        'utf-8',
+      );
+      expect(applyBody).toMatch(/\/openspec-archive-change/);
+
+      const dshLogCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+      expect(dshLogCalls.some((entry) => entry.includes('Criados: DeepSeek Harness'))).toBe(true);
+      expect(
+        dshLogCalls.some(
+          (entry) => entry.includes('Comandos ignorados para: dsh') && entry.includes('(sem adaptador)'),
+        ),
+      ).toBe(true);
+      const dshHint = dshLogCalls.find((entry) => entry.includes('Inicie sua primeira alteração'));
+      expect(dshHint).toBeDefined();
+      expect(dshHint).toContain('/openspec-propose');
+      expect(dshHint).not.toContain('/opsx:');
+    });
+
+    it('should explain commands-only delivery for DeepSeek Harness without generating unusable artifacts', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'commands',
+      });
+
+      await new InitCommand({ tools: 'dsh', force: true }).execute(testDir);
+
+      expect(await directoryExists(path.join(testDir, '.dsh', 'skills'))).toBe(false);
+      expect(await directoryExists(path.join(testDir, '.dsh', 'commands'))).toBe(false);
+      expect(await directoryExists(path.join(testDir, '.agents'))).toBe(false);
+
+      const logCalls = vi.mocked(console.log).mock.calls.flat().map(String);
+      expect(logCalls.some((entry) => entry.includes('Inicie sua primeira alteração'))).toBe(false);
+      const correction = logCalls.find((entry) => entry.includes('Nenhuma skill nem comando foi gerado'));
+      expect(correction).toContain('DeepSeek Harness');
+      expect(correction).toContain('openspec config set delivery both');
+    });
+
+    it('should support Hermes Agent as an adapterless skills-only tool with a setup note', async () => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery: 'both',
+      });
+
+      const initCommand = new InitCommand({ tools: 'hermes', force: true });
+      await initCommand.execute(testDir);
+
+      const skillFile = path.join(testDir, '.hermes', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      const commandsDir = path.join(testDir, '.hermes', 'commands');
+      expect(await directoryExists(commandsDir)).toBe(false);
+
+      const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+      expect(
+        logCalls.some(
+          (entry) => entry.includes('Comandos ignorados para: hermes') && entry.includes('(sem adaptador)'),
+        ),
+      ).toBe(true);
+      const hermes = (await import('../../src/core/config.js')).AI_TOOLS.find((tool) => tool.value === 'hermes');
+      expect(hermes?.setupNote).toContain('skills.external_dirs');
+      expect(hermes?.setupNote).toContain('Hermes');
+    });
+
+
+    it.each(['both', 'skills'] as const)('should install invocable Grok Build skills with delivery=%s', async (delivery) => {
+      saveGlobalConfig({
+        featureFlags: {},
+        profile: 'core',
+        delivery,
+      });
+
+      const initCommand = new InitCommand({ tools: 'grok', force: true });
+      await initCommand.execute(testDir);
+
+      const skillsDir = path.join(testDir, '.grok', 'skills');
+      const skillNames = [
+        'openspec-apply-change',
+        'openspec-archive-change',
+        'openspec-explore',
+        'openspec-propose',
+        'openspec-sync-specs',
+        'openspec-update-change',
+      ];
+      expect((await fs.readdir(skillsDir)).sort()).toEqual(skillNames);
+      for (const skillName of skillNames) {
+        const content = await fs.readFile(path.join(skillsDir, skillName, 'SKILL.md'), 'utf-8');
+        expect(content).toContain(`name: ${skillName}`);
+        expect(content).not.toMatch(/\/opsx[:-]/);
+      }
+      const applyContent = await fs.readFile(path.join(skillsDir, 'openspec-apply-change', 'SKILL.md'), 'utf-8');
+      expect(applyContent).toContain('/openspec-archive-change');
+
+      const commandsDir = path.join(testDir, '.grok', 'commands');
+      expect(await directoryExists(commandsDir)).toBe(false);
+
+      const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+      if (delivery === 'both') {
+        expect(logCalls.some(
+          (entry) => entry.includes('Comandos ignorados para: grok') && entry.includes('(sem adaptador)'),
+        )).toBe(true);
+      }
+      const startHint = logCalls.find((entry) => entry.includes('Inicie sua primeira alteração'));
+      expect(startHint).toContain('/openspec-propose');
+      expect(startHint).not.toContain('/opsx:');
+    });
+
     it('should migrate OpenSpec skills from legacy .kimi to .kimi-code during init', async () => {
       const legacySkillDir = path.join(testDir, '.kimi', 'skills', 'openspec-explore');
       await fs.mkdir(legacySkillDir, { recursive: true });
@@ -783,7 +1169,7 @@ describe('InitCommand', () => {
         .map(String);
       expect(logCalls.some((entry) => entry.includes('Criados: Codex'))).toBe(true);
       expect(logCalls.some((entry) => entry.includes('Zed Agent'))).toBe(true);
-      expect(logCalls.some((entry) => entry.includes('Shared .agents skills'))).toBe(true);
+      expect(logCalls.some((entry) => entry.includes('Other / Universal (shared .agents skills)'))).toBe(true);
       expect(
         logCalls.some((entry) => entry.includes('escrevendo uma única árvore para codex'))
       ).toBe(true);
@@ -991,7 +1377,7 @@ describe('InitCommand', () => {
       const proposeFiles = [
         path.join(testDir, '.factory', 'commands', 'opsx-propose.md'),
         path.join(testDir, '.cursor', 'commands', 'opsx-propose.md'),
-        path.join(testDir, '.kilocode', 'workflows', 'opsx-propose.md'),
+        path.join(testDir, '.kilo', 'command', 'opsx-propose.md'),
         path.join(testDir, '.pi', 'prompts', 'opsx-propose.md'),
         path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'),
       ];
@@ -1251,20 +1637,109 @@ describe('InitCommand', () => {
 
       await expect(initCommand.execute(testDir)).rejects.toThrow(/Nenhuma ferramenta detectada e nenhuma flag --tools/);
     });
+
+    it('should name the universal target when no tools are detected non-interactively', async () => {
+      // The scripted counterpart of the picker's empty-search hint (#653):
+      // a bare list of ids does not tell someone whose tool is absent what to do.
+      const initCommand = new InitCommand({ interactive: false });
+
+      await expect(initCommand.execute(testDir)).rejects.toThrow(/agents/);
+    });
+
+    it('should name the universal target when --tools names something unknown', async () => {
+      const initCommand = new InitCommand({ tools: 'turing-corp-plugin', force: true });
+
+      await expect(initCommand.execute(testDir)).rejects.toThrow(
+        /Ferramenta\(s\) inválida\(s\): turing-corp-plugin[\s\S]*\bagents\b/
+      );
+    });
   });
 
   describe('tool-specific adapters', () => {
-    it('should generate Gemini CLI commands as TOML files', async () => {
-      const initCommand = new InitCommand({ tools: 'gemini', force: true });
+    it.each(['both', 'skills', 'commands'] as const)(
+      'should generate usable AtomCode workflows with %s delivery',
+      async (delivery) => {
+        saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery });
+        await new InitCommand({ tools: 'atomcode', force: true }).execute(testDir);
+
+        const skillsDir = path.join(testDir, '.atomcode', 'skills');
+        const commandsDir = path.join(testDir, '.atomcode', 'commands');
+        const applySkill = path.join(skillsDir, 'openspec-apply-change', 'SKILL.md');
+        expect(await fileExists(applySkill)).toBe(delivery !== 'commands');
+        expect(await directoryExists(commandsDir)).toBe(delivery !== 'skills');
+
+        if (delivery !== 'commands') {
+          const content = await fs.readFile(applySkill, 'utf-8');
+          expect(content).not.toContain('/opsx:');
+          expect(content).toContain(delivery === 'skills' ? '/openspec-' : '/opsx-');
+        }
+
+        if (delivery !== 'skills') {
+          const commandFiles = await fs.readdir(commandsDir);
+          expect(commandFiles.sort()).toEqual([
+            'opsx-apply.md', 'opsx-archive.md', 'opsx-explore.md',
+            'opsx-propose.md', 'opsx-sync.md', 'opsx-update.md',
+          ]);
+          for (const filename of commandFiles) {
+            const content = await fs.readFile(path.join(commandsDir, filename), 'utf-8');
+            const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n/);
+            expect(frontmatter).not.toBeNull();
+            expect(parseYaml(frontmatter![1])).toMatchObject({
+              name: path.basename(filename, '.md'),
+              description: expect.any(String),
+              args: 'optional',
+            });
+            expect(content).toContain('$ARGUMENTS');
+            expect(content).not.toContain('/opsx:');
+          }
+          const applyCommand = await fs.readFile(path.join(commandsDir, 'opsx-apply.md'), 'utf-8');
+          expect(applyCommand).toContain('/opsx-');
+        }
+      }
+    );
+
+    it.each(['gemini', 'easycode'])('should generate %s core skills and parseable TOML commands', async (toolId) => {
+      const initCommand = new InitCommand({ tools: toolId, force: true });
       await initCommand.execute(testDir);
 
-      const cmdFile = path.join(testDir, '.gemini', 'commands', 'opsx', 'explore.toml');
-      expect(await fileExists(cmdFile)).toBe(true);
+      const commandsDir = path.join(testDir, `.${toolId}`, 'commands', 'opsx');
+      const commandIds = ['apply', 'archive', 'explore', 'propose', 'sync', 'update'];
+      expect((await fs.readdir(commandsDir)).sort()).toEqual(commandIds.map((id) => `${id}.toml`));
+      for (const commandId of commandIds) {
+        const content = parseToml(await fs.readFile(path.join(commandsDir, `${commandId}.toml`), 'utf-8'));
+        expect(content.description).toEqual(expect.any(String));
+        expect(content.prompt).toContain('openspec');
+      }
 
-      const content = await fs.readFile(cmdFile, 'utf-8');
-      expect(content).toContain('description =');
-      expect(content).toContain('prompt =');
+      const skillFile = path.join(testDir, `.${toolId}`, 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fs.readFile(skillFile, 'utf-8')).toContain('name: openspec-explore');
     });
+
+    it.each(['both', 'skills', 'commands'] as const)(
+      'should honor EasyCode custom workflows with delivery=%s',
+      async (delivery) => {
+        saveGlobalConfig({ featureFlags: {}, profile: 'custom', delivery, workflows: ['explore', 'new'] });
+        await new InitCommand({ tools: 'easycode', force: true }).execute(testDir);
+
+        const skillsDir = path.join(testDir, '.easycode', 'skills');
+        for (const skillName of ['openspec-explore', 'openspec-new-change']) {
+          expect(await fileExists(path.join(skillsDir, skillName, 'SKILL.md'))).toBe(delivery !== 'commands');
+        }
+        expect(await fileExists(path.join(skillsDir, 'openspec-propose', 'SKILL.md'))).toBe(false);
+
+        const commandsDir = path.join(testDir, '.easycode', 'commands', 'opsx');
+        if (delivery === 'skills') {
+          expect(await directoryExists(commandsDir)).toBe(false);
+        } else {
+          expect((await fs.readdir(commandsDir)).sort()).toEqual(['explore.toml', 'new.toml']);
+          for (const filename of ['explore.toml', 'new.toml']) {
+            const content = parseToml(await fs.readFile(path.join(commandsDir, filename), 'utf-8'));
+            expect(content.description).toEqual(expect.any(String));
+            expect(content.prompt).toContain('openspec');
+          }
+        }
+      }
+    );
 
     it('should generate Devin workflows for the retired windsurf id', async () => {
       const initCommand = new InitCommand({ tools: 'windsurf', force: true });
@@ -1314,6 +1789,9 @@ describe('InitCommand', () => {
       const content = await fs.readFile(cmdFile, 'utf-8');
       expect(content).toContain('name: "opsx-explore"');
       expect(content).toContain('invokable: true');
+      expect(content).toContain(
+        '---\n\nEste prompt de fluxo de trabalho já está ativo. Siga as instruções dele diretamente. Não chame uma ferramenta com o nome deste fluxo de trabalho.\n\nEntre no modo explore.'
+      );
     });
 
     it('should generate Cline workflow files', async () => {
@@ -1324,12 +1802,20 @@ describe('InitCommand', () => {
       expect(await fileExists(cmdFile)).toBe(true);
     });
 
-    it('should generate GitHub Copilot prompt files', async () => {
+    it('should generate GitHub Copilot prompt and skill files with default delivery', async () => {
       const initCommand = new InitCommand({ tools: 'github-copilot', force: true });
       await initCommand.execute(testDir);
 
       const cmdFile = path.join(testDir, '.github', 'prompts', 'opsx-explore.prompt.md');
+      const skillFile = path.join(
+        testDir,
+        '.github',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
       expect(await fileExists(cmdFile)).toBe(true);
+      expect(await fileExists(skillFile)).toBe(true);
     });
 
     it('should fail GitHub Copilot setup without partially creating cloud files', async () => {
@@ -1479,17 +1965,18 @@ describe('InitCommand - profile and detection features', () => {
     );
   });
 
-  it('should use detected tools in non-interactive mode when no --tools flag', async () => {
-    // Create a .claude directory to simulate detected tool
-    await fs.mkdir(path.join(testDir, '.claude'), { recursive: true });
+  it.each(['claude', 'atomcode'])(
+    'should detect %s in non-interactive mode when no --tools flag',
+    async (tool) => {
+      await fs.mkdir(path.join(testDir, `.${tool}`), { recursive: true });
 
-    const initCommand = new InitCommand({ interactive: false, force: true });
-    await initCommand.execute(testDir);
+      const initCommand = new InitCommand({ interactive: false, force: true });
+      await initCommand.execute(testDir);
 
-    // Should have used claude (detected)
-    const skillFile = path.join(testDir, '.claude', 'skills', 'openspec-explore', 'SKILL.md');
-    expect(await fileExists(skillFile)).toBe(true);
-  });
+      const skillFile = path.join(testDir, `.${tool}`, 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+    }
+  );
 
   it('should auto-cleanup legacy artifacts in non-interactive mode without --force', async () => {
     // Create legacy OpenCode command files (singular 'command' path)
@@ -1509,6 +1996,18 @@ describe('InitCommand - profile and detection features', () => {
     expect(await directoryExists(newCommandsDir)).toBe(true);
     const proposeCommand = await fs.readFile(path.join(newCommandsDir, 'opsx-propose.md'), 'utf-8');
     expect(proposeCommand).toContain('**Argumentos fornecidos**: $ARGUMENTS');
+  });
+
+  it('should replace legacy Kilo workflows with commands in the canonical directory', async () => {
+    const legacyDir = path.join(testDir, '.kilocode', 'workflows');
+    await fs.mkdir(legacyDir, { recursive: true });
+    await fs.writeFile(path.join(legacyDir, 'opsx-propose.md'), 'legacy content');
+
+    const initCommand = new InitCommand({ tools: 'kilocode' });
+    await initCommand.execute(testDir);
+
+    expect(await fileExists(path.join(legacyDir, 'opsx-propose.md'))).toBe(false);
+    expect(await fileExists(path.join(testDir, '.kilo', 'command', 'opsx-propose.md'))).toBe(true);
   });
 
   it('should remove managed global Codex prompts in non-interactive mode', async () => {
@@ -1656,6 +2155,42 @@ describe('InitCommand - profile and detection features', () => {
     const githubCopilot = choices.find((choice) => choice.value === 'github-copilot');
 
     expect(githubCopilot?.preSelected).toBe(true);
+  });
+
+  it('should offer the universal target with the search terms an unlisted tool suggests', async () => {
+    // #653: the picker filters on name and id, and this entry is named for a
+    // directory. Without aliases the escape hatch cannot be searched for.
+    searchableMultiSelectMock.mockResolvedValue(['claude']);
+
+    const initCommand = new InitCommand({ force: true });
+    vi.spyOn(initCommand as any, 'canPromptInteractively').mockReturnValue(true);
+
+    await initCommand.execute(testDir);
+
+    const [config] = searchableMultiSelectMock.mock.calls[0] as [
+      { choices: Array<{ value: string; name: string; searchAliases?: string[] }>; emptyHint?: string }
+    ];
+    const universal = config.choices.find((choice) => choice.value === 'agents');
+
+    expect(universal).toBeDefined();
+    expect(universal?.name).toContain('Other / Universal');
+    for (const term of ['universal', 'other', 'generic', 'unlisted']) {
+      expect(universal?.searchAliases).toContain(term);
+    }
+  });
+
+  it('should hand the picker a fallback hint naming the universal target', async () => {
+    searchableMultiSelectMock.mockResolvedValue(['claude']);
+
+    const initCommand = new InitCommand({ force: true });
+    vi.spyOn(initCommand as any, 'canPromptInteractively').mockReturnValue(true);
+
+    await initCommand.execute(testDir);
+
+    const [config] = searchableMultiSelectMock.mock.calls[0] as [{ emptyHint?: string }];
+
+    expect(config.emptyHint).toContain('Ferramenta não listada?');
+    expect(config.emptyHint).toContain('agents');
   });
 
   it('interactive init: confirming the cloud prompt writes files and persists the opt-in', async () => {
@@ -1879,19 +2414,93 @@ describe('InitCommand - profile and detection features', () => {
     expect(startHint).not.toContain('/opsx:propose');
   });
 
-  it('should print a configuration correction, not a dead hint, when delivery=commands generates nothing (adapterless tool)', async () => {
+  it('should install Veai as a skills-only tool', async () => {
+    const initCommand = new InitCommand({ tools: 'veai', force: true });
+    await initCommand.execute(testDir);
+
+    const skillFile = path.join(testDir, '.veai', 'skills', 'openspec-apply-change', 'SKILL.md');
+    expect(await fileExists(skillFile)).toBe(true);
+    expect(await directoryExists(path.join(testDir, '.veai', 'commands'))).toBe(false);
+
+    const skillContent = await fs.readFile(skillFile, 'utf-8');
+    expect(skillContent).toContain('/openspec-');
+    expect(skillContent).not.toContain('/opsx:');
+    expect(skillContent).not.toContain('/opsx-');
+  });
+
+  it('should name the workflows the core profile leaves out (#1076)', async () => {
+    const initCommand = new InitCommand({ tools: 'claude', force: true });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    const note = logCalls.find((entry) => entry.includes('fluxos de trabalho disponíveis'));
+    expect(note).toBeTruthy();
+    for (const workflow of ['new', 'continue', 'ff', 'bulk-archive', 'verify', 'onboard']) {
+      expect(note).toContain(workflow);
+    }
+    // Workflows that were installed must not be advertised as missing
+    expect(note).not.toContain('propose,');
+    expect(logCalls.some((entry) => entry.includes('openspec config profile'))).toBe(true);
+  });
+
+  it('should not advertise missing workflows when the profile installs all of them', async () => {
+    saveGlobalConfig({
+      featureFlags: {},
+      profile: 'custom',
+      delivery: 'both',
+      workflows: [...ALL_WORKFLOWS],
+    });
+
+    const initCommand = new InitCommand({ tools: 'claude', force: true });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    expect(logCalls.some((entry) => entry.includes('fluxos de trabalho disponíveis'))).toBe(false);
+    expect(logCalls.some((entry) => entry.includes('more workflow is available'))).toBe(false);
+  });
+
+  it('should not advertise missing workflows when no tool was selected', async () => {
+    // With no tools, `openspec config profile` + `openspec update` would write
+    // nothing, so naming the workflows would point at the wrong problem.
+    const initCommand = new InitCommand({ tools: 'none', force: true });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    expect(logCalls.some((entry) => entry.includes('fluxos de trabalho disponíveis'))).toBe(false);
+  });
+
+  it('should not advertise missing workflows when nothing was generated at all', async () => {
     saveGlobalConfig({
       featureFlags: {},
       profile: 'core',
       delivery: 'commands',
     });
 
+    // Kimi has no command adapter: the configuration correction is the whole
+    // story, so a "6 more workflows" note would point at the wrong problem.
     const initCommand = new InitCommand({ tools: 'kimi', force: true });
     await initCommand.execute(testDir);
 
-    // Kimi has no command adapter and delivery excludes skills: nothing is generated
-    expect(await fileExists(path.join(testDir, '.kimi-code', 'skills', 'openspec-explore', 'SKILL.md'))).toBe(false);
-    expect(await fileExists(path.join(testDir, '.kimi-code', 'commands'))).toBe(false);
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    expect(logCalls.some((entry) => entry.includes('Nenhuma skill nem comando foi gerado'))).toBe(true);
+    expect(logCalls.some((entry) => entry.includes('fluxos de trabalho disponíveis'))).toBe(false);
+  });
+
+  it.each([
+    ['kimi', '.kimi-code'],
+    ['grok', '.grok'],
+  ])('should print a configuration correction, not a dead hint, when delivery=commands generates nothing for %s', async (toolId, skillsDir) => {
+    saveGlobalConfig({
+      featureFlags: {},
+      profile: 'core',
+      delivery: 'commands',
+    });
+
+    const initCommand = new InitCommand({ tools: toolId, force: true });
+    await initCommand.execute(testDir);
+
+    // No command adapter and delivery excludes skills: nothing is generated
+    expect(await directoryExists(path.join(testDir, skillsDir))).toBe(false);
 
     const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
     // No invocation hint may be shown — neither /opsx:* nor a skill reference exists
@@ -1933,6 +2542,138 @@ describe('InitCommand - profile and detection features', () => {
     for (const hint of startHints) {
       expect(hint).not.toContain('/opsx:');
     }
+  });
+
+  it.each(['both', 'skills', 'commands'] as const)(
+    'should print the Codex skill hint with delivery=%s',
+    async (delivery) => {
+      saveGlobalConfig({ featureFlags: {}, profile: 'core', delivery });
+      const initCommand = new InitCommand({ tools: 'codex', force: true });
+      await initCommand.execute(testDir);
+
+      const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-apply-change', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+      const skillContent = await fs.readFile(skillFile, 'utf-8');
+      expect(skillContent).not.toContain('/opsx:');
+      expect(skillContent).toContain('$openspec-');
+
+      const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+      const startHints = logCalls.filter((entry) => entry.includes('Inicie sua primeira alteração'));
+      expect(startHints).toHaveLength(1);
+      expect(startHints[0]).toContain('$openspec-propose');
+      expect(startHints[0]).toContain('"sua ideia"');
+      expect(startHints[0]).not.toContain('/opsx:');
+      expect(logCalls.some((entry) => entry.includes('Reinicie sua IDE'))).toBe(false);
+    }
+  );
+
+  it('should print the @-prefixed prompt hint for amazon-q (prompt library, no slash surface)', async () => {
+    const initCommand = new InitCommand({ tools: 'amazon-q', force: true });
+    await initCommand.execute(testDir);
+
+    const promptFile = path.join(testDir, '.amazonq', 'prompts', 'opsx-apply.md');
+    const skillFile = path.join(testDir, '.amazonq', 'skills', 'openspec-apply-change', 'SKILL.md');
+    for (const file of [promptFile, skillFile]) {
+      expect(await fileExists(file)).toBe(true);
+      const content = await fs.readFile(file, 'utf-8');
+      expect(content).toContain('@opsx-apply');
+      expect(content).not.toContain('/opsx:');
+      expect(content).not.toContain('/opsx-');
+    }
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    const startHint = logCalls.find((entry) => entry.includes('Inicie sua primeira alteração'));
+    expect(startHint).toContain('@opsx-propose');
+    expect(startHint).not.toContain('/opsx-propose');
+    expect(startHint).not.toContain('/opsx:propose');
+
+    const restartHint = logCalls.find((entry) => entry.includes('Reinicie sua IDE'));
+    expect(restartHint).toContain('Reinicie sua IDE para que os novos comandos tenham efeito.');
+    expect(restartHint).not.toContain('comandos de barra');
+  });
+
+  it('should label the codex hint separately when mixed with a slash-invocable adapterless tool', async () => {
+    const initCommand = new InitCommand({ tools: 'codex,vibe', force: true });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    const startHints = logCalls.filter((entry) => entry.includes('Inicie sua primeira alteração'));
+    expect(startHints).toHaveLength(2);
+    const codexHint = startHints.find((entry) => entry.includes('(Codex)'));
+    const vibeHint = startHints.find((entry) => entry.includes('Mistral Vibe'));
+    expect(codexHint).toContain('$openspec-propose');
+    expect(codexHint).toContain('"sua ideia"');
+    expect(codexHint).not.toContain('/openspec-propose');
+    expect(vibeHint).toContain('/openspec-propose');
+    expect(vibeHint).not.toContain('sidebar');
+    for (const hint of startHints) {
+      expect(hint).not.toContain('/opsx:');
+    }
+  });
+
+  it('should reference commands by the names each tool registers (cursor+claude)', async () => {
+    const initCommand = new InitCommand({ tools: 'cursor,claude', force: true });
+    await initCommand.execute(testDir);
+
+    const read = (...segments: string[]) => fs.readFile(path.join(testDir, ...segments), 'utf-8');
+
+    const cursorCommand = await read('.cursor', 'commands', 'opsx-apply.md');
+    expect(cursorCommand).toContain('/opsx-archive');
+    expect(cursorCommand).not.toContain('/opsx:');
+
+    const cursorSkill = await read('.cursor', 'skills', 'openspec-apply-change', 'SKILL.md');
+    expect(cursorSkill).not.toContain('/opsx:');
+
+    const claudeCommand = await read('.claude', 'commands', 'opsx', 'apply.md');
+    expect(claudeCommand).toContain('/opsx:archive');
+    expect(claudeCommand).not.toContain('/opsx-');
+
+    const claudeSkill = await read('.claude', 'skills', 'openspec-apply-change', 'SKILL.md');
+    expect(claudeSkill).not.toContain('/opsx-');
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    const startHints = logCalls.filter((entry) => entry.includes('Inicie sua primeira alteração'));
+    expect(startHints.find((entry) => entry.includes('Cursor'))).toContain('/opsx-propose');
+    expect(startHints.find((entry) => entry.includes('Claude Code'))).toContain('/opsx:propose');
+  });
+
+  it('should print the hyphen command hint for filename-invoked tools (claude+qwen)', async () => {
+    const initCommand = new InitCommand({ tools: 'claude,qwen', force: true });
+    await initCommand.execute(testDir);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    const startHints = logCalls.filter((entry) => entry.includes('Inicie sua primeira alteração'));
+    expect(startHints).toHaveLength(2);
+    const claudeHint = startHints.find((entry) => entry.includes('Claude Code'));
+    const qwenHint = startHints.find((entry) => entry.includes('Qwen Code'));
+    expect(claudeHint).toContain('/opsx:propose');
+    expect(qwenHint).toContain('/opsx-propose');
+    expect(qwenHint).not.toContain('/opsx:propose');
+  });
+
+  it('should not advertise an instruction for a tool that got no skills (delivery=commands, codex+kimi)', async () => {
+    saveGlobalConfig({
+      featureFlags: {},
+      profile: 'core',
+      delivery: 'commands',
+    });
+
+    const initCommand = new InitCommand({ tools: 'codex,kimi', force: true });
+    await initCommand.execute(testDir);
+
+    expect(await fileExists(path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'))).toBe(true);
+    expect(await fileExists(path.join(testDir, '.kimi-code'))).toBe(false);
+
+    const logCalls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls.flat().map(String);
+    const startHints = logCalls.filter((entry) => entry.includes('Inicie sua primeira alteração'));
+    expect(startHints).toHaveLength(1);
+    expect(startHints[0]).toContain('$openspec-propose');
+    expect(startHints[0]).not.toContain('Kimi');
+    expect(logCalls.some((entry) => entry.includes('/skill:openspec-'))).toBe(false);
+    const correction = logCalls.find((entry) => entry.includes('Nenhuma skill nem comando foi gerado para'));
+    expect(correction).toContain('Kimi Code');
+    expect(correction).not.toContain('Codex');
+    expect(correction).toContain("openspec config set delivery both");
   });
 
   it('should print a per-tool correction when an adapter-backed tool masks an adapterless one (delivery=commands, claude+kimi)', async () => {

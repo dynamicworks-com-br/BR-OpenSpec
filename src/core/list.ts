@@ -1,9 +1,13 @@
-import { promises as fs } from 'fs';
+import { promises as fs, readFileSync, type Dirent } from 'fs';
 import path from 'path';
 import { getTaskProgressForChange, formatTaskStatus } from '../utils/task-progress.js';
-import { readFileSync } from 'fs';
 import { MarkdownParser } from './parsers/markdown-parser.js';
 import { discoverSpecFiles } from '../utils/spec-discovery.js';
+import {
+  describeNestedChange,
+  findNestedChanges,
+  type NestedChangeFinding,
+} from '../utils/nested-change.js';
 import { LIST_MESSAGES } from '../messages/index.js';
 
 interface ChangeInfo {
@@ -11,31 +15,83 @@ interface ChangeInfo {
   completedTasks: number;
   totalTasks: number;
   lastModified: Date;
+  archived: boolean;
+  /** Set when the entry is a namespace folder rather than a change (#1846). */
+  nested?: string[];
+}
+
+/**
+ * Optional root metadata echoed in JSON when a caller supplies it.
+ * List resolves changes from the working directory and does not select roots.
+ */
+interface ListRootOutput {
+  path: string;
+  source?: string;
 }
 
 interface ListOptions {
   sort?: 'recent' | 'name';
   json?: boolean;
+  root?: ListRootOutput;
+  archived?: boolean;
+  all?: boolean;
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as NodeJS.ErrnoException).code === 'ENOENT'
+  );
+}
+
+/**
+ * An entry that cannot be dated because it no longer resolves: it was removed
+ * after `readdir` listed it, or it is a symlink whose target is missing (an
+ * Emacs `.#file` lock) or that loops back on itself.
+ */
+function isUnresolvableEntryError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return false;
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'ENOENT' || code === 'ELOOP';
+}
+
+async function readChangeDirectoryEntries(changesDir: string): Promise<Dirent[]> {
+  try {
+    return await fs.readdir(changesDir, { withFileTypes: true });
+  } catch (error) {
+    if (isMissingPathError(error)) return [];
+    throw error;
+  }
 }
 
 /**
  * Get the most recent modification time of any file in a directory (recursive).
  * Falls back to the directory's own mtime if no files are found.
+ * Archived links use their own mtime: moving a change can break relative targets.
  */
-async function getLastModified(dirPath: string): Promise<Date> {
+async function getLastModified(dirPath: string, archived: boolean = false): Promise<Date> {
   let latest: Date | null = null;
 
   async function walk(dir: string): Promise<void> {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(fullPath);
-      } else {
-        const stat = await fs.stat(fullPath);
-        if (latest === null || stat.mtime > latest) {
-          latest = stat.mtime;
+      try {
+        if (entry.isDirectory()) {
+          await walk(fullPath);
+        } else {
+          const stat = archived && entry.isSymbolicLink()
+            ? await fs.lstat(fullPath)
+            : await fs.stat(fullPath);
+          if (latest === null || stat.mtime > latest) {
+            latest = stat.mtime;
+          }
         }
+      } catch (error) {
+        // Skip the one entry rather than fail the listing of every change.
+        if (!isUnresolvableEntryError(error)) throw error;
       }
     }
   }
@@ -75,31 +131,52 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
+function taskStatus(change: ChangeInfo): 'no-tasks' | 'complete' | 'in-progress' {
+  if (change.totalTasks === 0) return 'no-tasks';
+  if (change.completedTasks === change.totalTasks) return 'complete';
+  return 'in-progress';
+}
+
 export class ListCommand {
   async execute(targetPath: string = '.', mode: 'changes' | 'specs' = 'changes', options: ListOptions = {}): Promise<void> {
-    const { sort = 'recent', json = false } = options;
+    const { sort = 'recent', json = false, root, archived = false, all = false } = options;
+
+    if (mode === 'specs' && (archived || all)) {
+      throw new Error(LIST_MESSAGES.archiveOptionsOnlyForChanges);
+    }
 
     if (mode === 'changes') {
       const changesDir = path.join(targetPath, 'openspec', 'changes');
+      const archiveDir = path.join(changesDir, 'archive');
+      const includeArchived = archived || all;
 
-      // Check if changes directory exists
+      // Read the parent even for --archived: Windows can report ENOENT for
+      // changes/archive when changes is a file, hiding a malformed root.
+      // A missing changes directory still fails in the default listing so
+      // `openspec init` stays the suggested next step.
+      let entries: Dirent[];
       try {
-        await fs.access(changesDir);
-      } catch {
-        throw new Error(LIST_MESSAGES.noChangesDir);
+        entries = await fs.readdir(changesDir, { withFileTypes: true });
+      } catch (error) {
+        if (!isMissingPathError(error)) throw error;
+        if (!includeArchived) throw new Error(LIST_MESSAGES.noChangesDir);
+        entries = [];
       }
 
-      // Get all directories in changes (excluding archive)
-      const entries = await fs.readdir(changesDir, { withFileTypes: true });
-      const changeDirs = entries
+      const activeDirs = !archived || all ? entries
         .filter(entry => entry.isDirectory() && entry.name !== 'archive')
-        .map(entry => entry.name);
+        .map(entry => ({ name: entry.name, parent: changesDir, archived: false })) : [];
+      const archiveEntries = includeArchived ? await readChangeDirectoryEntries(archiveDir) : [];
+      const archivedDirs = archiveEntries
+        .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map(entry => ({ name: entry.name, parent: archiveDir, archived: true }));
+      const changeDirs = [...activeDirs, ...archivedDirs];
 
       if (changeDirs.length === 0) {
         if (json) {
-          console.log(JSON.stringify({ changes: [] }));
+          console.log(JSON.stringify({ changes: [], ...(root ? { root } : {}) }, null, 2));
         } else {
-          console.log(LIST_MESSAGES.noActiveChanges);
+          console.log(all ? LIST_MESSAGES.noChangesFound : archived ? LIST_MESSAGES.noArchivedChanges : LIST_MESSAGES.noActiveChanges);
         }
         return;
       }
@@ -107,15 +184,30 @@ export class ListCommand {
       // Collect information about each change
       const changes: ChangeInfo[] = [];
 
+      // A directory that only wraps nested change directories is still listed -
+      // hiding it would hide a real change whenever the probe is wrong - but it
+      // is listed as what it is, so the nesting stops failing silently (#1846).
+      const nestedFindings = await findNestedChanges(
+        changesDir,
+        activeDirs.map((changeDir) => changeDir.name)
+      );
+      const nestedByName = new Map<string, NestedChangeFinding>(
+        nestedFindings.map((finding) => [finding.name, finding])
+      );
+
       for (const changeDir of changeDirs) {
-        const progress = await getTaskProgressForChange(changesDir, changeDir, targetPath);
-        const changePath = path.join(changesDir, changeDir);
-        const lastModified = await getLastModified(changePath);
+        const progress = await getTaskProgressForChange(changeDir.parent, changeDir.name, targetPath);
+        const changePath = path.join(changeDir.parent, changeDir.name);
+        const lastModified = await getLastModified(changePath, changeDir.archived);
         changes.push({
-          name: changeDir,
+          name: changeDir.name,
           completedTasks: progress.completed,
           totalTasks: progress.total,
-          lastModified
+          lastModified,
+          archived: changeDir.archived,
+          ...(!changeDir.archived && nestedByName.has(changeDir.name)
+            ? { nested: nestedByName.get(changeDir.name)!.nested }
+            : {})
         });
       }
 
@@ -133,21 +225,48 @@ export class ListCommand {
           completedTasks: c.completedTasks,
           totalTasks: c.totalTasks,
           lastModified: c.lastModified.toISOString(),
-          status: c.totalTasks === 0 ? 'no-tasks' : c.completedTasks === c.totalTasks ? 'complete' : 'in-progress'
+          status: taskStatus(c),
+          ...(includeArchived ? { archived: c.archived } : {}),
+          ...(c.nested ? { nested: c.nested } : {})
         }));
-        console.log(JSON.stringify({ changes: jsonOutput }, null, 2));
+        // Additive: the entries keep their shape so existing consumers are
+        // unaffected, and the nesting is reported alongside them.
+        const warnings = nestedFindings.map((finding) => ({
+          code: 'nested_change_directory',
+          name: finding.name,
+          nested: finding.nested,
+          message: describeNestedChange(finding)
+        }));
+        console.log(JSON.stringify({
+          changes: jsonOutput,
+          ...(warnings.length > 0 ? { warnings } : {}),
+          ...(root ? { root } : {})
+        }, null, 2));
         return;
       }
 
       // Display results
-      console.log(LIST_MESSAGES.changesHeader);
-      const padding = '  ';
-      const nameWidth = Math.max(...changes.map(c => c.name.length));
-      for (const change of changes) {
-        const paddedName = change.name.padEnd(nameWidth);
-        const status = formatTaskStatus({ total: change.totalTasks, completed: change.completedTasks });
-        const timeAgo = formatRelativeTime(change.lastModified);
-        console.log(`${padding}${paddedName}     ${status.padEnd(12)}  ${timeAgo}`);
+      const groups = [
+        { heading: LIST_MESSAGES.changesHeader, changes: changes.filter(change => !change.archived) },
+        { heading: LIST_MESSAGES.archivedChangesHeader, changes: changes.filter(change => change.archived) }
+      ].filter(group => group.changes.length > 0);
+      for (const [index, group] of groups.entries()) {
+        if (index > 0) console.log('');
+        console.log(group.heading);
+        const padding = '  ';
+        const nameWidth = Math.max(...group.changes.map(c => c.name.length));
+        for (const change of group.changes) {
+          const paddedName = change.name.padEnd(nameWidth);
+          const status = change.nested
+            ? LIST_MESSAGES.notAChange
+            : formatTaskStatus({ total: change.totalTasks, completed: change.completedTasks });
+          const timeAgo = formatRelativeTime(change.lastModified);
+          console.log(`${padding}${paddedName}     ${status.padEnd(12)}  ${timeAgo}`);
+        }
+      }
+      for (const finding of nestedFindings) {
+        console.log('');
+        console.log(LIST_MESSAGES.nestedChangeWarning(describeNestedChange(finding)));
       }
       return;
     }
@@ -157,13 +276,21 @@ export class ListCommand {
     try {
       await fs.access(specsDir);
     } catch {
-      console.log(LIST_MESSAGES.noSpecsFound);
+      if (json) {
+        console.log(JSON.stringify({ specs: [], ...(root ? { root } : {}) }, null, 2));
+      } else {
+        console.log(LIST_MESSAGES.noSpecsFound);
+      }
       return;
     }
 
     const discovered = await discoverSpecFiles(specsDir);
     if (discovered.length === 0) {
-      console.log(LIST_MESSAGES.noSpecsFound);
+      if (json) {
+        console.log(JSON.stringify({ specs: [], ...(root ? { root } : {}) }, null, 2));
+      } else {
+        console.log(LIST_MESSAGES.noSpecsFound);
+      }
       return;
     }
 
@@ -182,6 +309,12 @@ export class ListCommand {
     }
 
     specs.sort((a, b) => a.id.localeCompare(b.id));
+
+    if (json) {
+      console.log(JSON.stringify({ specs, ...(root ? { root } : {}) }, null, 2));
+      return;
+    }
+
     console.log(LIST_MESSAGES.specsHeader);
     const padding = '  ';
     const nameWidth = Math.max(...specs.map(s => s.id.length));
