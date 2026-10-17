@@ -9,18 +9,20 @@
 ## Capabilities
 
 ### New Capabilities
-<!-- Capacidades sendo introduzidas. Substitua <name> por um identificador kebab-case (ex.: user-auth, data-export, api-rate-limiting). Cada uma cria specs/<name>/spec.md -->
-- `<name>`: <descrição breve do que esta capacidade abrange>
+<!-- Capacidades sendo introduzidas. Use kebab-case nos segmentos de caminho que você
+     introduzir (ex.: user-auth ou identity/user-auth), seguindo a organização de specs
+     já existente no projeto. Cada uma cria specs/<capability-path>/spec.md. -->
+- `<capability-path>`: <descrição breve do que esta capacidade abrange>
 
 ### Modified Capabilities
 <!-- Capacidades existentes cujos REQUIREMENTS estão mudando (não apenas a implementação).
      Liste aqui somente se o comportamento em nível de spec mudar. Cada uma precisa de um arquivo de spec delta.
-     Use nomes de spec existentes de openspec/specs/. Deixe vazio se nenhum requisito mudar.
+     Use o caminho exato existente em openspec/specs/. Deixe vazio se nenhum requisito mudar.
      Uma change sem nenhuma capacidade (refatoração pura, ferramental, docs)
      deve definir `skip_specs: true` em seu .openspec.yaml - openspec validate rejeita
      uma change com zero deltas sem esse marcador. Não invente um requisito só para
      satisfazer a validação. -->
-- `<existing-name>`: <qual requisito está mudando>
+- `<existing-capability-path>`: <qual requisito está mudando>
 
 ## Impact
 

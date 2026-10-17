@@ -3,6 +3,8 @@ import { FileSystemUtils } from './file-system.js';
 import { writeChangeMetadata, validateSchemaName } from './change-metadata.js';
 import { formatLocalDate } from './date.js';
 import { readProjectConfig } from '../core/project-config.js';
+import { resolveSchema } from '../core/artifact-graph/resolver.js';
+import { isSpecsArtifactPath } from '../core/artifact-graph/outputs.js';
 import { CHANGE_UTILS_MESSAGES } from '../messages/index.js';
 
 const DEFAULT_SCHEMA = 'spec-driven';
@@ -157,6 +159,16 @@ export async function createChange(
     throw new Error(CHANGE_UTILS_MESSAGES.changeAlreadyExists(name, changeDir));
   }
 
+  // Um schema cujos artefatos nunca escrevem em specs/ (ex.: só proposal.md +
+  // tasks.md) produz uma alteração sem deltas por construção; sem o marcador
+  // skip_specs ela nasceria inválida para `openspec validate`. Resolvido antes
+  // de criar o diretório, para que um schema.yaml inválido falhe sem deixar
+  // uma pasta pela metade.
+  const schema = resolveSchema(schemaName, projectRoot);
+  const skipsSpecs = !schema.artifacts.some(artifact =>
+    isSpecsArtifactPath(artifact.generates)
+  );
+
   // Create the directory (including parent directories if needed)
   await FileSystemUtils.createDirectory(changeDir);
 
@@ -164,6 +176,7 @@ export async function createChange(
   writeChangeMetadata(changeDir, {
     schema: schemaName,
     created: formatLocalDate(),
+    ...(skipsSpecs ? { skip_specs: true } : {}),
   }, projectRoot);
 
   return { schema: schemaName };

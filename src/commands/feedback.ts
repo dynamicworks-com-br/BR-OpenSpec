@@ -4,6 +4,9 @@ import os from 'os';
 import { FEEDBACK_MESSAGES } from '../messages/index.js';
 
 const require = createRequire(import.meta.url);
+const MAX_TITLE_LENGTH = 72;
+// O prefixo "Feedback: " vive no catálogo; feedbackTitle('') devolve só o prefixo.
+const TITLE_PREFIX_LENGTH = Array.from(FEEDBACK_MESSAGES.feedbackTitle('')).length;
 
 /**
  * Check if gh CLI is installed and available in PATH
@@ -76,21 +79,46 @@ ${FEEDBACK_MESSAGES.timestampLabel(timestamp)}`;
  * Format the feedback title
  */
 function formatTitle(message: string): string {
-  return FEEDBACK_MESSAGES.feedbackTitle(message);
+  const normalizedMessage = message.replace(/\s+/g, ' ').trim();
+  const title = FEEDBACK_MESSAGES.feedbackTitle(normalizedMessage);
+
+  if (Array.from(title).length <= MAX_TITLE_LENGTH) {
+    return title;
+  }
+
+  const availableLength = MAX_TITLE_LENGTH - TITLE_PREFIX_LENGTH - 1;
+  let candidate = '';
+  let candidateLength = 0;
+  const segments = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
+    normalizedMessage
+  );
+
+  for (const { segment } of segments) {
+    const segmentLength = Array.from(segment).length;
+    if (candidateLength + segmentLength > availableLength) {
+      break;
+    }
+    candidate += segment;
+    candidateLength += segmentLength;
+  }
+
+  candidate = candidate.trimEnd();
+  const lastSpace = candidate.lastIndexOf(' ');
+  const summary = lastSpace > 0 ? candidate.slice(0, lastSpace) : candidate;
+  return `${FEEDBACK_MESSAGES.feedbackTitle(summary)}…`;
 }
 
 /**
  * Format the full feedback body
  */
-function formatBody(bodyText?: string): string {
-  const parts: string[] = [];
+function formatBody(message: string, bodyText?: string): string {
+  const parts = [FEEDBACK_MESSAGES.bodySummaryHeading, '', message];
 
   if (bodyText) {
-    parts.push(bodyText);
-    parts.push(''); // Empty line before metadata
+    parts.push('', FEEDBACK_MESSAGES.bodyDetailsHeading, '', bodyText);
   }
 
-  parts.push(generateMetadata());
+  parts.push('', generateMetadata());
 
   return parts.join('\n');
 }
@@ -245,7 +273,7 @@ export class FeedbackCommand {
   async execute(message: string, options?: { body?: string }): Promise<void> {
     // Format title and body once for all code paths
     const title = formatTitle(message);
-    const body = formatBody(options?.body);
+    const body = formatBody(message, options?.body);
 
     // Check if gh CLI is installed
     if (!isGhInstalled()) {

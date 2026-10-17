@@ -1,4 +1,5 @@
 import { buildCodeFenceMask } from './code-fence.js';
+import { SPEC_STRUCTURE_MESSAGES } from '../../messages/index.js';
 
 const REQUIREMENTS_SECTION_HEADER = /^##\s+Requirements\s*$/i;
 const TOP_LEVEL_SECTION_HEADER = /^##\s+/;
@@ -6,7 +7,7 @@ const DELTA_HEADER = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$/
 const REQUIREMENT_HEADER = /^###\s+Requirement:\s*(.+)\s*$/i;
 
 export interface MainSpecStructureIssue {
-  kind: 'delta-header' | 'requirement-outside-requirements';
+  kind: 'delta-header' | 'requirement-outside-requirements' | 'duplicate-requirement';
   line: number;
   header: string;
   message: string;
@@ -17,6 +18,7 @@ export function findMainSpecStructureIssues(content: string): MainSpecStructureI
   const stripped = stripFencedCodeBlocksPreservingLines(normalized);
   const lines = stripped.split('\n');
   const issues: MainSpecStructureIssue[] = [];
+  const requirementLines = new Map<string, number>();
 
   const requirementsHeaderIndex = lines.findIndex(line => REQUIREMENTS_SECTION_HEADER.test(line));
   let requirementsEndIndex = lines.length;
@@ -42,10 +44,7 @@ export function findMainSpecStructureIssues(content: string): MainSpecStructureI
         kind: 'delta-header',
         line: i + 1,
         header: trimmed,
-        message:
-          `Main spec contains delta header "${trimmed}". ` +
-          'Delta headers are only valid inside openspec/changes/<name>/specs/<capability>/spec.md ' +
-          'and truncate the parsed ## Requirements section.',
+        message: SPEC_STRUCTURE_MESSAGES.deltaHeader(trimmed),
       });
       continue;
     }
@@ -65,10 +64,25 @@ export function findMainSpecStructureIssues(content: string): MainSpecStructureI
         kind: 'requirement-outside-requirements',
         line: i + 1,
         header: trimmed,
-        message:
-          `Requirement header "${trimmed}" appears outside the main ## Requirements section. ` +
-          'Main specs only parse requirements inside that section, so this requirement is currently invisible to validate, list, and archive.',
+        message: SPEC_STRUCTURE_MESSAGES.requirementOutsideRequirements(trimmed),
       });
+      continue;
+    }
+
+    // Dois `### Requirement:` com o mesmo nome dentro de `## Requirements`:
+    // a reconciliação por nome colapsaria um dos blocos ao atualizar o outro,
+    // então o spec é rejeitado antes de qualquer delta ser aplicado.
+    const requirementName = requirementMatch[1].trim();
+    const previousLine = requirementLines.get(requirementName);
+    if (previousLine !== undefined) {
+      issues.push({
+        kind: 'duplicate-requirement',
+        line: i + 1,
+        header: trimmed,
+        message: SPEC_STRUCTURE_MESSAGES.duplicateRequirement(trimmed, previousLine),
+      });
+    } else {
+      requirementLines.set(requirementName, i + 1);
     }
   }
 

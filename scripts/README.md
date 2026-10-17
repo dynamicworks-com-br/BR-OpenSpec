@@ -76,10 +76,6 @@ da regeneração dos hashes (ver "skills.sh distribution" no AGENTS.md). Rode
 também `pnpm vitest run test/core/templates/skillssh-parity.test.ts` para
 confirmar a paridade dos skills gerados.
 
-## postinstall.js
-
-Post-installation script that runs after package installation.
-
 ## pack-version-check.mjs
 
 Validates package version consistency before publishing.

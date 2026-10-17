@@ -164,7 +164,7 @@ rules:
 | `/opsx:update` | Revisa os artefatos de planejamento de uma mudança e os mantém coerentes |
 | `/opsx:verify` | Valida a implementação contra os artefatos (fluxo de trabalho expandido) |
 | `/opsx:code-review` | Revisa diffs, branches, PRs ou arquivos com contexto do projeto (fluxo de trabalho expandido) |
-| `/opsx:sync` | Sincroniza specs delta com a principal (fluxo de trabalho padrão, opcional) |
+| `/opsx:sync` | Mescla delta specs nas specs principais (opcional) |
 | `/opsx:archive` | Arquiva quando concluído |
 | `/opsx:bulk-archive` | Arquiva múltiplas mudanças concluídas (fluxo de trabalho expandido) |
 | `/opsx:onboard` | Guia passo a passo por uma mudança completa (fluxo de trabalho expandido) |
@@ -213,6 +213,12 @@ Percorre as tarefas, marcando-as conforme avança. Se você está gerenciando m�
 /opsx:update add-dark-mode - agora guardamos o tema em um cookie
 ```
 Revisa os artefatos de planejamento existentes da mudança e os mantém coerentes - em qualquer direção (uma edição no design pode repercutir de volta na proposta). Apenas artefatos de planejamento: nunca edita código e nunca cria artefatos faltantes (isso é trabalho do `/opsx:continue`). Toda edição é confirmada com você antes. Se a mudança já foi implementada, ele recomenda `/opsx:apply` para que o código acompanhe o plano revisado. Se a sua revisão muda a *intenção* da mudança, comece do zero - veja [Quando Atualizar vs. Começar do Zero](#quando-atualizar-vs-começar-do-zero).
+
+### Sincronizar as delta specs
+```text
+/opsx:sync
+```
+Mescla as delta specs da mudança atual nas suas specs principais em `openspec/specs/` sem arquivar — a mudança permanece ativa. Ele aplica o delta inteiro: um requisito sob `## REMOVED` é excluído da spec principal e um requisito renomeado tem o título trocado no lugar, enquanto o conteúdo que o delta não menciona fica intocado. Sincronizar é opcional — o archive pede para você sincronizar antes, caso ainda não tenha feito. Recorra a ele quando quiser as specs principais atualizadas antes de arquivar, quando uma mudança paralela precisar se apoiar em specs que esta acabou de adicionar, ou quando quiser revisar a spec principal mesclada antes de arquivar.
 
 ### Finalizar
 ```
@@ -477,7 +483,7 @@ Os artefatos formam um grafo acíclico dirigido (DAG). Dependências são **faci
   │  • Criar proposal.md                    │
   │  • Criar tasks.md                       │
   │  • Criar design.md                      │
-  │  • Criar specs/<capability>/spec.md     │
+  │  • Criar arquivos de delta spec         │
   │                                         │
   │  Sem percepção do que existe ou das     │
   │  dependências entre os artefatos        │

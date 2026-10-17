@@ -42,10 +42,22 @@ These commands support `--json` output for programmatic use by AI agents and scr
 | `openspec list` | Browse changes/specs | `--json` for structured data |
 | `openspec show <item>` | Read content | `--json` for parsing |
 | `openspec validate` | Check for issues | `--all --json` for bulk validation |
-| `openspec status` | See artifact progress | `--json` for structured status |
+| `openspec status` | See artifact progress | `--json` for structured status; `--all --json` for every active change in one report |
 | `openspec instructions` | Get next steps | `--json` for agent instructions |
 | `openspec templates` | Find template paths | `--json` for path resolution |
 | `openspec schemas` | List available schemas | `--json` for schema discovery |
+
+The JSON shape is language-neutral and matches upstream: field names, artifact
+ids, statuses, diagnostic codes (`change_error`, `severity: "error"`), and issue
+levels (`ERROR`, `WARNING`, `INFO`) are stable. The human-readable text carried
+inside those fields is Portuguese, because BR-OpenSpec's message catalog is
+pt-BR. That covers `issues[].message` from `openspec validate --json` and from
+`openspec validate --archived --json`, `status[].message` from
+`openspec status --all --json`, and `warning` from both
+`openspec instructions --json` and `openspec show --json --diff`. Parse on the
+keys and codes, never on the message text. (Some illustrative sample outputs on
+this page keep English placeholder text for readability; the shipped strings are
+pt-BR.)
 
 ---
 
@@ -73,6 +85,10 @@ Default behavior uses global config defaults: profile `core`, delivery `both`, w
 openspec init [path] [options]
 ```
 
+Use `--language <language>` to add a language instruction to a new project's
+`openspec/config.yaml`. For an existing project, edit the config's `context`
+field so BR-OpenSpec never overwrites project-specific guidance.
+
 **Arguments:**
 
 | Argument | Required | Description |
@@ -84,15 +100,18 @@ openspec init [path] [options]
 | Option | Description |
 |--------|-------------|
 | `--tools <list>` | Configure AI tools non-interactively. Use `all`, `none`, or comma-separated list |
+| `--language <language>` | Write artifacts in this language when creating a new config |
 | `--force` | Auto-cleanup legacy files without prompting |
 | `--profile <profile>` | Override global profile for this init run (`core` or `custom`) |
 | `--no-animation` | Show a static welcome screen instead of the animated one |
+| `--copilot-cloud` | Set up GitHub Copilot [cloud coding-agent files](supported-tools.md#github-copilot-cloud-coding-agent) without prompting |
+| `--no-copilot-cloud` | Skip GitHub Copilot cloud coding-agent files without prompting |
 
 `--profile custom` uses whatever workflows are currently selected in global config (`openspec config profile`).
 
 The welcome animation is also skipped when the `OPENSPEC_NO_ANIMATION` environment variable is set (any value, including empty), when `NO_COLOR` is set to a non-empty value, or when the OS reduced-motion preference is enabled (macOS Reduce Motion, GNOME animations disabled).
 
-**Supported tool IDs (`--tools`)** — `windsurf` is also accepted, as an alias for `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `opencode`, `pi`, `qoder`, `qwen`, `roocode`, `trae`, `vibe`, `agents`
+**Supported tool IDs (`--tools`)** — `windsurf` is also accepted, as an alias for `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `command-code`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `minimax-code`, `opencode`, `pi`, `qoder`, `qwen`, `rovodev`, `roocode`, `trae`, `zed`, `vibe`, `agents`
 
 > This list mirrors `AI_TOOLS` in `src/core/config.ts`. See [Supported Tools](supported-tools.md) for each tool's skill and command paths.
 
@@ -107,6 +126,9 @@ openspec init ./my-project
 
 # Non-interactive: configure for Claude and Cursor
 openspec init --tools claude,cursor
+
+# Non-interactive: configure global MiniMax Code skills
+openspec init --tools minimax-code
 
 # Configure for all supported tools
 openspec init --tools all
@@ -282,6 +304,7 @@ openspec show [item-name] [options]
 | Option | Description |
 |--------|-------------|
 | `--deltas-only` | Show only delta specs (JSON mode) |
+| `--diff` | Append per-requirement diffs of the delta specs against the main specs (text mode), or attach `diff`/`warning` to MODIFIED deltas (JSON mode). Ignored with a warning for specs |
 
 **Spec-specific options:**
 
@@ -305,7 +328,16 @@ openspec show auth --type spec
 
 # JSON output for parsing
 openspec show add-dark-mode --json
+
+# Proposal followed by per-requirement diffs
+openspec show add-dark-mode --diff
 ```
+
+For a change, `--diff` prints the proposal first, then a `Specifications Changed (diffs)` section. ADDED requirements include their full text. REMOVED requirements retain the authored Reason and Migration. RENAMED requirements show FROM and TO. MODIFIED requirements show a unified diff against the matching main requirement.
+
+If a MODIFIED header matches only after folding case or whitespace, the output includes both the diff and a warning that archive matching is exact. If the main spec or requirement is missing, the output warns and prints the full delta block. A MODIFIED block with no textual difference prints `(no textual changes)`.
+
+`--json --diff` keeps the same top-level shape as `--json`. A MODIFIED delta gains a `diff` string, a `warning` string, or both. Other operations are unchanged. An empty `diff` string means the main and delta blocks are textually identical. The exit code is `1` if a delta spec or a main spec cannot be read.
 
 ---
 
@@ -334,11 +366,14 @@ A change with zero spec deltas fails validation unless its `.openspec.yaml` decl
 | `--all` | Validate all changes and specs |
 | `--changes` | Validate all changes |
 | `--specs` | Validate all specs |
+| `--archived` | Validate that archived changes have all tasks completed (for pre-commit linting) |
 | `--type <type>` | Specify type when name is ambiguous: `change` or `spec` |
-| `--strict` | Enable strict validation mode |
+| `--strict` | Enable strict validation mode: warnings become failures — a requirement with no `SHALL`/`MUST`, ambiguous task numbering, or a `## Purpose` left as a placeholder |
 | `--json` | Output as JSON |
 | `--concurrency <n>` | Max parallel validations (default: 6, or `OPENSPEC_CONCURRENCY` env) |
 | `--no-interactive` | Disable prompts |
+
+`--archived` is its own scope: it does not validate spec deltas (already applied at archive time), it verifies that every change under `changes/archive/` has all of its `tasks.md` checkboxes ticked, exiting non-zero if any are unchecked. This catches changes that were archived with unfinished work — handy in a pre-commit hook.
 
 **Examples:**
 
@@ -357,6 +392,9 @@ openspec validate --all --json
 
 # Strict validation with increased parallelism
 openspec validate --all --strict --concurrency 12
+
+# Fail if any archived change still has unchecked tasks
+openspec validate --archived
 ```
 
 **Output (text):**
@@ -416,7 +454,7 @@ openspec archive [change-name] [options]
 |--------|-------------|
 | `-y, --yes` | Skip confirmation prompts. Required when nothing can answer them — an AI agent, a CI job, or any run with stdin closed |
 | `--skip-specs` | Skip spec updates for one archive run. A change that permanently has no spec deltas should declare `skip_specs: true` in its `.openspec.yaml` instead — it archives with no flag |
-| `--no-validate` | Skip validation (requires confirmation) |
+| `--no-validate` | Skip validation (requires confirmation). Also disables capability retirement — with no validator verdict, nothing is retired |
 
 **Examples:**
 
@@ -434,12 +472,34 @@ openspec archive add-dark-mode --yes
 openspec archive update-ci-config --skip-specs
 ```
 
+**Retire a capability:** Add the retirement marker to the change metadata:
+
+```yaml
+# openspec/changes/retire-legacy/.openspec.yaml
+schema: spec-driven
+retire_capabilities: true
+```
+
+Then archive the change normally:
+
+```bash
+openspec archive retire-legacy --yes
+```
+
+When the change removes the capability's last requirement, BR-OpenSpec deletes its
+live `spec.md`. Other capability deltas in the same change still update their
+main specs. Without the marker, archive stops before changing any files and
+tells you to add it.
+
 **What it does:**
 
 1. Validates the change (unless `--no-validate`)
 2. Prompts for confirmation (unless `--yes`)
-3. Merges delta specs into `openspec/specs/`
-4. Moves change folder to `openspec/changes/archive/YYYY-MM-DD-<name>/`
+3. Claims the archive destination before changing any main spec
+4. Validates and merges the active delta specs into `openspec/specs/` — a capability whose last requirement the change removes is retired, and its spec file deleted, but only when the change's `.openspec.yaml` declares `retire_capabilities: true` next to its `schema:`
+5. Moves the change folder to `openspec/changes/archive/YYYY-MM-DD-<name>/`
+6. If a spec mutation or final move fails before a complete archive is secured, restores the specs and leaves or returns the change at its active path
+7. If a verified fallback copy completes but staged-source cleanup fails, retains the complete archive and committed spec state for recovery
 
 **Without a terminal:** an AI agent, a CI job, or any run with stdin closed cannot
 answer step 2, so archive stops before touching anything, exits 1, and names the
@@ -480,11 +540,13 @@ openspec new change add-billing-api
 openspec new change ticket-123-add-notifications --schema spec-driven
 ```
 
+When the selected schema has no artifact that writes under `specs/` — a proposal-plus-tasks workflow, say — `new change` writes `skip_specs: true` into the change's `.openspec.yaml` for you, so the change is valid from the start. You only add the marker by hand for a change whose schema does have a specs artifact.
+
 ---
 
 ### `openspec status`
 
-Display artifact completion status for a change.
+Display artifact completion status for one change or every active change.
 
 ```
 openspec status [options]
@@ -494,21 +556,34 @@ openspec status [options]
 
 | Option | Description |
 |--------|-------------|
-| `--change <id>` | Change name (prompts if omitted) |
-| `--schema <name>` | Schema override (auto-detected from change's config) |
+| `--change <id>` | The change to report on, by folder name |
+| `--all` | Report every active change, sorted by name. Cannot be combined with `--change` |
+| `--schema <name>` | Schema override (auto-detected from change's config). An unknown name is an error |
 | `--json` | Output as JSON |
+
+When active changes exist, use exactly one of `--change` or `--all`. Without either, status exits 1 and lists the available changes, even when only one exists:
+
+```
+✖ Error: Missing required option --change (or --all for every active change). Available changes:
+  add-dark-mode
+```
+
+When the project has no active changes, status prints `No active changes. Create one with: openspec new change <name>` and exits 0 even without either flag. With `--json` (with or without `--all`), the same empty state is `{ "changes": [], "message": "..." }`.
 
 **Examples:**
 
 ```bash
-# Interactive status check
-openspec status
-
-# Status for specific change
+# Status for a specific change
 openspec status --change add-dark-mode
 
 # JSON for agent use
 openspec status --change add-dark-mode --json
+
+# Every active change, one text block each
+openspec status --all
+
+# One batch report for every active change
+openspec status --all --json
 ```
 
 **Output (text):**
@@ -526,12 +601,15 @@ Progress: 2/4 artifacts complete
 
 A change that declares `skip_specs: true` shows its specs stage as `[~] specs (skipped: change declares skip_specs)` and excludes it from the progress count.
 
+With `--all`, the same block is printed once per change, separated by a blank line. A change that fails to load is printed as `✗ <change>: <error>` and the others still appear.
+
 **Output (JSON):**
 
 ```json
 {
   "changeName": "add-dark-mode",
   "schemaName": "spec-driven",
+  "isPlanningComplete": false,
   "isComplete": false,
   "applyRequires": ["tasks"],
   "artifacts": [
@@ -543,11 +621,42 @@ A change that declares `skip_specs: true` shows its specs stage as `[~] specs (s
 }
 ```
 
+`isPlanningComplete` reports whether every non-skipped planning artifact exists;
+skipped artifacts count as satisfied without being created. It does not report
+whether implementation tasks are complete. `isComplete` is retained as a
+compatibility alias with the same value.
+
 Artifacts are listed in dependency order - a dependency never appears after
 something that requires it - and artifacts that become ready at the same time
 (spec-driven's `specs` and `design` both need only `proposal`) keep the order the
 schema declares them rather than an alphabetical one. So the first `ready` entry
 is the artifact to write next.
+
+**Output (JSON, `--all`):**
+
+`changes` contains the same status object for each change, sorted by change name. This example trims the per-change fields shown above:
+
+```json
+{
+  "changes": [
+    {
+      "changeName": "add-dark-mode",
+      "schemaName": "spec-driven",
+      "isPlanningComplete": false,
+      "isComplete": false,
+      "applyRequires": ["tasks"],
+      "artifacts": []
+    }
+  ]
+}
+```
+
+If one change can't load, the batch continues. Its entry contains `changeName` and a `status` diagnostic (`[{ "severity": "error", "code": "change_error", "message": "..." }]`) while the other entries remain available. The command exits 1, including in JSON mode, so CI doesn't accept an incomplete report as successful. JSON output remains one parseable document.
+
+**Exit codes:**
+
+- `0`: every requested status printed; an empty `--all` report also exits 0.
+- `1`: a requested change failed to load, `--change` or `--all` is missing, the two flags were combined, the change doesn't exist, or the schema override is unknown.
 
 ---
 
@@ -722,10 +831,12 @@ openspec schema init <name> [options]
 |--------|-------------|
 | `--description <text>` | Schema description |
 | `--artifacts <list>` | Comma-separated artifact IDs (default: `proposal,specs,design,tasks`) |
-| `--default` | Set as project default schema |
+| `--default` | Set as project default schema: writes `schema: <name>` to the existing `openspec/config.yaml` or `openspec/config.yml` (creates `openspec/config.yaml` if neither exists). New changes use this schema |
 | `--no-default` | Don't prompt to set as default |
 | `--force` | Overwrite existing schema |
 | `--json` | Output as JSON |
+
+Schema creation and the `--default` config update are one operation. If BR-OpenSpec cannot validate or write the config, it leaves both the config and any existing schema unchanged.
 
 **Examples:**
 
@@ -757,6 +868,7 @@ openspec/schemas/<name>/
 ### `openspec schema fork`
 
 Copy an existing schema to your project for customization.
+The forked `schema.yaml` keeps the source's comments and formatting; only `name` is updated.
 
 ```
 openspec schema fork <source> [name] [options]
@@ -896,7 +1008,7 @@ openspec config list
 # Get a specific value
 openspec config get telemetry.enabled
 
-# Set a value
+# Set a value (disable anonymous usage telemetry)
 openspec config set telemetry.enabled false
 
 # Set a string value explicitly
@@ -917,6 +1029,13 @@ openspec config profile
 # Fast preset: switch workflows to core (keeps delivery mode)
 openspec config profile core
 ```
+
+**Telemetry opt-out:** `telemetry.enabled` defaults to on when unset (opt-out model).
+Set it to `false` to disable anonymous usage stats and the `openspec update` version check.
+Environment variables take precedence over config: `OPENSPEC_TELEMETRY=0`, `DO_NOT_TRACK=1`,
+and a truthy `CI` value (e.g. `true`/`1`/`yes`) always disable telemetry regardless of the config value.
+The one-time notice about telemetry is printed on stderr, never stdout, and a `--json` run defers it
+to the next readable run, so a piped payload is never contaminated.
 
 `openspec config profile` starts with a current-state summary, then lets you choose:
 - Change delivery + workflows
@@ -959,13 +1078,13 @@ openspec feedback <message> [options]
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `message` | Yes | Feedback message |
+| `message` | Yes | Feedback summary; long text is shortened in the issue title and preserved in the body |
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--body <text>` | Detailed description |
+| `--body <text>` | Additional details included after the summary |
 
 **Requirements:** GitHub CLI (`gh`) must be installed and authenticated.
 
@@ -1012,6 +1131,11 @@ openspec completion generate bash > ~/.bash_completion.d/openspec
 openspec completion uninstall
 ```
 
+Completions are opt-in. The CLI mentions them once, on stderr, the first time you
+run a command in an interactive terminal, and never again — it also stays quiet
+if you already have completions installed. Set `OPENSPEC_NO_COMPLETIONS=1` to
+suppress that tip entirely.
+
 ---
 
 ## Exit Codes
@@ -1027,12 +1151,13 @@ openspec completion uninstall
 
 | Variable | Description |
 |----------|-------------|
-| `OPENSPEC_TELEMETRY` | Set to `0` to disable telemetry and the `openspec update` version check |
-| `DO_NOT_TRACK` | Set to `1` to disable telemetry and the `openspec update` version check (standard DNT signal) |
+| `OPENSPEC_TELEMETRY` | Set to `0` to disable telemetry and the `openspec update` version check (overrides `telemetry.enabled` in global config) |
+| `DO_NOT_TRACK` | Set to `1` to disable telemetry and the `openspec update` version check (standard DNT signal; overrides config) |
 | `OPENSPEC_CONCURRENCY` | Default concurrency for bulk validation (default: 6) |
 | `EDITOR` or `VISUAL` | Editor for `openspec config edit` |
 | `NO_COLOR` | Disable color output when set |
 | `OPENSPEC_NO_ANIMATION` | Disable the `openspec init` welcome animation when set |
+| `OPENSPEC_NO_COMPLETIONS` | Set to `1` to suppress the one-time tip about shell completions |
 | `OPENSPEC_NO_UPDATE_CHECK` | Disable the `openspec update` check for a newer published CLI when set (any value, including empty). Also skipped when `CI` is set (unless `false`/`0`/`no`/`off`) or `NODE_ENV=test` |
 | `npm_config_registry` | Registry the `openspec update` version check asks. Must be an `http(s)` URL or it falls back to `https://registry.npmjs.org`. No `.npmrc` file is read |
 

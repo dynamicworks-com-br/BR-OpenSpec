@@ -6,7 +6,7 @@
  * desde o último ponto sincronizado, classificando cada um como STABLE (Bloco A,
  * deve ser portado e traduzido) ou WORKSPACE (subsistema beta, adiado).
  *
- * NÃO é publicado no npm (o package.json só inclui scripts/postinstall.js).
+ * NÃO é publicado no npm (o campo "files" do package.json não inclui scripts/).
  * Uso: node scripts/upstream-sync-status.mjs [--no-fetch]
  */
 import { execFileSync } from 'node:child_process';

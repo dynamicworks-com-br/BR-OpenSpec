@@ -11,7 +11,7 @@ metadata:
 
 Implementa tarefas de uma change do BR-OpenSpec.
 
-**Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
+**Entrada**: Opcionalmente especifique um nome de change (por exemplo, `/openspec-apply-change add-auth`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
 **Passos**
 
@@ -47,7 +47,7 @@ Implementa tarefas de uma change do BR-OpenSpec.
    - `operationGuidance` opcional: orientação consultiva atual para o apply
 
    **Trate os estados:**
-   - Se `state: "blocked"` (artifacts ausentes): exiba mensagem, sugira usar openspec-continue-change (se não estiver instalado, rode `openspec status --change "<name>" --json` para ver o próximo artifact e `openspec instructions <artifact-id> --change "<name>" --json` para saber como criá-lo)
+   - Se `state: "blocked"` (artifacts ausentes): exiba mensagem, sugira usar `/openspec-continue-change` (se não estiver instalado, rode `openspec status --change "<name>" --json` para ver o próximo artifact e `openspec instructions <artifact-id> --change "<name>" --json` para saber como criá-lo)
    - Se `state: "all_done"`: parabenize, sugira arquivar
    - Caso contrário: prossiga para a implementação
 
@@ -98,6 +98,7 @@ Implementa tarefas de uma change do BR-OpenSpec.
    **Pare se:**
    - A tarefa estiver incerta → peça esclarecimento
    - A implementação revelar um problema de design → sugira atualizar artifacts
+   - Uma tarefa exigir trabalho além do que a spec e as tarefas descrevem, ou você se sentir tentado a descartar, reduzir, adiar ou aceitar exceções ao comportamento especificado para fazê-la caber → traga o escopo adicional à tona e pergunte; não o absorva silenciosamente
    - Encontrar erro ou bloqueio → reporte e aguarde orientação
    - O usuário interromper
 
@@ -137,7 +138,7 @@ Trabalhando na tarefa 4/7: <descrição da tarefa>
 - [x] Tarefa 2
 ...
 
-Todas as tarefas concluídas! Pronto para arquivar esta change.
+Todas as tarefas concluídas! Você pode arquivar esta change com `/openspec-archive-change`.
 ```
 
 **Saída ao Pausar (Problema Encontrado)**
@@ -168,6 +169,8 @@ O que você gostaria de fazer?
 - Mantenha as alterações de código mínimas e limitadas a cada tarefa
 - Atualize a checkbox da tarefa imediatamente após concluir cada tarefa
 - Pare em erros, bloqueios ou requisitos incertos - não adivinhe
+- Quando uma tarefa exigir trabalho além do que a spec descreve, traga o escopo adicional à tona e pause - nunca reduza, adie ou simplifique silenciosamente o comportamento especificado
+- Só marque uma tarefa como concluída (`- [x]` ou o formato do schema ativo) quando o comportamento especificado estiver totalmente implementado, não quando ela estiver parcialmente feita ou adiada
 - Use os contextFiles da saída do CLI, não assuma nomes de arquivos específicos
 - Não use contexto ou orientação da operação como prova de que uma tarefa está concluída
 - Aplique o contexto relevante do projeto; reporte conflitos com as entradas controladoras do workflow

@@ -76,9 +76,9 @@ A intenção é idêntica em todo lugar. A grafia segue o arquivo que sua ferram
 | Arquivo de comando da sua ferramenta | Como você digita | Ferramentas de exemplo |
 |--------------------------------------|------------------|------------------------|
 | `.../commands/opsx/<id>.*` | `/opsx:propose` | Claude Code, Gemini CLI, Crush |
-| `.../opsx-<id>.*` | `/opsx-propose` | Cursor, GitHub Copilot (IDE), Devin Desktop, Codex (prompts globais) |
+| `.../opsx-<id>.*` | `/opsx-propose` | Cursor, GitHub Copilot (IDE), Devin Desktop, Command Code |
 | `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose` | Amazon Q Developer |
-| nenhum — somente skills | `/openspec-propose` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
+| nenhum — somente skills | `/openspec-propose` | ForgeCode, MiniMax Code, Mistral Vibe, Trae, Zed Agent, alvo `.agents` compartilhado |
 | nenhum — Kimi Code | `/skill:openspec-propose` | Kimi Code |
 | skills do Codex | `$openspec-propose` | Codex |
 
@@ -98,7 +98,7 @@ Na dúvida, leia a linha de "Início rápido" que o `openspec init` imprimiu: el
 Quando você roda `openspec init` (ou `openspec update`), o BR-OpenSpec escreve pequenos arquivos no seu projeto para que sua ferramenta de IA encontre o fluxo de trabalho. Dependendo da sua ferramenta e configurações, esses são **skills**, **comandos**, ou ambos.
 
 - **Skills** vivem em lugares como `.claude/skills/openspec-*/SKILL.md`. São o padrão emergente entre ferramentas: uma pasta de instruções que seu assistente detecta automaticamente.
-- **Comandos** vivem em lugares como `.cursor/commands/opsx-<id>.md` ou `.claude/commands/opsx/<id>.md` — o layout é da ferramenta, e ele decide como você digita o comando. São os arquivos de slash command mais antigos, específicos de cada ferramenta. Os arquivos de comando do Codex vivem no diretório global do Codex (`$CODEX_HOME/prompts/`), não no seu projeto.
+- **Comandos** vivem em lugares como `.cursor/commands/opsx-<id>.md` ou `.claude/commands/opsx/<id>.md` — o layout é da ferramenta, e ele decide como você digita o comando. São os arquivos de slash command mais antigos, específicos de cada ferramenta. O Codex não recebe arquivos de comando gerados; use `.agents/skills/openspec-*`.
 
 Você não precisa se importar com qual deles sua ferramenta usa. Você simplesmente digita o slash command e funciona. Mas saber que esses arquivos existem ajuda quando algo dá errado: se seus comandos somem, geralmente significa que esses arquivos estão faltando ou desatualizados, e `openspec update` os regenera.
 
@@ -108,7 +108,7 @@ Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos exatos por fe
 
 Verificações rápidas, da mais rápida primeiro:
 
-1. **Digite uma barra no chat da sua IA.** Comece digitando `/opsx` e observe as sugestões de autocompletar. Se aparecerem, está tudo certo. Em uma ferramenta somente de skills (Kimi Code, ForgeCode, Mistral Vibe, Trae ou o alvo `.agents` compartilhado), `/opsx` nunca completa mesmo em uma instalação saudável — tente o nome da skill da tabela acima.
+1. **Digite uma barra no chat da sua IA.** Comece digitando `/opsx` e observe as sugestões de autocompletar. Se aparecerem, está tudo certo. Em uma ferramenta somente de skills (Codex, Kimi Code, ForgeCode, MiniMax Code, Mistral Vibe, Trae, Zed Agent ou o alvo `.agents` compartilhado), `/opsx` nunca completa mesmo em uma instalação saudável — tente o nome da skill da tabela acima.
 2. **Procure os arquivos.** Para o Claude Code, verifique que `.claude/skills/` contém pastas `openspec-*`. Outras ferramentas usam seus próprios diretórios ([Ferramentas Suportadas](supported-tools.md) lista todos).
 3. **Rode a configuração de novo.** Da raiz do seu projeto, rode `openspec update`. Isso regenera os arquivos de skill e comando para as ferramentas que você configurou.
 4. **Reinicie seu assistente.** Muitas ferramentas varrem skills e comandos na inicialização, então uma janela nova pode ser o passo que faltava.

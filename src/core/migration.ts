@@ -18,8 +18,12 @@ import { WORKFLOW_TO_SKILL_DIR } from './profile-sync-drift.js';
 import { COMMAND_IDS } from './shared/tool-detection.js';
 import { ALL_WORKFLOWS } from './profiles.js';
 import { getSkillReferenceTransformer, getTransformerForTool } from '../utils/command-references.js';
+import { FileSystemUtils } from '../utils/file-system.js';
+import { isSharedSkillTargetActive } from './shared-skill-target.js';
+import { isLegacyCodexSkillEquivalentToCurrent } from './shared/skill-content-equivalence.js';
 import path from 'path';
 import * as fs from 'fs';
+import { resolveToolSkillsDir, toolSupportsSkills } from './shared/skill-paths.js';
 
 export interface LegacyToolRoot {
   /** Former tool root, e.g. '.kimi' */
@@ -30,6 +34,8 @@ export interface LegacyToolRoot {
    * location may still be the live one for somebody.
    */
   needsConsent: boolean;
+  /** Migrations that need a freshly generated destination run afterward. */
+  timing?: 'before-generation' | 'after-generation';
 }
 
 /**
@@ -45,6 +51,15 @@ export const LEGACY_TOOL_ROOTS: Record<string, LegacyToolRoot[]> = {
   // default — but a pre-rebrand Windsurf build reads ONLY .windsurf/, and
   // nothing on disk tells that user apart, so the move is offered, not taken.
   devin: [{ root: '.windsurf', needsConsent: true }],
+  // Codex now reads the canonical shared .agents root. Generate the current
+  // replacement first so a divergent legacy file is preserved, not overwritten.
+  codex: [{ root: '.codex', needsConsent: false, timing: 'after-generation' }],
+  // Antigravity v1.20.5 moved workspace skills and workflows to `.agents` and
+  // reads the old `.agent` root only as a fallback, so leaving a copy there
+  // just gives the agent two of everything. Same after-generation timing as
+  // Codex: the replacement is written first, so a divergent legacy file is
+  // reported and kept rather than overwritten.
+  antigravity: [{ root: '.agent', needsConsent: false, timing: 'after-generation' }],
 };
 
 export interface LegacyToolMigration {
@@ -59,8 +74,8 @@ export interface LegacyToolMigration {
   commandFiles: number;
   /**
    * OpenSpec-managed files left under the legacy root because the copy there
-   * differs from the one that survives — the user edited it, so it is reported
-   * rather than dropped.
+   * differs materially from the one that survives, so it is reported rather
+   * than dropped.
    */
   keptInPlace: number;
   /** Whether this move needs the user's consent first */
@@ -69,9 +84,9 @@ export interface LegacyToolMigration {
 
 /**
  * Classifies one OpenSpec-managed file. `move` is the fast path (nothing at
- * the destination yet); `drop` means the destination already holds the same
- * bytes, so the legacy copy is redundant; `keep` means the two differ, which
- * only happens when the user edited one, and an edit is not ours to discard.
+ * the destination yet); `drop` means the destination already holds equivalent
+ * generated content, so the legacy copy is redundant; `keep` means the two
+ * differ materially and the legacy copy is not ours to discard.
  */
 type FileDisposition = 'move' | 'drop' | 'keep' | 'skip';
 
@@ -79,7 +94,13 @@ function classifyManagedFile(source: string, destination: string): FileDispositi
   if (isSamePath(source, destination)) return 'skip';
   if (!fs.existsSync(destination)) return 'move';
   try {
-    return fs.readFileSync(source, 'utf-8') === fs.readFileSync(destination, 'utf-8')
+    const sourceContent = fs.readFileSync(source, 'utf-8');
+    const destinationContent = fs.readFileSync(destination, 'utf-8');
+    const equivalentGeneratedSkills =
+      path.basename(source) === 'SKILL.md' &&
+      path.basename(destination) === 'SKILL.md' &&
+      isLegacyCodexSkillEquivalentToCurrent(sourceContent, destinationContent);
+    return sourceContent === destinationContent || equivalentGeneratedSkills
       ? 'drop'
       : 'keep';
   } catch {
@@ -112,8 +133,11 @@ function legacyCommandPath(
  * Reports the OpenSpec content sitting under each tool's legacy root, without
  * moving anything. Callers use this to ask before a move that needs consent.
  */
-export function findLegacyToolMigrations(projectPath: string): LegacyToolMigration[] {
-  return collectLegacyToolMigrations(projectPath, false);
+export function findLegacyToolMigrations(
+  projectPath: string,
+  timing: 'before-generation' | 'after-generation' = 'before-generation'
+): LegacyToolMigration[] {
+  return collectLegacyToolMigrations(projectPath, false, undefined, timing);
 }
 
 /**
@@ -129,15 +153,17 @@ export function findLegacyToolMigrations(projectPath: string): LegacyToolMigrati
  */
 export function migrateLegacyToolDirs(
   projectPath: string,
-  toolIds?: string[]
+  toolIds?: string[],
+  timing: 'before-generation' | 'after-generation' = 'before-generation'
 ): LegacyToolMigration[] {
-  return collectLegacyToolMigrations(projectPath, true, toolIds);
+  return collectLegacyToolMigrations(projectPath, true, toolIds, timing);
 }
 
 function collectLegacyToolMigrations(
   projectPath: string,
   apply: boolean,
-  toolIds?: string[]
+  toolIds?: string[],
+  timing: 'before-generation' | 'after-generation' = 'before-generation'
 ): LegacyToolMigration[] {
   const migrations: LegacyToolMigration[] = [];
 
@@ -146,18 +172,43 @@ function collectLegacyToolMigrations(
     if (toolIds && !toolIds.includes(tool.value)) continue;
 
     for (const legacy of LEGACY_TOOL_ROOTS[tool.value] ?? []) {
+      const legacyTiming = legacy.timing ?? 'before-generation';
+      if (legacyTiming !== timing) continue;
       if (legacy.root === tool.skillsDir) continue;
       // Without an explicit tool list, only moves that need no consent run.
       if (apply && !toolIds && legacy.needsConsent) continue;
-      if (!fs.existsSync(path.join(projectPath, legacy.root))) continue;
+      const legacyRootPath = path.join(projectPath, legacy.root);
+      if (!fs.existsSync(legacyRootPath)) continue;
+      try {
+        FileSystemUtils.assertProjectArtifactPath(projectPath, legacyRootPath);
+        FileSystemUtils.assertProjectArtifactPath(
+          projectPath,
+          path.join(projectPath, tool.skillsDir)
+        );
+      } catch {
+        console.warn(MIGRATION_MESSAGES.skippingLegacyRootOutsideProject(legacy.root));
+        continue;
+      }
 
-      const skills = migrateSkillDirs(projectPath, tool.skillsDir, legacy.root, apply);
-      const commands = migrateCommandFiles(projectPath, tool, legacy.root, apply);
+      const skills = migrateSkillDirs(
+        projectPath,
+        tool.skillsDir,
+        legacy.root,
+        apply,
+        legacyTiming === 'after-generation'
+      );
+      const commands = migrateCommandFiles(
+        projectPath,
+        tool,
+        legacy.root,
+        apply,
+        legacyTiming === 'after-generation'
+      );
 
       if (apply) {
-        removeDirIfEmpty(path.join(projectPath, legacy.root, 'skills'));
-        removeDirIfEmpty(path.join(projectPath, legacy.root, 'workflows'));
-        removeDirIfEmpty(path.join(projectPath, legacy.root));
+        removeDirIfEmpty(path.join(legacyRootPath, 'skills'));
+        removeDirIfEmpty(path.join(legacyRootPath, 'workflows'));
+        removeDirIfEmpty(legacyRootPath);
       }
 
       // Kept-only results are retained deliberately. When every legacy file
@@ -185,7 +236,8 @@ function migrateSkillDirs(
   projectPath: string,
   currentRoot: string,
   legacyRoot: string,
-  apply: boolean
+  apply: boolean,
+  requireDestination = false
 ): { moved: number; kept: number } {
   const legacySkillsDir = path.join(projectPath, legacyRoot, 'skills');
   if (!fs.existsSync(legacySkillsDir)) return { moved: 0, kept: 0 };
@@ -201,6 +253,11 @@ function migrateSkillDirs(
 
     const destination = path.join(currentSkillsDir, dirName);
     const destinationSkill = path.join(destination, 'SKILL.md');
+    if (requireDestination && !fs.existsSync(destinationSkill)) continue;
+    if (!areProjectArtifacts(projectPath, sourceSkill, destinationSkill)) {
+      console.warn(MIGRATION_MESSAGES.skippingLegacySkillOutsideProject(legacyRoot, dirName));
+      continue;
+    }
     const disposition = classifyManagedFile(sourceSkill, destinationSkill);
     if (disposition === 'skip') continue;
     if (disposition === 'keep') {
@@ -239,7 +296,8 @@ function migrateCommandFiles(
   projectPath: string,
   tool: AIToolOption,
   legacyRoot: string,
-  apply: boolean
+  apply: boolean,
+  requireDestination = false
 ): { moved: number; kept: number } {
   const adapter = CommandAdapterRegistry.get(tool.value);
   if (!adapter || !tool.skillsDir) return { moved: 0, kept: 0 };
@@ -251,10 +309,22 @@ function migrateCommandFiles(
     const legacyPath = legacyCommandPath(currentPath, tool.skillsDir, legacyRoot);
     if (!legacyPath) continue;
 
-    const source = path.join(projectPath, legacyPath);
+    const source = FileSystemUtils.resolveProjectArtifactPath(projectPath, legacyPath);
     if (!fs.existsSync(source)) continue;
 
-    const destination = path.join(projectPath, currentPath);
+    const destination = FileSystemUtils.resolveProjectArtifactPath(
+      projectPath,
+      currentPath.split(/[\\/]/).join(path.sep)
+    );
+    // An after-generation move runs once the tool has written its replacement.
+    // No replacement means this command is not one OpenSpec installs now — a
+    // skills-only delivery or a deselected workflow — so relocating the legacy
+    // file would resurrect it under the current root.
+    if (requireDestination && !fs.existsSync(destination)) continue;
+    if (!areProjectArtifacts(projectPath, source, destination)) {
+      console.warn(MIGRATION_MESSAGES.skippingLegacyCommandOutsideProject(legacyPath));
+      continue;
+    }
     const disposition = classifyManagedFile(source, destination);
     if (disposition === 'skip') continue;
     if (disposition === 'keep') {
@@ -340,6 +410,17 @@ function isSamePath(a: string, b: string): boolean {
   }
 }
 
+function areProjectArtifacts(projectPath: string, ...artifactPaths: string[]): boolean {
+  try {
+    for (const artifactPath of artifactPaths) {
+      FileSystemUtils.assertProjectArtifactPath(projectPath, artifactPath);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function removeDirIfEmpty(dirPath: string): void {
   try {
     if (fs.readdirSync(dirPath).length === 0) {
@@ -358,36 +439,70 @@ interface InstalledWorkflowArtifacts {
 
 function scanInstalledWorkflowArtifacts(
   projectPath: string,
-  tools: AIToolOption[]
+  tools: AIToolOption[],
+  includeLegacyRoots = false
 ): InstalledWorkflowArtifacts {
   const installed = new Set<string>();
   let hasSkills = false;
   let hasCommands = false;
 
   for (const tool of tools) {
-    if (!tool.skillsDir) continue;
-    const skillsDir = path.join(projectPath, tool.skillsDir, 'skills');
+    if (!toolSupportsSkills(tool)) continue;
 
-    for (const workflowId of ALL_WORKFLOWS) {
-      const skillDirName = WORKFLOW_TO_SKILL_DIR[workflowId];
-      const skillFile = path.join(skillsDir, skillDirName, 'SKILL.md');
-      if (fs.existsSync(skillFile)) {
-        installed.add(workflowId);
-        hasSkills = true;
+    const skillsDirs: string[] = [];
+    if (tool.globalSkillsDir) {
+      skillsDirs.push(resolveToolSkillsDir(projectPath, tool));
+    } else if (isSharedSkillTargetActive(projectPath, tool.value)) {
+      skillsDirs.push(resolveToolSkillsDir(projectPath, tool));
+      if (includeLegacyRoots) {
+        skillsDirs.push(
+          ...(tool.legacySkillsDirs ?? []).map((root) =>
+            path.join(projectPath, root, 'skills')
+          )
+        );
+      }
+    }
+
+    for (const skillsDir of skillsDirs) {
+      for (const workflowId of ALL_WORKFLOWS) {
+        const skillDirName = WORKFLOW_TO_SKILL_DIR[workflowId];
+        const skillFile = path.join(skillsDir, skillDirName, 'SKILL.md');
+        if (fs.existsSync(skillFile)) {
+          installed.add(workflowId);
+          hasSkills = true;
+        }
       }
     }
 
     const adapter = CommandAdapterRegistry.get(tool.value);
     if (!adapter) continue;
 
+    // A root the tool has moved away from still holds the command files the
+    // user installed there. Reading only the current root would report a
+    // commands install as skills-only, and delivery inferred from that answer
+    // deletes those commands on the next update.
+    const legacyRoots = includeLegacyRoots
+      ? (LEGACY_TOOL_ROOTS[tool.value] ?? []).map((legacy) => legacy.root)
+      : [];
+
     for (const workflowId of ALL_WORKFLOWS) {
       const commandPath = adapter.getFilePath(workflowId);
-      const fullPath = path.isAbsolute(commandPath)
-        ? commandPath
-        : path.join(projectPath, commandPath);
-      if (fs.existsSync(fullPath)) {
-        installed.add(workflowId);
-        hasCommands = true;
+      const candidates = [commandPath];
+      if (tool.skillsDir) {
+        for (const root of legacyRoots) {
+          const legacyPath = legacyCommandPath(commandPath, tool.skillsDir, root);
+          if (legacyPath) candidates.push(legacyPath);
+        }
+      }
+      for (const candidate of candidates) {
+        const fullPath = path.isAbsolute(candidate)
+          ? candidate
+          : path.join(projectPath, candidate);
+        if (fs.existsSync(fullPath)) {
+          installed.add(workflowId);
+          hasCommands = true;
+          break;
+        }
       }
     }
   }
@@ -447,7 +562,7 @@ export function migrateIfNeeded(projectPath: string, tools: AIToolOption[]): voi
   }
 
   // Scan for installed workflows
-  const artifacts = scanInstalledWorkflowArtifacts(projectPath, tools);
+  const artifacts = scanInstalledWorkflowArtifacts(projectPath, tools, true);
   const installedWorkflows = artifacts.workflows;
 
   if (installedWorkflows.length === 0) {

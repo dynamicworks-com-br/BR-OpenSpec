@@ -11,6 +11,8 @@ metadata:
 
 Arquiva uma change concluída no workflow experimental.
 
+`<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo, `user-auth` ou `identity/user-auth`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
+
 **Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
 **Passos**
@@ -90,7 +92,7 @@ Arquiva uma change concluída no workflow experimental.
    Execute `openspec status --change "<nome>" --json` e use `artifactPaths.specs.existingOutputPaths` como a única fonte de delta specs. Se a entrada `specs` estiver ausente ou `existingOutputPaths` estiver vazia, prossiga sem prompt de sync e não infira delta specs de outros artifacts.
 
    **Se delta specs existirem:**
-   - Compare cada delta spec com seu spec principal correspondente em `openspec/specs/`
+   - Compare cada delta spec com seu spec principal correspondente em `openspec/specs/<capability-path>/spec.md`
    - Determine quais alterações seriam aplicadas (adições, modificações, remoções, renomeações)
    - Mostre um resumo combinado antes de solicitar
 
@@ -119,7 +121,7 @@ Arquiva uma change concluída no workflow experimental.
    Em seguida, refaça a comparação do topo deste passo contra cada capability que tem um delta spec em `artifactPaths.specs.existingOutputPaths` — não apenas as que o sync reporta ter tocado. Um sync bem-sucedido não deixa nada para aplicar, então cada capability deve agora constar como já sincronizada:
    - Requisitos ADDED presentes
    - Requisitos MODIFIED carregando as alterações de cenário e descrição nomeadas no delta, com seus demais cenários intactos
-   - Requisitos REMOVED ausentes
+   - Requisitos REMOVED ausentes — e, onde este sync aposentou uma capability (removeu seu último requisito, deixando `## Requirements` vazio), seu spec principal foi excluído em vez de deixado vazio; um spec que o sync deliberadamente manteve e reportou também conta como correspondente
    - Requisitos RENAMED presentes sob o novo nome e ausentes sob o antigo
 
    Se o sync falhar, ou qualquer capability não corresponder, reporte a divergência e pare — não arquive. Nada foi movido e o diretório da change está intacto, então o usuário pode corrigir a inconsistência ou reexecutar o sync e iniciar o arquivamento novamente.

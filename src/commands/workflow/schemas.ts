@@ -7,6 +7,7 @@
 import chalk from 'chalk';
 import { listSchemasWithInfo } from '../../core/artifact-graph/index.js';
 import { WORKFLOW_MESSAGES } from '../../messages/index.js';
+import { FileSystemUtils } from '../../utils/file-system.js';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -21,7 +22,7 @@ export interface SchemasOptions {
 // -----------------------------------------------------------------------------
 
 export async function schemasCommand(options: SchemasOptions): Promise<void> {
-  const projectRoot = process.cwd();
+  const projectRoot = FileSystemUtils.canonicalProjectRoot();
   const schemas = listSchemasWithInfo(projectRoot);
 
   if (options.json) {

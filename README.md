@@ -219,7 +219,7 @@ openspec tools --remove windsurf
 
 **Context hygiene**: BR-OpenSpec benefits from a clean context window. Clear your context before starting implementation and maintain good context hygiene throughout your session.
 
-**Spec keywords stay in English**: BR-OpenSpec is PT-BR first, but the spec format is a protocol read by the tooling. Structural markers (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) and normative/scenario keywords (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — plus `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) are always written in English and UPPERCASE; only the descriptive text is in Portuguese. Translating these keywords breaks `openspec validate`. See the full list in [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
+**Spec keywords stay in English**: BR-OpenSpec is PT-BR first, but the spec format is a protocol read by the tooling. Structural markers (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) and normative/scenario keywords (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — plus `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) are always written in English and UPPERCASE; only the descriptive text is in Portuguese. Omitting `SHALL`/`MUST` from a requirement makes `openspec validate` emit a WARNING (an error only under `--strict`); translating the structural markers breaks spec/change parsing outright. See the full list in [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
 
 ## Contributing
 
@@ -248,7 +248,9 @@ BR-OpenSpec collects anonymous usage stats.
 
 We collect only command names and version to understand usage patterns. No arguments, paths, content, or PII. Automatically disabled in CI.
 
-**Opt-out:** `export OPENSPEC_TELEMETRY=0` or `export DO_NOT_TRACK=1`
+**Opt-out (any one is enough):**
+- `openspec config set telemetry.enabled false` (global config; unset means on)
+- `export OPENSPEC_TELEMETRY=0` or `export DO_NOT_TRACK=1` (env overrides config)
 
 </details>
 

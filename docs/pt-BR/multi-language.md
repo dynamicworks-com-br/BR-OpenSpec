@@ -4,6 +4,27 @@ Configure o BR-OpenSpec para gerar artefatos em idiomas diferentes do inglês.
 
 ## Configuração Rápida
 
+Em um projeto novo, defina o idioma durante a inicialização:
+
+```bash
+openspec init --language "Português (pt-BR)"
+```
+
+Isso grava a instrução de idioma no `openspec/config.yaml`. O bloco gerado fica
+em inglês, porque é lido pelos agentes de IA:
+
+```yaml
+context: |
+  Language: Português (pt-BR)
+  All artifacts must be written in Português (pt-BR).
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+```
+
+Se o projeto já tem uma configuração, edite o campo `context` diretamente para
+preservar as orientações existentes.
+
+Você também pode configurar o mesmo comportamento manualmente:
+
 Adicione uma instrução de idioma ao seu `openspec/config.yaml`:
 
 ```yaml
@@ -12,12 +33,19 @@ schema: spec-driven
 context: |
   Idioma: Português (pt-BR)
   Todos os artefatos devem ser escritos em português do Brasil.
+  Mantenha os cabeçalhos estruturais do OpenSpec e as palavras-chave SHALL/MUST em inglês.
 
   # Seu outro contexto de projeto abaixo...
   Tech stack: TypeScript, React, Node.js
 ```
 
 Pronto. Todos os artefatos gerados agora estarão em português.
+
+A estrutura dos documentos do BR-OpenSpec e as palavras-chave normativas
+`SHALL`/`MUST` permanecem em inglês porque a validação depende delas — assim
+como os demais termos reservados (`## Requirements`, `### Requirement:`,
+`#### Scenario:`, WHEN/THEN). A prosa dos requisitos e cenários ao redor pode
+usar o idioma escolhido.
 
 ## Exemplos de Idiomas
 

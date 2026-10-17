@@ -4,8 +4,12 @@ import path from 'path';
 import os from 'os';
 
 // Mock global config so tests don't depend on real config file
+const mockGlobalConfig = vi.hoisted(() => ({
+  current: { profile: 'core', delivery: 'both' } as { profile: string; delivery: string },
+}));
+
 vi.mock('../../src/core/global-config.js', () => ({
-  getGlobalConfig: vi.fn(() => ({ profile: 'core', delivery: 'both' })),
+  getGlobalConfig: vi.fn(() => mockGlobalConfig.current),
   saveGlobalConfig: vi.fn(),
 }));
 
@@ -19,7 +23,8 @@ import {
   removeOpenSpecCommandFiles,
 } from '../../src/core/tools-manager.js';
 import { AI_TOOLS } from '../../src/core/config.js';
-import { SKILL_NAMES } from '../../src/core/shared/index.js';
+import { SKILL_NAMES, toolSupportsSkills } from '../../src/core/shared/index.js';
+import { readSharedSkillTarget } from '../../src/core/shared-skill-target.js';
 
 // Helper utilities
 async function fileExists(filePath: string): Promise<boolean> {
@@ -48,12 +53,18 @@ describe('tools-manager', () => {
     testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tm-test-'));
     configTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-config-tm-'));
     process.env.XDG_CONFIG_HOME = configTempDir;
+    // O alvo de skills do MiniMax Code sai do home do usuário: isolar para não
+    // enxergar (nem escrever em) `~/.minimax` da máquina.
+    vi.stubEnv('HOME', path.join(testDir, 'home'));
+    vi.stubEnv('USERPROFILE', path.join(testDir, 'home'));
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(async () => {
+    mockGlobalConfig.current = { profile: 'core', delivery: 'both' };
+    vi.unstubAllEnvs();
     await fs.rm(testDir, { recursive: true, force: true });
     await fs.rm(configTempDir, { recursive: true, force: true });
     vi.restoreAllMocks();
@@ -110,13 +121,84 @@ describe('tools-manager', () => {
       expect(content).toContain('generatedBy:');
     });
 
-    it('throws for a tool without skillsDir', async () => {
-      const tool = AI_TOOLS.find((t) => !t.skillsDir);
-      if (!tool) return; // Skip if all tools have skillsDir
+    it('throws for a tool without any skill target', async () => {
+      const tool = AI_TOOLS.find((t) => !toolSupportsSkills(t));
+      if (!tool) return; // Skip if every tool supports skills
 
       await expect(addTool(testDir, tool)).rejects.toThrow(
         /não suporta geração de skills/
       );
+    });
+
+    it('writes MiniMax Code skills to the user-home target, not the project', async () => {
+      const tool = AI_TOOLS.find((t) => t.value === 'minimax-code')!;
+      await addTool(testDir, tool);
+
+      const globalSkill = path.join(
+        testDir,
+        'home',
+        '.minimax',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
+      expect(await fileExists(globalSkill)).toBe(true);
+      expect(await directoryExists(path.join(testDir, '.minimax'))).toBe(false);
+    });
+
+    it('takes ownership of the shared .agents tree', async () => {
+      // `codex` e `agents` escrevem na mesma raiz física `.agents/skills`, que
+      // guarda uma única variante de cada skill: quem escreve por último vira o
+      // dono, senão o próximo `update` reverteria o conteúdo em silêncio.
+      const agents = AI_TOOLS.find((t) => t.value === 'agents')!;
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+
+      await addTool(testDir, agents);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('agents');
+
+      await addTool(testDir, codex);
+
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(true);
+      expect(getCurrentToolIds(testDir).has('agents')).toBe(false);
+    });
+
+    it('hands the shared .agents tree back to agents', async () => {
+      const agents = AI_TOOLS.find((t) => t.value === 'agents')!;
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+
+      await addTool(testDir, codex);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+
+      await addTool(testDir, agents);
+
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('agents');
+      expect(getCurrentToolIds(testDir).has('agents')).toBe(true);
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(false);
+    });
+
+    it('keeps a Codex-rendered .agents tree when Antigravity is added later', async () => {
+      // Divergência do fork em relação aos dois testes acima: o Antigravity é
+      // `adapter-backed` e renderiza só referências genéricas. Assumir a raiz
+      // apagaria as referências `$openspec-*` de que o Codex depende, então ele
+      // escreve apenas os próprios workflows ao lado da árvore alheia.
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+      const antigravity = AI_TOOLS.find((t) => t.value === 'antigravity')!;
+
+      await addTool(testDir, codex);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+
+      await addTool(testDir, antigravity);
+
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+      const proposeSkill = await fs.readFile(
+        path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'),
+        'utf-8'
+      );
+      expect(proposeSkill).toContain('$openspec-apply-change');
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'workflows', 'opsx-propose.md'))
+      ).toBe(true);
     });
 
     it('is idempotent: re-running overwrites existing files', async () => {
@@ -203,6 +285,103 @@ describe('tools-manager', () => {
       expect(counts.removedSkillCount).toBe(0);
       expect(counts.removedCommandCount).toBe(0);
     });
+
+    it('drops the shared root marker when the owner is removed', async () => {
+      // Sem largar o marcador, "só marcador" ainda conta como configurado e o
+      // próximo `update` recriaria as skills que o usuário acabou de remover.
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+      await addTool(testDir, codex);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+
+      const counts = await removeTool(testDir, codex);
+
+      expect(counts.removedSkillCount).toBeGreaterThan(0);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBeUndefined();
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'skills', '.openspec-target'))
+      ).toBe(false);
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(false);
+    });
+
+    it('removes managed skills left in a legacy root', async () => {
+      // A detecção lê `.codex/skills` (legacySkillsDirs), então ignorá-lo na
+      // remoção deixaria o Codex ainda configurado e o próximo `update`
+      // migraria as skills de volta — remoção desfeita em silêncio.
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+      const legacySkill = path.join(
+        testDir,
+        '.codex',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
+      await fs.mkdir(path.dirname(legacySkill), { recursive: true });
+      await fs.writeFile(legacySkill, '# skill legada', 'utf-8');
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(true);
+
+      const counts = await removeTool(testDir, codex);
+
+      expect(counts.removedSkillCount).toBeGreaterThan(0);
+      expect(await fileExists(legacySkill)).toBe(false);
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(false);
+    });
+
+    it('keeps a shared root owned by another tool: removing codex spares agents', async () => {
+      const agents = AI_TOOLS.find((t) => t.value === 'agents')!;
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+      await addTool(testDir, agents);
+
+      const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      const counts = await removeTool(testDir, codex);
+
+      expect(counts.removedSkillCount).toBe(0);
+      expect(counts.keptSharedSkillsDir).toBe(path.join(testDir, '.agents', 'skills'));
+      expect(counts.keptSharedSkillsOwner).toBe('agents');
+      expect(await fileExists(skillFile)).toBe(true);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('agents');
+      expect(getCurrentToolIds(testDir).has('agents')).toBe(true);
+    });
+
+    it('keeps a shared root owned by another tool: removing agents spares codex', async () => {
+      const agents = AI_TOOLS.find((t) => t.value === 'agents')!;
+      const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+      await addTool(testDir, codex);
+
+      const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      const counts = await removeTool(testDir, agents);
+
+      expect(counts.removedSkillCount).toBe(0);
+      expect(counts.keptSharedSkillsDir).toBe(path.join(testDir, '.agents', 'skills'));
+      expect(counts.keptSharedSkillsOwner).toBe('codex');
+      expect(await fileExists(skillFile)).toBe(true);
+      expect(readSharedSkillTarget(testDir, '.agents')).toBe('codex');
+      expect(getCurrentToolIds(testDir).has('codex')).toBe(true);
+    });
+
+    it('keeps global MiniMax Code skills, which are shared across projects', async () => {
+      const tool = AI_TOOLS.find((t) => t.value === 'minimax-code')!;
+      await addTool(testDir, tool);
+
+      const globalSkill = path.join(
+        testDir,
+        'home',
+        '.minimax',
+        'skills',
+        'openspec-explore',
+        'SKILL.md'
+      );
+      expect(await fileExists(globalSkill)).toBe(true);
+
+      const counts = await removeTool(testDir, tool);
+
+      expect(counts.removedSkillCount).toBe(0);
+      expect(counts.keptGlobalSkillsDir).toBe(path.join(testDir, 'home', '.minimax', 'skills'));
+      expect(await fileExists(globalSkill)).toBe(true);
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -215,10 +394,58 @@ describe('tools-manager', () => {
       await fs.mkdir(path.join(skillsDir, 'openspec-explore'), { recursive: true });
       await fs.mkdir(path.join(skillsDir, 'my-custom-skill'), { recursive: true });
 
-      await removeOpenSpecSkillDirs(skillsDir);
+      await removeOpenSpecSkillDirs(testDir, skillsDir);
 
       expect(await directoryExists(path.join(skillsDir, 'openspec-explore'))).toBe(false);
       expect(await directoryExists(path.join(skillsDir, 'my-custom-skill'))).toBe(true);
+    });
+
+    it('does not delete through a tool directory linked outside the project', async () => {
+      // Guarda de caminho (Lote 0): um `.claude` que é link para fora do
+      // projeto não pode ser usado para apagar skills fora dele.
+      const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tm-outside-'));
+      const outsideSkill = path.join(outsideDir, 'skills', 'openspec-explore');
+      await fs.mkdir(outsideSkill, { recursive: true });
+      await fs.writeFile(path.join(outsideSkill, 'SKILL.md'), 'keep me');
+
+      try {
+        await fs.symlink(
+          outsideDir,
+          path.join(testDir, '.claude'),
+          process.platform === 'win32' ? 'junction' : 'dir'
+        );
+
+        const tool = AI_TOOLS.find((t) => t.value === 'claude')!;
+        await expect(removeTool(testDir, tool)).rejects.toThrow('fora do diretório permitido');
+
+        expect(await fileExists(path.join(outsideSkill, 'SKILL.md'))).toBe(true);
+      } finally {
+        await fs.rm(outsideDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Codex: somente skills (o adapter de prompts globais foi aposentado)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('codex (skills-only)', () => {
+    it('writes codex skills and no global prompts, even under commands delivery', async () => {
+      mockGlobalConfig.current = { profile: 'core', delivery: 'commands' };
+
+      const tool = AI_TOOLS.find((t) => t.value === 'codex')!;
+      await addTool(testDir, tool);
+
+      // O Codex lê a raiz canônica compartilhada `.agents/skills`.
+      expect(
+        await fileExists(path.join(testDir, '.agents', 'skills', 'openspec-propose', 'SKILL.md'))
+      ).toBe(true);
+      expect(
+        await fileExists(path.join(testDir, '.codex', 'skills', 'openspec-propose', 'SKILL.md'))
+      ).toBe(false);
+      expect(
+        await fileExists(path.join(process.env.CODEX_HOME!, 'prompts', 'opsx-propose.md'))
+      ).toBe(false);
     });
   });
 
@@ -246,11 +473,12 @@ describe('tools-manager', () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe('getEligibleTools', () => {
-    it('returns only tools with a skillsDir', () => {
+    it('returns only tools with a project-local or global skill target', () => {
       const eligible = getEligibleTools();
       for (const tool of eligible) {
-        expect(tool.skillsDir).toBeTruthy();
+        expect(toolSupportsSkills(tool)).toBe(true);
       }
+      expect(eligible.map((tool) => tool.value)).toContain('minimax-code');
     });
 
     it('includes common tools like claude and cursor', () => {
