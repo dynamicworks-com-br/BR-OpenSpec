@@ -1,6 +1,6 @@
 ---
 name: openspec-apply-change
-description: Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas.
+description: Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas. Use também quando o usuário disser "openspec apply", "opsx apply" ou "openspec implement".
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
@@ -10,6 +10,15 @@ metadata:
 ---
 
 Implementa tarefas de uma change do BR-OpenSpec.
+
+**Verificação do projeto:** Estes passos esperam um projeto que já usa o BR-OpenSpec. Antes do primeiro passo que escreve qualquer coisa (`new change`, `archive`, `sync specs` ou a autoria de um arquivo de artifact), confirme que o projeto tem uma raiz: execute `openspec list --json` e leia `root`. Um objeto root significa que o projeto está configurado. `"root": null` significa que não está — não há diretório `openspec/` aqui, e uma escrita como `openspec new change` criaria um como efeito colateral. O comando também sai com código diferente de zero, e isso é essa resposta, não um CLI quebrado: leia o JSON em vez de tentar de novo ou contornar.
+
+Sem raiz, o que acontece em seguida depende de como este workflow foi alcançado:
+
+- **Selecionado automaticamente**: você escolheu este workflow sozinho, sem o usuário nomear o BR-OpenSpec, nomear esta skill ou executar o slash command dela. Pare de usar o BR-OpenSpec e responda à solicitação normalmente, como faria sem o BR-OpenSpec instalado. Não peça para configurar nada e não mencione a configuração do BR-OpenSpec.
+- **Solicitação explícita do BR-OpenSpec**: o usuário nomeou o BR-OpenSpec, nomeou esta skill ou executou o slash command dela. Pare antes de escrever e pergunte como prosseguir: configurar este projeto (`openspec init`) ou continuar sem o BR-OpenSpec nesta solicitação. Aguarde a resposta.
+
+Nos dois ramos, nunca crie a raiz como efeito colateral: não execute `openspec init` até o usuário pedir, não crie arquivos `openspec/` à mão e não deixe um comando criá-la.
 
 **Entrada**: Opcionalmente especifique um nome de change (por exemplo, `/openspec-apply-change add-auth`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
@@ -30,6 +39,7 @@ Implementa tarefas de uma change do BR-OpenSpec.
    ```
    Analise o JSON para entender:
    - `schemaName`: O workflow sendo usado (por exemplo, "spec-driven")
+   - `changeRoot` e `actionContext`: escopo de planejamento e restrições de edição
    - Qual artifact contém as tarefas (tipicamente "tasks" para spec-driven, verifique o status para outros)
 
 3. **Obtenha as instruções de apply**
@@ -41,14 +51,17 @@ Implementa tarefas de uma change do BR-OpenSpec.
    Isso retorna:
    - `contextFiles`: artifact ID -> array de caminhos de arquivos concretos (varia por schema - pode ser proposal/specs/design/tasks ou spec/tests/implementation/docs)
    - Progresso (total, completo, restante)
-   - Lista de tarefas com status
+   - Lista de tarefas com status, caminho de origem e linha de origem
    - Instrução dinâmica baseada no estado atual
    - `context` opcional: entrada de instrução de projeto obrigatória, lida da configuração atual
    - `operationGuidance` opcional: orientação consultiva atual para o apply
+   - `missingArtifacts` (quando presente): ids de artifacts obrigatórios sem saída
 
    **Trate os estados:**
-   - Se `state: "blocked"` (artifacts ausentes): exiba mensagem, sugira usar `/openspec-continue-change` (se não estiver instalado, rode `openspec status --change "<name>" --json` para ver o próximo artifact e `openspec instructions <artifact-id> --change "<name>" --json` para saber como criá-lo)
-   - Se `state: "all_done"`: parabenize, sugira arquivar
+   - Se `state: "blocked"`: exiba a mensagem e pause a implementação.
+     - Se `missingArtifacts` não estiver vazio: sugira usar `/openspec-continue-change` para criá-los.
+     - Caso contrário, siga a instrução do CLI para criar ou reparar o arquivo de rastreamento configurado pelo schema a partir dos artifacts de planejamento existentes. Não assuma que outro artifact está pronto nem comece a implementação enquanto estiver bloqueado.
+   - Se `state: "all_done"`: informe que todas as tarefas rastreadas estão concluídas e sugira revisão ou verificação, conforme couber, antes de arquivar
    - Caso contrário: prossiga para a implementação
 
    Trate `context` como uma entrada obrigatória em nível de prompt. Leia e considere
@@ -92,7 +105,9 @@ Implementa tarefas de uma change do BR-OpenSpec.
    - Mostre qual tarefa está sendo trabalhada
    - Faça as alterações de código necessárias
    - Mantenha as alterações mínimas e focadas
-   - Marque a tarefa como concluída no artifact de rastreamento retornado por `openspec instructions apply` (caminho em `contextFiles` e formato definido pelo schema ativo — não presuma `tasks.md` nem a sintaxe `- [ ]`/`- [x]`)
+   - Antes de editar, confirme que o checkbox no `sourcePath` e na `line` retornados ainda corresponde à descrição da tarefa; se não corresponder, execute de novo as instruções de apply e use a localização atualizada
+   - Marque a tarefa como concluída no `sourcePath` e na `line` retornados: `- [ ]` → `- [x]`
+   - Execute de novo as instruções de apply e confirme que a tarefa agora está concluída e que o progresso mudou
    - Continue para a próxima tarefa
 
    **Pare se:**
@@ -107,7 +122,7 @@ Implementa tarefas de uma change do BR-OpenSpec.
    Exiba:
    - Tarefas concluídas nesta sessão
    - Progresso geral: "N/M tarefas concluídas"
-   - Se tudo concluído: sugira arquivar
+   - Se tudo concluído: informe que as tarefas rastreadas estão concluídas e sugira revisão ou verificação, conforme couber, antes de arquivar
    - Se pausado: explique o porquê e aguarde orientação
 
 **Saída Durante a Implementação**
@@ -138,7 +153,8 @@ Trabalhando na tarefa 4/7: <descrição da tarefa>
 - [x] Tarefa 2
 ...
 
-Todas as tarefas concluídas! Você pode arquivar esta change com `/openspec-archive-change`.
+Todas as tarefas rastreadas estão concluídas. Revise ou verifique a change conforme couber
+antes de arquivar. Você pode arquivar esta change com `/openspec-archive-change`.
 ```
 
 **Saída ao Pausar (Problema Encontrado)**
@@ -170,8 +186,9 @@ O que você gostaria de fazer?
 - Atualize a checkbox da tarefa imediatamente após concluir cada tarefa
 - Pare em erros, bloqueios ou requisitos incertos - não adivinhe
 - Quando uma tarefa exigir trabalho além do que a spec descreve, traga o escopo adicional à tona e pause - nunca reduza, adie ou simplifique silenciosamente o comportamento especificado
-- Só marque uma tarefa como concluída (`- [x]` ou o formato do schema ativo) quando o comportamento especificado estiver totalmente implementado, não quando ela estiver parcialmente feita ou adiada
+- Só marque uma tarefa `- [x]` quando o comportamento especificado estiver totalmente implementado, não quando ela estiver parcialmente feita ou adiada
 - Use os contextFiles da saída do CLI, não assuma nomes de arquivos específicos
+- Use o sourcePath e a line de cada tarefa para atualizar o checkbox exato
 - Não use contexto ou orientação da operação como prova de que uma tarefa está concluída
 - Aplique o contexto relevante do projeto; reporte conflitos com as entradas controladoras do workflow
 - Considere cada entrada de orientação; explique qualquer conselho inaplicável ou conflitante

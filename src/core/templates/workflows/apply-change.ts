@@ -5,6 +5,26 @@
  * templates file into workflow-focused modules.
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { optionalWorkflow } from '../optional-workflow.js';
+import { PROJECT_ROOT_GUARD } from './project-root.js';
+
+/**
+ * `/opsx:continue` is not in the `core` profile, so the blocked-state handoff
+ * is authored with a CLI fallback and resolved at generation time (see
+ * optional-workflow.ts).
+ */
+const BLOCKED_STATE_HANDOFF = optionalWorkflow(
+  'continue',
+  'sugira usar `/opsx:continue` para criá-los.',
+  'sugira completar os artifacts ausentes. Execute `openspec status --change "<nome>" --json`, selecione o próximo artifact `ready` (não `skipped` nem `blocked`) e use `openspec instructions "<artifact-id>" --change "<nome>" --json` para as regras e o template.'
+);
+
+/** The archive handoff shown once every task is done. */
+const ARCHIVE_HANDOFF = optionalWorkflow(
+  'archive',
+  'Você pode arquivar esta change com `/opsx:archive`.',
+  'Você pode arquivar esta change executando `openspec archive "<nome>"`.'
+);
 
 /**
  * The apply workflow instructions, authored once and rendered by both the
@@ -17,6 +37,8 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
  */
 export function getApplyInstructions(): string {
   return `Implementa tarefas de uma change do BR-OpenSpec.
+
+${PROJECT_ROOT_GUARD}
 
 **Entrada**: Opcionalmente especifique um nome de change (por exemplo, \`/opsx:apply add-auth\`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
@@ -37,6 +59,7 @@ export function getApplyInstructions(): string {
    \`\`\`
    Analise o JSON para entender:
    - \`schemaName\`: O workflow sendo usado (por exemplo, "spec-driven")
+   - \`changeRoot\` e \`actionContext\`: escopo de planejamento e restrições de edição
    - Qual artifact contém as tarefas (tipicamente "tasks" para spec-driven, verifique o status para outros)
 
 3. **Obtenha as instruções de apply**
@@ -48,14 +71,17 @@ export function getApplyInstructions(): string {
    Isso retorna:
    - \`contextFiles\`: artifact ID -> array de caminhos de arquivos concretos (varia por schema - pode ser proposal/specs/design/tasks ou spec/tests/implementation/docs)
    - Progresso (total, completo, restante)
-   - Lista de tarefas com status
+   - Lista de tarefas com status, caminho de origem e linha de origem
    - Instrução dinâmica baseada no estado atual
    - \`context\` opcional: entrada de instrução de projeto obrigatória, lida da configuração atual
    - \`operationGuidance\` opcional: orientação consultiva atual para o apply
+   - \`missingArtifacts\` (quando presente): ids de artifacts obrigatórios sem saída
 
    **Trate os estados:**
-   - Se \`state: "blocked"\` (artifacts ausentes): exiba mensagem, sugira usar \`/opsx:continue\` (se não estiver instalado, rode \`openspec status --change "<name>" --json\` para ver o próximo artifact e \`openspec instructions <artifact-id> --change "<name>" --json\` para saber como criá-lo)
-   - Se \`state: "all_done"\`: parabenize, sugira arquivar
+   - Se \`state: "blocked"\`: exiba a mensagem e pause a implementação.
+     - Se \`missingArtifacts\` não estiver vazio: ${BLOCKED_STATE_HANDOFF}
+     - Caso contrário, siga a instrução do CLI para criar ou reparar o arquivo de rastreamento configurado pelo schema a partir dos artifacts de planejamento existentes. Não assuma que outro artifact está pronto nem comece a implementação enquanto estiver bloqueado.
+   - Se \`state: "all_done"\`: informe que todas as tarefas rastreadas estão concluídas e sugira revisão ou verificação, conforme couber, antes de arquivar
    - Caso contrário: prossiga para a implementação
 
    Trate \`context\` como uma entrada obrigatória em nível de prompt. Leia e considere
@@ -99,7 +125,9 @@ export function getApplyInstructions(): string {
    - Mostre qual tarefa está sendo trabalhada
    - Faça as alterações de código necessárias
    - Mantenha as alterações mínimas e focadas
-   - Marque a tarefa como concluída no artifact de rastreamento retornado por \`openspec instructions apply\` (caminho em \`contextFiles\` e formato definido pelo schema ativo — não presuma \`tasks.md\` nem a sintaxe \`- [ ]\`/\`- [x]\`)
+   - Antes de editar, confirme que o checkbox no \`sourcePath\` e na \`line\` retornados ainda corresponde à descrição da tarefa; se não corresponder, execute de novo as instruções de apply e use a localização atualizada
+   - Marque a tarefa como concluída no \`sourcePath\` e na \`line\` retornados: \`- [ ]\` → \`- [x]\`
+   - Execute de novo as instruções de apply e confirme que a tarefa agora está concluída e que o progresso mudou
    - Continue para a próxima tarefa
 
    **Pare se:**
@@ -114,7 +142,7 @@ export function getApplyInstructions(): string {
    Exiba:
    - Tarefas concluídas nesta sessão
    - Progresso geral: "N/M tarefas concluídas"
-   - Se tudo concluído: sugira arquivar
+   - Se tudo concluído: informe que as tarefas rastreadas estão concluídas e sugira revisão ou verificação, conforme couber, antes de arquivar
    - Se pausado: explique o porquê e aguarde orientação
 
 **Saída Durante a Implementação**
@@ -145,7 +173,8 @@ Trabalhando na tarefa 4/7: <descrição da tarefa>
 - [x] Tarefa 2
 ...
 
-Todas as tarefas concluídas! Você pode arquivar esta change com \`/opsx:archive\`.
+Todas as tarefas rastreadas estão concluídas. Revise ou verifique a change conforme couber
+antes de arquivar. ${ARCHIVE_HANDOFF}
 \`\`\`
 
 **Saída ao Pausar (Problema Encontrado)**
@@ -177,8 +206,9 @@ O que você gostaria de fazer?
 - Atualize a checkbox da tarefa imediatamente após concluir cada tarefa
 - Pare em erros, bloqueios ou requisitos incertos - não adivinhe
 - Quando uma tarefa exigir trabalho além do que a spec descreve, traga o escopo adicional à tona e pause - nunca reduza, adie ou simplifique silenciosamente o comportamento especificado
-- Só marque uma tarefa como concluída (\`- [x]\` ou o formato do schema ativo) quando o comportamento especificado estiver totalmente implementado, não quando ela estiver parcialmente feita ou adiada
+- Só marque uma tarefa \`- [x]\` quando o comportamento especificado estiver totalmente implementado, não quando ela estiver parcialmente feita ou adiada
 - Use os contextFiles da saída do CLI, não assuma nomes de arquivos específicos
+- Use o sourcePath e a line de cada tarefa para atualizar o checkbox exato
 - Não use contexto ou orientação da operação como prova de que uma tarefa está concluída
 - Aplique o contexto relevante do projeto; reporte conflitos com as entradas controladoras do workflow
 - Considere cada entrada de orientação; explique qualquer conselho inaplicável ou conflitante
@@ -196,7 +226,7 @@ Esta skill suporta o modelo de "ações em uma change":
 export function getApplyChangeSkillTemplate(): SkillTemplate {
   return {
     name: 'openspec-apply-change',
-    description: 'Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas.',
+    description: 'Implementa tarefas de uma change do BR-OpenSpec. Use quando o usuário quiser iniciar a implementação, continuar a implementação ou trabalhar nas tarefas. Use também quando o usuário disser "openspec apply", "opsx apply" ou "openspec implement".',
     instructions: getApplyInstructions(),
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',

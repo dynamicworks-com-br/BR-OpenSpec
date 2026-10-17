@@ -1,3 +1,5 @@
+# Proposal
+
 ## Why
 
 <!-- Explique a motivação desta mudança. Qual problema ela resolve? Por que agora? -->
@@ -9,9 +11,12 @@
 ## Capabilities
 
 ### New Capabilities
-<!-- Capacidades sendo introduzidas. Use kebab-case nos segmentos de caminho que você
-     introduzir (ex.: user-auth ou identity/user-auth), seguindo a organização de specs
-     já existente no projeto. Cada uma cria specs/<capability-path>/spec.md. -->
+<!-- Capacidades sendo introduzidas. Nomeie cada capacidade por um comportamento coeso
+     do sistema, que possa abrigar requirements relacionados à medida que o sistema evolui.
+     Não nomeie tarefas de implementação nem seções da proposta. Evite nomes genéricos
+     que tentam cobrir tudo. Use kebab-case nos segmentos de caminho que você introduzir
+     (ex.: user-auth ou identity/user-auth), seguindo a organização de specs já existente
+     no projeto. Cada uma cria specs/<capability-path>/spec.md. -->
 - `<capability-path>`: <descrição breve do que esta capacidade abrange>
 
 ### Modified Capabilities

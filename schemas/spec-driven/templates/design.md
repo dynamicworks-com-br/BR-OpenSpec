@@ -1,3 +1,5 @@
+# Design
+
 ## Context
 
 <!-- Estado atual e restrições que moldam a abordagem. Veja proposal.md para a motivação - não a repita -->

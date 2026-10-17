@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
@@ -25,25 +26,39 @@ import {
   generateSkillContent,
   getCommandContents,
 } from '../../../src/core/shared/skill-generation.js';
+import { MAX_CONTEXT_SIZE } from '../../../src/core/project-config.js';
+import { resolveOptionalWorkflows } from '../../../src/core/templates/optional-workflow.js';
+import { ALL_WORKFLOWS } from '../../../src/core/profiles.js';
+import { parseTaskLines } from '../../../src/utils/task-progress.js';
 
-// Port of upstream's test/core/templates/propose.test.ts (#788/#1260/#1412),
-// with string assertions translated to the fork's PT-BR template prose.
-// The skip_specs guards (#1399) that lived in skip-specs-guards.test.ts merged
-// back into this file now that the artifact loop guards landed, per the note
-// that file carried.
+// Templates carry optional-workflow conditionals; a body only means anything
+// once resolved against a workflow set. Unless a test says otherwise, these are
+// the bodies a profile with every workflow installed receives.
+const withAll = (body: string) =>
+  resolveOptionalWorkflows(body, new Set<string>(ALL_WORKFLOWS));
+const withoutApply = (body: string) =>
+  resolveOptionalWorkflows(
+    body,
+    new Set<string>(ALL_WORKFLOWS.filter((id) => id !== 'apply'))
+  );
 
-const proposeSkillBody = generateSkillContent(getOpsxProposeSkillTemplate(), 'TEST');
-const proposeCommandBody = getOpsxProposeCommandTemplate().content;
+const proposeSkillBody = withAll(getOpsxProposeSkillTemplate().instructions);
+const proposeCommandBody = withAll(getOpsxProposeCommandTemplate().content);
+const asDeployed = <T extends { instructions: string }>(template: T): T => ({
+  ...template,
+  instructions: withAll(template.instructions),
+});
+
 const proposeBodies: Array<[string, string]> = [
-  ['propose skill', proposeSkillBody],
+  ['propose skill', generateSkillContent(asDeployed(getOpsxProposeSkillTemplate()), 'TEST')],
   ['propose command', proposeCommandBody],
 ];
 
 // ff runs the byte-identical artifact loop, so it carries the identical guards.
 const loopBodies: Array<[string, string]> = [
   ...proposeBodies,
-  ['ff skill', getFfChangeSkillTemplate().instructions],
-  ['ff command', getOpsxFfCommandTemplate().content],
+  ['ff skill', withAll(getFfChangeSkillTemplate().instructions)],
+  ['ff command', withAll(getOpsxFfCommandTemplate().content)],
 ];
 
 const continueBodies: Array<[string, string]> = [
@@ -91,12 +106,56 @@ describe('propose preamble', () => {
   });
 });
 
+describe('default proposal guidance', () => {
+  it('frames new capabilities as durable behavior boundaries (#1965)', () => {
+    const proposal = defaultSchema.artifacts.find(artifact => artifact.id === 'proposal');
+    expect(proposal).toBeDefined();
+    expect(proposal!.instruction).toContain(
+      'Nomeie cada capability por um comportamento durável do sistema'
+    );
+    expect(proposal!.instruction).toContain(
+      'não pelo trabalho desta change'
+    );
+    expect(proposal!.instruction).toContain(
+      'possa abrigar requirements relacionados à medida que o sistema evolui'
+    );
+    expect(proposal!.instruction).toContain('evite capabilities genéricas que tentam cobrir tudo');
+
+    const template = fs.readFileSync(
+      path.join(repoRoot, 'schemas', 'spec-driven', 'templates', 'proposal.md'),
+      'utf-8'
+    );
+    expect(template).toMatch(
+      /Nomeie cada capacidade por um comportamento coeso\s+do sistema, que possa abrigar requirements relacionados à medida que o sistema evolui/
+    );
+    expect(template).toMatch(/Não nomeie\s+tarefas de implementação nem seções da proposta/);
+    expect(template).toContain('Evite nomes genéricos');
+  });
+});
+
 describe('default task guidance', () => {
-  // #345 (upstream #1660): a vague trailing "each task should be verifiable"
-  // let agents emit unverifiable tasks plus one generic "Verify" item at the
-  // end. The guideline is now a MUST with the verification inside each
-  // checkbox. The fork keeps the schema's `Example:` block in English (same
-  // convention as the `specs` artifact), so those assertions stay verbatim.
+  it('keeps tracked tasks within the pre-archive workflow (#1790)', () => {
+    const tasks = defaultSchema.artifacts.find(artifact => artifact.id === 'tasks');
+    expect(tasks).toBeDefined();
+    expect(tasks!.instruction).toMatch(
+      /pode ser concluído antes do\s+archive/
+    );
+    expect(tasks!.instruction).toMatch(
+      /seção opcional `## Workflow follow-up`/
+    );
+
+    const examples = [...tasks!.instruction.matchAll(/```\s*([\s\S]*?)```/g)];
+    expect(examples).toHaveLength(2);
+    const implementation = examples[0][1];
+    const followUp = examples[1][1];
+    expect(followUp).toContain('## Workflow follow-up');
+    expect(followUp).toContain('- Verify the archived result.');
+    expect(parseTaskLines(followUp)).toEqual([]);
+    expect(parseTaskLines(`${implementation}\n${followUp}`)).toEqual(
+      parseTaskLines(implementation)
+    );
+  });
+
   it('requires a concrete verification method in each task (#345)', () => {
     const tasks = defaultSchema.artifacts.find(artifact => artifact.id === 'tasks');
     expect(tasks).toBeDefined();
@@ -118,13 +177,200 @@ describe('default task guidance', () => {
     const example = tasks!.instruction.match(/```\s*([\s\S]*?)```/)?.[1];
     expect(example).toBeDefined();
     const numberedTasks = example!.split('\n').filter(line => /^- \[ \] \d+\.\d+ /.test(line));
-    expect(numberedTasks).toHaveLength(4);
+    expect(numberedTasks).toHaveLength(5);
     expect(numberedTasks.every(line => /\bverify\b/i.test(line))).toBe(true);
     expect(numberedTasks[0]).toContain('expected files are present');
     expect(numberedTasks[1]).toContain('package installation succeeds');
     expect(numberedTasks[2]).toContain('export test passes');
     expect(numberedTasks[3]).toContain('unit tests cover quoting and delimiters');
+    expect(numberedTasks[4]).toContain('Document the export API');
     expect(example).not.toMatch(/^- \[ \] \d+\.\d+ (?:verify|run (?:the )?verification)\b/im);
+  });
+
+  // #1952: agents parked testing and documentation in one trailing group, so a
+  // failure seeded in group 1 only surfaced at the end and cascaded into rework.
+  it('keeps tests and documentation inside the group that does the work (#1952)', () => {
+    const tasks = defaultSchema.artifacts.find(artifact => artifact.id === 'tasks');
+    expect(tasks).toBeDefined();
+    expect(tasks!.instruction).toMatch(
+      /Cada grupo de tarefas MUST entregar os testes e a documentação que o próprio\s+trabalho pede/
+    );
+    expect(tasks!.instruction).toMatch(
+      /NÃO junte teste ou documentação num grupo final/
+    );
+    // The rule is scoped to what a group's work actually needs, so the worked
+    // example's scaffolding group can carry no tests or docs without
+    // contradicting it.
+    expect(tasks!.instruction).toMatch(
+      /Um grupo\s+cujo trabalho não pede nenhum dos dois, como scaffolding ou instalação de dependências,\s+não carrega nenhum dos dois/
+    );
+    expect(tasks!.instruction).toMatch(
+      /Um grupo final serve só para checagens de integração, não para\s+os testes e a documentação que um grupo anterior devia/
+    );
+
+    // The worked example has to show a docs task inside the implementation
+    // group, not a trailing "testing and documentation" group of its own.
+    const example = tasks!.instruction.match(/```\s*([\s\S]*?)```/)?.[1];
+    expect(example).toBeDefined();
+    const headings = example!
+      .split('\n')
+      .filter(line => /^## /.test(line.trim()))
+      .map(line => line.trim());
+    expect(headings).toHaveLength(2);
+    expect(headings.some(heading => /\b(test|testing|documentation|docs)\b/i.test(heading))).toBe(
+      false
+    );
+
+    const lastGroup = example!.slice(example!.lastIndexOf(headings[headings.length - 1]));
+    expect(lastGroup).toMatch(/^- \[ \] \d+\.\d+ Document the export API in docs\/export\.md/im);
+  });
+});
+
+describe('propose project context', () => {
+  it('loads project context before selecting the schema or creating the change (#1651)', () => {
+    for (const [label, body] of proposeBodies) {
+      const contextStep = body.indexOf('**Carregue o contexto do projeto**');
+      const schemaStep = body.indexOf('**Determine o schema de workflow**');
+      const createStep = body.indexOf('**Crie o diretório da change**');
+
+      expect(contextStep, `${label} is missing the early context step`).toBeGreaterThanOrEqual(0);
+      expect(contextStep, `${label} loads context after schema selection`).toBeLessThan(schemaStep);
+      expect(contextStep, `${label} loads context after creating the change`).toBeLessThan(createStep);
+    }
+  });
+
+  function contextSection(body: string): string {
+    return body.slice(
+      body.indexOf('**Carregue o contexto do projeto**'),
+      body.indexOf('**Determine o schema de workflow**')
+    );
+  }
+
+  it('reads the resolved root before loading project config', () => {
+    for (const [label, body] of proposeBodies) {
+      const section = contextSection(body);
+      expect(section, label).toContain('`openspec context --json`');
+      expect(section, label).not.toContain('--store');
+      expect(section, label).toContain('`root.path` retornado');
+      expect(section, label).toContain('`<root.path>/openspec/config.yaml`');
+      expect(section, label).toContain('Somente quando o contexto devolver um `root.path` resolvido');
+    }
+  });
+
+  it('matches config precedence and field validation', () => {
+    for (const [label, body] of proposeBodies) {
+      const section = contextSection(body);
+      expect(section, label).toContain('Use `config.yml` somente quando `config.yaml` não existir');
+      expect(section, label).toContain('Se nenhum dos dois existir, continue sem contexto de projeto');
+      expect(section, label).toContain(
+        'Não volte para `config.yml` se `config.yaml` estiver ilegível ou inválido'
+      );
+      expect(section, label).toContain('fizer parse como um objeto YAML');
+      expect(section, label).toContain('campo `context` for uma string');
+      expect(section, label).toContain(
+        `no máximo ${MAX_CONTEXT_SIZE.toLocaleString('pt-BR')} bytes em UTF-8`
+      );
+      expect(section, label).toContain('aplique esse campo');
+      expect(section, label).toContain(
+        'Se o arquivo não puder ser lido ou analisado, ou se o campo context for inválido ou grande demais, continue sem contexto de projeto'
+      );
+    }
+  });
+
+  it('stops without writing and offers initialization when no root is resolved', () => {
+    for (const [label, body] of proposeBodies) {
+      const section = contextSection(body);
+      expect(section, label).toContain('contexto reportar `no_openspec_root`');
+      expect(section, label).toContain('pare sem criar ou alterar arquivos');
+      expect(section, label).toContain('Ofereça `openspec init`');
+      expect(section, label).toContain('aguarde o usuário pedir a inicialização');
+      expect(section, label).toContain('Não inicialize automaticamente nem execute `openspec new change`');
+      expect(section, label).toContain(
+        'Depois da inicialização, execute de novo esta checagem de contexto antes de continuar'
+      );
+      expect(body, label).not.toContain('resolve the implicit root');
+    }
+  });
+
+  it('stops on other context failures instead of falling back to the working directory', () => {
+    for (const [label, body] of proposeBodies) {
+      const section = contextSection(body);
+      expect(section, label).toContain('Para qualquer outra falha de contexto, pare');
+      expect(section, label).toContain('não volte ao diretório atual');
+      expect(section, label).not.toContain('--store');
+    }
+  });
+
+  it('applies context before exploration without granting it authority', () => {
+    for (const [label, body] of proposeBodies) {
+      const section = contextSection(body);
+      expect(section, label).toContain(
+        'antes de explorar a codebase ou tomar decisões de planejamento'
+      );
+      expect(section, label).toContain('dados e restrições fornecidos pelo projeto');
+      expect(section, label).toContain('não pode sobrepor a autorização do usuário');
+      expect(section, label).toContain('a fronteira de planejamento');
+      expect(section, label).toContain('restrições de ferramentas');
+      expect(section, label).toContain('regras de artifact e de saída');
+      expect(section, label).toContain('Não copie o contexto para os artifacts');
+    }
+  });
+});
+
+describe('planning code inspection (#339)', () => {
+  it('inspects the project after loading instructions and dependencies, before creating or delegating artifacts', () => {
+    for (const [label, body] of loopBodies) {
+      const instructions = body.indexOf('openspec instructions <artifact-id>');
+      const dependencies = body.indexOf('Leia quaisquer arquivos de dependências concluídos');
+      const inspection = body.indexOf('**Inspecione o projeto relevante antes de rascunhar**');
+      const delegation = body.indexOf('Se o campo `instruction` delegar a criação');
+      expect(instructions, label).toBeGreaterThanOrEqual(0);
+      expect(dependencies, label).toBeGreaterThan(instructions);
+      expect(inspection, label).toBeGreaterThan(dependencies);
+      expect(delegation, label).toBeGreaterThan(inspection);
+
+      const guidance = body.slice(inspection, delegation);
+      expect(guidance, label).toContain('Leia `context` e `rules` primeiro');
+      expect(guidance, label).toContain(
+        'implementação relevante, testes próximos, configuração e documentação fora de `openspec/`'
+      );
+      expect(guidance, label).toContain('Mantenha a inspeção somente leitura e proporcional à change');
+      expect(guidance, label).toContain('reutilize os achados nos artifacts seguintes');
+      expect(guidance, label).toContain('Faça essa descoberta agora');
+    }
+  });
+
+  it('handles missing code and uncertain findings without inventing facts', () => {
+    for (const [label, body] of loopBodies) {
+      expect(body, label).not.toContain('--store');
+      expect(body, label).toContain('Se o alvo não estiver claro, pergunte');
+      expect(body, label).toContain(
+        'Para changes greenfield ou que não sejam de código, inspecione a estrutura disponível e os documentos relevantes'
+      );
+      expect(body, label).toContain('Se o código-fonte não estiver disponível, declare a limitação');
+      expect(body, label).toContain(
+        'Distinga comportamento observado de suposições e de acréscimos propostos'
+      );
+      expect(body, label).toContain(
+        'traga à tona conflitos com specs existentes em vez de decidir silenciosamente qual está certo'
+      );
+    }
+  });
+
+  it('preserves inspection guidance through every command adapter', () => {
+    for (const command of getCommandContents(ALL_WORKFLOWS).filter(({ id }) =>
+      ['propose', 'ff'].includes(id)
+    )) {
+      for (const adapter of CommandAdapterRegistry.getAll()) {
+        const generated = generateCommand(command, adapter).fileContent;
+        const inspection = generated.indexOf('**Inspecione o projeto relevante antes de rascunhar**');
+        const delegation = generated.indexOf('Se o campo `instruction` delegar a criação');
+        const label = `${adapter.toolId} ${command.id}`;
+        expect(inspection, label).toBeGreaterThanOrEqual(0);
+        expect(delegation, label).toBeGreaterThan(inspection);
+        expect(generated, label).toContain('Mantenha a inspeção somente leitura e proporcional à change');
+      }
+    }
   });
 });
 
@@ -188,8 +434,36 @@ describe('propose implementation boundary', () => {
     expect(proposeSkillBody).not.toContain('peça-me para implementar');
   });
 
-  it('preserves both boundaries through every command adapter', () => {
-    const propose = getCommandContents(['propose'])[0];
+  // The same boundary has to hold when `apply` is not installed: the command
+  // surface may name the CLI, never a conversational handoff (#1734).
+  it('keeps command-only tools off direct coding when apply is not installed', () => {
+    const command = withoutApply(getOpsxProposeCommandTemplate().content);
+    const skill = withoutApply(getOpsxProposeSkillTemplate().instructions);
+    const ffCommand = withoutApply(getOpsxFfCommandTemplate().content);
+
+    for (const body of [command, skill, ffCommand]) {
+      expect(body).not.toContain('/opsx:apply');
+    }
+
+    expect(command).toContain(
+      'execute `openspec instructions apply --change "<nome>" --json` para obter as tarefas'
+    );
+    expect(command).not.toContain('peça-me para implementar');
+    expect(command).not.toContain('peça-me para aplicar esta change');
+
+    expect(ffCommand).toContain(
+      'Execute `openspec instructions apply --change "<nome>" --json` para obter a lista de tarefas'
+    );
+    expect(ffCommand).not.toContain('peça-me para implementar');
+
+    expect(skill).toContain('peça-me para aplicar esta change');
+    expect(skill).not.toContain('peça-me para implementar');
+  });
+
+  it('preserves planning and initialization boundaries through every command adapter', () => {
+    // Resolve against every workflow: this asserts the apply handoff, which
+    // is only emitted when `apply` is installed.
+    const propose = getCommandContents(ALL_WORKFLOWS).find(({ id }) => id === 'propose');
     expect(propose?.id).toBe('propose');
 
     for (const adapter of CommandAdapterRegistry.getAll()) {
@@ -215,6 +489,11 @@ describe('propose implementation boundary', () => {
         `Quando estiver pronto, execute \`${applyInvocation}\`.`
       );
       expect(generated, adapter.toolId).not.toContain('peça-me para implementar');
+      expect(generated, adapter.toolId).toContain('pare sem criar ou alterar arquivos');
+      expect(generated, adapter.toolId).toContain('Ofereça `openspec init`');
+      expect(generated, adapter.toolId).toContain(
+        'Não inicialize automaticamente nem execute `openspec new change`'
+      );
     }
   });
 });
@@ -256,9 +535,10 @@ describe('propose schema selection', () => {
       expect(schemaSection, label).toContain(
         'Caso contrário, omita `--schema` para preservar o padrão configurado'
       );
-      // Fork guard: the store/planning-home subsystem is deferred (D1), so the
-      // upstream root-resolution detour through `openspec context` must not leak in.
-      expect(schemaSection, label).not.toContain('openspec context');
+      expect(schemaSection, label).toContain(
+        'Se o contexto falhar, pare como descrito no passo de carregamento do contexto'
+      );
+      expect(schemaSection, label).toContain('não volte ao diretório atual');
       expect(schemaSection, label).not.toContain('--store');
     }
   });
@@ -269,9 +549,7 @@ describe('instruction field authority (propose, continue and ff)', () => {
   // hard-coded spec-driven patterns embedded in the templates. The schema's
   // instruction field is now the authoritative guidance, and delegated
   // creation is invoked and verified at the creation step and restated in
-  // the guidelines. (Ported from the focused assertion upstream added to
-  // skill-templates-parity.test.ts in #1405; the fork's parity test is
-  // hash-based and regenerated centrally, so the behavioral pin lives here.)
+  // the guidelines.
   const allBodies: Array<[string, string]> = [...loopBodies, ...continueBodies];
 
   it('states the instruction field is the authoritative guidance', () => {
@@ -283,7 +561,7 @@ describe('instruction field authority (propose, continue and ff)', () => {
   it('invokes delegated creation at the creation step and verifies the artifact', () => {
     for (const [label, body] of allBodies) {
       expect(body, label).toContain(
-        'Se o campo `instruction` delegar a criação a uma skill ou comando específico, invoque-o para produzir o artifact em vez de escrever o arquivo você mesmo'
+        'Se o campo `instruction` delegar a criação a uma skill ou comando específico, invoque-o somente se ele puder escrever o artifact nesse caminho de saída'
       );
       expect(body, label).toContain('verifique se o arquivo do artifact existe');
     }
@@ -363,7 +641,7 @@ describe('artifact loop guards (propose and ff)', () => {
   it('permits skipping only artifacts their own instruction marks conditional', () => {
     for (const [label, body] of loopBodies) {
       expect(body, label).toContain(
-        'Pule um apenas quando o próprio `instruction` dele disser que é condicional'
+        'Pule um apenas quando o `status` já o reportar como `skipped`, ou quando o próprio `instruction` dele disser que é condicional'
       );
       expect(body, label).toContain('não reconsidere');
     }
@@ -377,7 +655,9 @@ describe('artifact loop guards (propose and ff)', () => {
       expect(body, label).toContain(
         'execute `openspec instructions <artifact-id> --change "<nome>" --json` e pule somente se o campo `instruction` o marcar como opcional'
       );
-      expect(body, label).toContain('`specs` nunca');
+      expect(body, label).toContain(
+        '`specs` se qualifica somente pelo status `skipped` acima, nunca pelo seu próprio julgamento'
+      );
     }
   });
 
@@ -448,7 +728,7 @@ describe('artifact loop guards (propose and ff)', () => {
   it('tells the agent how to resolve a glob output path', () => {
     for (const [label, body] of loopBodies) {
       expect(body, label).toContain(
-        'for um glob, siga o `instruction` para escolher o caminho concreto do arquivo'
+        'for um glob, siga `instruction` para escolher um caminho concreto'
       );
     }
   });

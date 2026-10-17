@@ -1,6 +1,6 @@
 ---
 name: openspec-new-change
-description: Inicie uma nova change do BR-OpenSpec usando o workflow experimental de artifacts. Use quando o usuário quiser criar uma nova funcionalidade, correção ou modificação com uma abordagem estruturada passo a passo.
+description: Inicie uma nova change do BR-OpenSpec usando o workflow experimental de artifacts. Use quando o usuário quiser criar uma nova funcionalidade, correção ou modificação com uma abordagem estruturada passo a passo. Use também quando o usuário disser "openspec new change" ou "opsx new".
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
@@ -10,6 +10,15 @@ metadata:
 ---
 
 Inicie uma nova change usando a abordagem experimental orientada a artifacts.
+
+**Verificação do projeto:** Estes passos esperam um projeto que já usa o BR-OpenSpec. Antes do primeiro passo que escreve qualquer coisa (`new change`, `archive`, `sync specs` ou a autoria de um arquivo de artifact), confirme que o projeto tem uma raiz: execute `openspec list --json` e leia `root`. Um objeto root significa que o projeto está configurado. `"root": null` significa que não está — não há diretório `openspec/` aqui, e uma escrita como `openspec new change` criaria um como efeito colateral. O comando também sai com código diferente de zero, e isso é essa resposta, não um CLI quebrado: leia o JSON em vez de tentar de novo ou contornar.
+
+Sem raiz, o que acontece em seguida depende de como este workflow foi alcançado:
+
+- **Selecionado automaticamente**: você escolheu este workflow sozinho, sem o usuário nomear o BR-OpenSpec, nomear esta skill ou executar o slash command dela. Pare de usar o BR-OpenSpec e responda à solicitação normalmente, como faria sem o BR-OpenSpec instalado. Não peça para configurar nada e não mencione a configuração do BR-OpenSpec.
+- **Solicitação explícita do BR-OpenSpec**: o usuário nomeou o BR-OpenSpec, nomeou esta skill ou executou o slash command dela. Pare antes de escrever e pergunte como prosseguir: configurar este projeto (`openspec init`) ou continuar sem o BR-OpenSpec nesta solicitação. Aguarde a resposta.
+
+Nos dois ramos, nunca crie a raiz como efeito colateral: não execute `openspec init` até o usuário pedir, não crie arquivos `openspec/` à mão e não deixe um comando criá-la.
 
 **Entrada**: A solicitação do usuário deve incluir um nome de change (kebab-case) OU uma descrição do que ele quer construir.
 
@@ -43,9 +52,9 @@ Inicie uma nova change usando a abordagem experimental orientada a artifacts.
 
 4. **Mostre o status dos artifacts**
    ```bash
-   openspec status --change "<nome>"
+   openspec status --change "<nome>" --json
    ```
-   Isso mostra quais artifacts precisam ser criados e quais estão prontos (dependências satisfeitas).
+   Use os campos retornados `changeRoot`, `artifactPaths` e `nextSteps` em vez de assumir caminhos locais do repositório.
 
 5. **Obtenha instruções para o primeiro artifact**
    O primeiro artifact depende do schema (por exemplo, `proposal` para spec-driven).

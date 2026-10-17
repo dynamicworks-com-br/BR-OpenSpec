@@ -5,16 +5,84 @@
  * templates file into workflow-focused modules.
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { optionalWorkflow } from '../optional-workflow.js';
+import { PROJECT_ROOT_GUARD } from './project-root.js';
+
+/**
+ * Passages that hand off to `/opsx:continue` or `/opsx:new`. Neither workflow
+ * is in the `core` profile, so each is authored with a CLI fallback and
+ * resolved at generation time (see optional-workflow.ts). Shared by both
+ * surfaces below so the skill and the command cannot drift apart.
+ */
+const CONTINUE_SCOPE_NOTE = optionalWorkflow(
+  'continue',
+  'Este workflow revisa artifacts que já existem; `/opsx:continue` é o que cria os que não existem.',
+  'Este workflow revisa artifacts que já existem; ele nunca cria os que faltam. Quando um artifact está ausente, `openspec status --change "<nome>" --json` nomeia o próximo e `openspec instructions "<artifact-id>" --change "<nome>" --json` explica como escrevê-lo.'
+);
+
+const CONTINUE_CREATE_THEM = optionalWorkflow(
+  'continue',
+  'aponte o usuário para `/opsx:continue` para criá-los',
+  'aponte o usuário para `openspec instructions "<artifact-id>" --change "<nome>" --json` para saber como criá-los'
+);
+
+const CONTINUE_NEXT_STEP = optionalWorkflow(
+  'continue',
+  'sugira `/opsx:continue` para criá-los',
+  'execute `openspec status --change "<nome>" --json` para o próximo artifact e aponte o usuário para `openspec instructions "<artifact-id>" --change "<nome>" --json` para saber como criá-lo'
+);
+
+const CONTINUE_DEFERRED = optionalWorkflow(
+  'continue',
+  'Qualquer coisa adiada para `/opsx:continue` (artifacts sem arquivos ainda e status `ready` ou `blocked`, nunca artifacts `skipped`)',
+  'Qualquer coisa adiada porque ainda não existe (artifacts sem arquivos e status `ready` ou `blocked`, nunca artifacts `skipped`)'
+);
+
+const CONTINUE_FRONTIER = optionalWorkflow(
+  'continue',
+  'esse é o trabalho do `/opsx:continue`',
+  'criá-los é um passo separado, fora deste workflow'
+);
+
+/**
+ * `apply` and `archive` are in the `core` profile but not guaranteed in a
+ * custom one, so their handoffs are resolved the same way.
+ */
+const APPLY_DELTA_HANDOFF = optionalWorkflow(
+  'apply',
+  'sugira `/opsx:apply` para levar o delta ao código',
+  'diga que o código pode precisar de atualização e ofereça levar o delta até ele'
+);
+
+const APPLY_GUARDRAIL = optionalWorkflow(
+  'apply',
+  'pare e aponte para `/opsx:apply`',
+  'pare e diga que o plano revisado agora implica mudanças de código; implementá-las é um passo separado'
+);
+
+const ARCHIVE_HANDOFF = optionalWorkflow(
+  'archive',
+  'sugira `/opsx:archive`',
+  'sugira arquivar com `openspec archive "<nome>"`'
+);
+
+const INTENT_CHANGE_GUARDRAIL = optionalWorkflow(
+  'new',
+  'recomende começar do zero com `/opsx:new` (a heurística "Atualizar vs. Começar do Zero")',
+  'peça um nome de change distinto e ainda não usado e recomende `openspec new change "<novo-nome-da-change>"` em vez disso (a heurística "Atualizar vs. Começar do Zero")'
+);
 
 export function getUpdateChangeSkillTemplate(): SkillTemplate {
   return {
     name: 'openspec-update-change',
-    description: 'Atualize uma change do BR-OpenSpec revisando seus artifacts de planejamento existentes e mantendo-os coerentes entre si. Use quando o usuário quiser revisar o plano de uma change, incorporar novas decisões a ela ou reconciliar seus artifacts após uma edição. Nunca edita código.',
+    description: 'Atualize uma change do BR-OpenSpec revisando seus artifacts de planejamento existentes e mantendo-os coerentes entre si. Use quando o usuário quiser revisar o plano de uma change, incorporar novas decisões a ela ou reconciliar seus artifacts após uma edição. Use também quando o usuário disser "openspec update change" ou "opsx update". Se o usuário quiser o comando de CLI openspec update, que atualiza os arquivos gerados, execute esse comando. Nunca edita código.',
     instructions: `Revise os artifacts de planejamento existentes de uma change e mantenha-os coerentes. Nunca edite código.
+
+${PROJECT_ROOT_GUARD}
 
 **Entrada**: Opcionalmente especifique um nome de change. Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
-\`/opsx:continue\` é um workflow opcional e pode não estar instalado. Antes de sugeri-lo em qualquer ponto abaixo, verifique se ele está disponível. Se ele não estiver disponível, \`openspec status --change "<nome>" --json\` mostra o próximo artifact e \`openspec instructions "<artifact-id>" --change "<nome>" --json\` explica como criá-lo.
+${CONTINUE_SCOPE_NOTE}
 
 **Passos**
 
@@ -27,7 +95,6 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
 
    Ao solicitar, apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
    - Nome da change
-   - Schema (do campo \`schema\` se presente, caso contrário "spec-driven")
    - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
    - Quão recentemente foi modificada (do campo \`lastModified\`)
 
@@ -43,11 +110,11 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
    - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
    - \`isPlanningComplete\`: Booleano indicando se todos os artifacts de planejamento estão completos. Versões mais antigas do CLI expõem o mesmo valor como \`isComplete\`.
-   - \`artifactPaths\`: Caminhos por artifact (\`outputPath\`, \`resolvedOutputPath\`, \`existingOutputPaths\`). Use-os em vez de assumir caminhos locais do repositório.
+   - \`changeRoot\`, \`artifactPaths\` e \`actionContext\`: contexto de caminho e escopo. Use-os em vez de assumir caminhos locais do repositório.
 
    Os ids e caminhos dos artifacts vêm do schema ativo - NÃO os assuma e NÃO ramifique com base em nomes de artifact fixos. Schemas personalizados devem funcionar sem alterações.
 
-   Os arquivos a editar são \`artifactPaths.<id>.existingOutputPaths\` - os arquivos concretos que existem em disco, já expandidos do glob para artifacts com glob (por exemplo, \`specs/**/*.md\`). NÃO escreva em \`resolvedOutputPath\`: para um artifact com glob, ele ainda é o padrão glob, não um arquivo real.
+   Os arquivos a editar são \`artifactPaths.<id>.existingOutputPaths\` - os arquivos concretos que existem em disco, já expandidos do glob para artifacts com glob (por exemplo, \`specs/**/*.md\`), mais qualquer caminho concreto confirmado permitido sob um artifact com glob parcialmente preenchido (passo 4). NÃO escreva em \`resolvedOutputPath\`: para um artifact com glob, ele ainda é o padrão glob, não um arquivo real.
 
 3. **Entenda a solicitação**
    - Se o usuário pediu uma revisão específica ("o design agora usa X"), essa é a edição inicial.
@@ -55,13 +122,20 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
 
 4. **Leia e reconcilie**
    - Leia o(s) artifact(s) que a solicitação afeta e os demais artifacts existentes da change.
-   - Aplique a edição solicitada. Depois verifique cada outro artifact existente contra ela - em QUALQUER direção: uma edição em um artifact posterior pode exigir revisar um anterior, não apenas o contrário. A ordem de construção é uma ordem de leitura útil, não uma restrição sobre quais artifacts podem ser revisados.
+   - Rascunhe a edição solicitada na conversa, não nos arquivos. Defina exatamente o que ela muda; o passo 5 é dono de toda escrita. Depois verifique cada outro artifact existente contra o rascunho - em QUALQUER direção: uma edição em um artifact posterior pode exigir revisar um anterior, não apenas o contrário. A ordem de construção é uma ordem de leitura útil, não uma restrição sobre quais artifacts podem ser revisados.
    - Anote tudo o que ficou inconsistente, faltando ou contraditório.
-   - Revise apenas arquivos que já existem (\`existingOutputPaths\`). NÃO crie artifacts que ainda não existem e NÃO invente arquivos novos sob um artifact com glob - anote-os e aponte o usuário para \`/opsx:continue\` para criá-los.
-   - Se a change já estiver coerente, diga isso e não faça edições.
+   - Proponha revisões nos arquivos que já existem (\`existingOutputPaths\`). Se um artifact não tiver arquivos de saída existentes e o status for \`ready\` ou \`blocked\`, anote-o e ${CONTINUE_CREATE_THEM}. Deixe artifacts \`skipped\` intocados; não os trate como ausentes nem os adie para o workflow continue.
+   - Um artifact com glob (por exemplo, \`specs/**/*.md\`) fica marcado \`done\` depois que pelo menos um arquivo casa, e o workflow continue só trata artifacts \`ready\`. Quando a reconciliação identificar um arquivo ausente de um artifact com glob cujo \`existingOutputPaths\` não está vazio:
+     1. Execute \`openspec instructions "<artifact-id>" --change "<nome>" --json\` e use \`instruction\` e \`template\`. Trate \`context\` e \`rules\` como restrições; não os copie para o arquivo. Se as instruções reportarem \`skipped: true\`, não crie o arquivo. Leia do disco os arquivos de dependência atuais; se uma dependência obrigatória e não skipped estiver ausente, pare e peça ao usuário para restaurá-la primeiro.
+     2. Escolha um caminho concreto dentro de \`changeRoot\` que case com \`artifactPaths.<id>.outputPath\` e que ainda não exista. Verifique que ele permanece dentro de \`changeRoot\` depois de resolver quaisquer diretórios pai que sejam symlinks. O \`resolvedOutputPath\` do glob não é um alvo válido.
+     3. Inclua o arquivo novo nas revisões propostas do passo 5 e crie-o somente depois que o usuário confirmar.
+     4. Depois da confirmação, imediatamente antes de criar, atualize status e instructions. Verifique que o artifact ainda está no escopo, não está skipped e está parcialmente preenchido; repita as checagens de caminho concreto acima.
+     5. Use uma operação de criação que falhe se o alvo já existir. Se \`instruction\` delegar a criação a outra skill ou comando, invoque-o somente se ele puder honrar o caminho confirmado e estes guardrails; caso contrário, pare. Se alguma checagem falhar ou o rascunho confirmado não for mais válido, pare e reconcilie com o usuário em vez de substituir conteúdo existente ou escolher outro caminho.
+   - Se a change já estiver coerente, diga isso e não proponha revisões.
 
 5. **Confirme e aplique, um artifact por vez**
-   - Mostre cada revisão proposta e o porquê. Escreva somente após o usuário confirmar.
+   - Este passo faz toda escrita de artifact neste workflow; nenhum passo anterior edita um artifact.
+   - Mostre cada revisão proposta e o porquê - incluindo a edição solicitada rascunhada no passo 4. Escreva somente após o usuário confirmar.
    - Se o usuário rejeitar uma revisão, não a escreva - deixe aquele artifact inalterado.
    - Quando uma reescrita substancial for necessária, obtenha primeiro as regras e o template daquele artifact:
      \`\`\`bash
@@ -69,24 +143,25 @@ export function getUpdateChangeSkillTemplate(): SkillTemplate {
      \`\`\`
 
 6. **Aponte o próximo passo (apenas orientação - NUNCA aja sobre ele)**
-   - Artifacts ainda faltando -> sugira \`/opsx:continue\` para criá-los.
-   - Change já implementada (tarefas marcadas / já aplicada) -> o código pode não corresponder mais ao plano revisado; sugira \`/opsx:apply\` para levar o delta ao código.
-   - Tudo pronto e implementado -> sugira \`/opsx:archive\`.
+   - Artifacts com \`existingOutputPaths\` vazio e status \`ready\` ou \`blocked\` -> ${CONTINUE_NEXT_STEP}.
+   - Change já implementada (tarefas marcadas / já aplicada) -> o código pode não corresponder mais ao plano revisado; ${APPLY_DELTA_HANDOFF}.
+   - Tudo pronto e implementado -> ${ARCHIVE_HANDOFF}.
 
 **Saída**
 
 Após cada invocação, mostre:
 - Quais artifacts foram revisados (e quais revisões propostas foram rejeitadas)
-- Qualquer coisa adiada para \`/opsx:continue\` (artifacts ou arquivos ainda não criados)
+- Qualquer arquivo criado sob um artifact com glob que já estava parcialmente preenchido
+- ${CONTINUE_DEFERRED}
 - Onde a change está e o próximo comando recomendado
 
 **Guardrails**
-- Apenas artifacts de planejamento - NUNCA edite código de implementação. Se o plano revisado implicar mudanças de código, pare e aponte para \`/opsx:apply\`.
+- Apenas artifacts de planejamento - NUNCA edite código de implementação. Se o plano revisado implicar mudanças de código, ${APPLY_GUARDRAIL}.
 - Use os ids e caminhos de artifacts reportados por \`openspec status\`; nunca ramifique com base em nomes de artifact fixos.
-- Edite apenas os arquivos concretos em \`existingOutputPaths\`; nunca escreva em um \`resolvedOutputPath\` com glob.
-- Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do \`/opsx:continue\`.
+- Edite apenas os arquivos concretos em \`existingOutputPaths\`, mais qualquer caminho concreto confirmado permitido sob um artifact com glob parcialmente preenchido (passo 4); nunca escreva em um \`resolvedOutputPath\` com glob.
+- Não avance a fronteira de construção: se um artifact tiver \`existingOutputPaths\` vazio e status \`ready\` ou \`blocked\`, ${CONTINUE_FRONTIER}. Deixe artifacts \`skipped\` intocados. O único escopo de arquivo novo é um caminho concreto confirmado sob um artifact com glob cujo \`existingOutputPaths\` não está vazio.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, verifique primeiro se o workflow opcional \`/opsx:new\` está disponível. Se estiver, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero"). Se ele não estiver disponível, peça um nome de change distinto e ainda não usado e recomende \`openspec new change "<novo-nome-da-change>"\` em vez disso.`,
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, ${INTENT_CHANGE_GUARDRAIL}.`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
@@ -101,9 +176,11 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
     tags: ['workflow', 'artifacts', 'experimental'],
     content: `Revise os artifacts de planejamento existentes de uma change e mantenha-os coerentes. Nunca edite código.
 
+${PROJECT_ROOT_GUARD}
+
 **Entrada**: Opcionalmente especifique um nome de change após \`/opsx:update\` (por exemplo, \`/opsx:update add-auth\`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
 
-\`/opsx:continue\` é um workflow opcional e pode não estar instalado. Antes de sugeri-lo em qualquer ponto abaixo, verifique se ele está disponível. Se ele não estiver disponível, \`openspec status --change "<nome>" --json\` mostra o próximo artifact e \`openspec instructions "<artifact-id>" --change "<nome>" --json\` explica como criá-lo.
+${CONTINUE_SCOPE_NOTE}
 
 **Passos**
 
@@ -116,7 +193,6 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
 
    Ao solicitar, apresente as 3-4 changes mais recentemente modificadas como opções, mostrando:
    - Nome da change
-   - Schema (do campo \`schema\` se presente, caso contrário "spec-driven")
    - Status (por exemplo, "0/5 tasks", "completo", "sem tarefas")
    - Quão recentemente foi modificada (do campo \`lastModified\`)
 
@@ -132,11 +208,11 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
    - \`schemaName\`: O schema de workflow sendo usado (por exemplo, "spec-driven")
    - \`artifacts\`: Array de artifacts com seu status ("done", "skipped", "ready", "blocked")
    - \`isPlanningComplete\`: Booleano indicando se todos os artifacts de planejamento estão completos. Versões mais antigas do CLI expõem o mesmo valor como \`isComplete\`.
-   - \`artifactPaths\`: Caminhos por artifact (\`outputPath\`, \`resolvedOutputPath\`, \`existingOutputPaths\`). Use-os em vez de assumir caminhos locais do repositório.
+   - \`changeRoot\`, \`artifactPaths\` e \`actionContext\`: contexto de caminho e escopo. Use-os em vez de assumir caminhos locais do repositório.
 
    Os ids e caminhos dos artifacts vêm do schema ativo - NÃO os assuma e NÃO ramifique com base em nomes de artifact fixos. Schemas personalizados devem funcionar sem alterações.
 
-   Os arquivos a editar são \`artifactPaths.<id>.existingOutputPaths\` - os arquivos concretos que existem em disco, já expandidos do glob para artifacts com glob (por exemplo, \`specs/**/*.md\`). NÃO escreva em \`resolvedOutputPath\`: para um artifact com glob, ele ainda é o padrão glob, não um arquivo real.
+   Os arquivos a editar são \`artifactPaths.<id>.existingOutputPaths\` - os arquivos concretos que existem em disco, já expandidos do glob para artifacts com glob (por exemplo, \`specs/**/*.md\`), mais qualquer caminho concreto confirmado permitido sob um artifact com glob parcialmente preenchido (passo 4). NÃO escreva em \`resolvedOutputPath\`: para um artifact com glob, ele ainda é o padrão glob, não um arquivo real.
 
 3. **Entenda a solicitação**
    - Se o usuário pediu uma revisão específica ("o design agora usa X"), essa é a edição inicial.
@@ -144,13 +220,20 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
 
 4. **Leia e reconcilie**
    - Leia o(s) artifact(s) que a solicitação afeta e os demais artifacts existentes da change.
-   - Aplique a edição solicitada. Depois verifique cada outro artifact existente contra ela - em QUALQUER direção: uma edição em um artifact posterior pode exigir revisar um anterior, não apenas o contrário. A ordem de construção é uma ordem de leitura útil, não uma restrição sobre quais artifacts podem ser revisados.
+   - Rascunhe a edição solicitada na conversa, não nos arquivos. Defina exatamente o que ela muda; o passo 5 é dono de toda escrita. Depois verifique cada outro artifact existente contra o rascunho - em QUALQUER direção: uma edição em um artifact posterior pode exigir revisar um anterior, não apenas o contrário. A ordem de construção é uma ordem de leitura útil, não uma restrição sobre quais artifacts podem ser revisados.
    - Anote tudo o que ficou inconsistente, faltando ou contraditório.
-   - Revise apenas arquivos que já existem (\`existingOutputPaths\`). NÃO crie artifacts que ainda não existem e NÃO invente arquivos novos sob um artifact com glob - anote-os e aponte o usuário para \`/opsx:continue\` para criá-los.
-   - Se a change já estiver coerente, diga isso e não faça edições.
+   - Proponha revisões nos arquivos que já existem (\`existingOutputPaths\`). Se um artifact não tiver arquivos de saída existentes e o status for \`ready\` ou \`blocked\`, anote-o e ${CONTINUE_CREATE_THEM}. Deixe artifacts \`skipped\` intocados; não os trate como ausentes nem os adie para o workflow continue.
+   - Um artifact com glob (por exemplo, \`specs/**/*.md\`) fica marcado \`done\` depois que pelo menos um arquivo casa, e o workflow continue só trata artifacts \`ready\`. Quando a reconciliação identificar um arquivo ausente de um artifact com glob cujo \`existingOutputPaths\` não está vazio:
+     1. Execute \`openspec instructions "<artifact-id>" --change "<nome>" --json\` e use \`instruction\` e \`template\`. Trate \`context\` e \`rules\` como restrições; não os copie para o arquivo. Se as instruções reportarem \`skipped: true\`, não crie o arquivo. Leia do disco os arquivos de dependência atuais; se uma dependência obrigatória e não skipped estiver ausente, pare e peça ao usuário para restaurá-la primeiro.
+     2. Escolha um caminho concreto dentro de \`changeRoot\` que case com \`artifactPaths.<id>.outputPath\` e que ainda não exista. Verifique que ele permanece dentro de \`changeRoot\` depois de resolver quaisquer diretórios pai que sejam symlinks. O \`resolvedOutputPath\` do glob não é um alvo válido.
+     3. Inclua o arquivo novo nas revisões propostas do passo 5 e crie-o somente depois que o usuário confirmar.
+     4. Depois da confirmação, imediatamente antes de criar, atualize status e instructions. Verifique que o artifact ainda está no escopo, não está skipped e está parcialmente preenchido; repita as checagens de caminho concreto acima.
+     5. Use uma operação de criação que falhe se o alvo já existir. Se \`instruction\` delegar a criação a outra skill ou comando, invoque-o somente se ele puder honrar o caminho confirmado e estes guardrails; caso contrário, pare. Se alguma checagem falhar ou o rascunho confirmado não for mais válido, pare e reconcilie com o usuário em vez de substituir conteúdo existente ou escolher outro caminho.
+   - Se a change já estiver coerente, diga isso e não proponha revisões.
 
 5. **Confirme e aplique, um artifact por vez**
-   - Mostre cada revisão proposta e o porquê. Escreva somente após o usuário confirmar.
+   - Este passo faz toda escrita de artifact neste workflow; nenhum passo anterior edita um artifact.
+   - Mostre cada revisão proposta e o porquê - incluindo a edição solicitada rascunhada no passo 4. Escreva somente após o usuário confirmar.
    - Se o usuário rejeitar uma revisão, não a escreva - deixe aquele artifact inalterado.
    - Quando uma reescrita substancial for necessária, obtenha primeiro as regras e o template daquele artifact:
      \`\`\`bash
@@ -158,23 +241,24 @@ export function getOpsxUpdateCommandTemplate(): CommandTemplate {
      \`\`\`
 
 6. **Aponte o próximo passo (apenas orientação - NUNCA aja sobre ele)**
-   - Artifacts ainda faltando -> sugira \`/opsx:continue\` para criá-los.
-   - Change já implementada (tarefas marcadas / já aplicada) -> o código pode não corresponder mais ao plano revisado; sugira \`/opsx:apply\` para levar o delta ao código.
-   - Tudo pronto e implementado -> sugira \`/opsx:archive\`.
+   - Artifacts com \`existingOutputPaths\` vazio e status \`ready\` ou \`blocked\` -> ${CONTINUE_NEXT_STEP}.
+   - Change já implementada (tarefas marcadas / já aplicada) -> o código pode não corresponder mais ao plano revisado; ${APPLY_DELTA_HANDOFF}.
+   - Tudo pronto e implementado -> ${ARCHIVE_HANDOFF}.
 
 **Saída**
 
 Após cada invocação, mostre:
 - Quais artifacts foram revisados (e quais revisões propostas foram rejeitadas)
-- Qualquer coisa adiada para \`/opsx:continue\` (artifacts ou arquivos ainda não criados)
+- Qualquer arquivo criado sob um artifact com glob que já estava parcialmente preenchido
+- ${CONTINUE_DEFERRED}
 - Onde a change está e o próximo comando recomendado
 
 **Guardrails**
-- Apenas artifacts de planejamento - NUNCA edite código de implementação. Se o plano revisado implicar mudanças de código, pare e aponte para \`/opsx:apply\`.
+- Apenas artifacts de planejamento - NUNCA edite código de implementação. Se o plano revisado implicar mudanças de código, ${APPLY_GUARDRAIL}.
 - Use os ids e caminhos de artifacts reportados por \`openspec status\`; nunca ramifique com base em nomes de artifact fixos.
-- Edite apenas os arquivos concretos em \`existingOutputPaths\`; nunca escreva em um \`resolvedOutputPath\` com glob.
-- Não avance a fronteira de construção: nada de artifacts novos, nada de arquivos novos sob artifacts com glob - esse é o trabalho do \`/opsx:continue\`.
+- Edite apenas os arquivos concretos em \`existingOutputPaths\`, mais qualquer caminho concreto confirmado permitido sob um artifact com glob parcialmente preenchido (passo 4); nunca escreva em um \`resolvedOutputPath\` com glob.
+- Não avance a fronteira de construção: se um artifact tiver \`existingOutputPaths\` vazio e status \`ready\` ou \`blocked\`, ${CONTINUE_FRONTIER}. Deixe artifacts \`skipped\` intocados. O único escopo de arquivo novo é um caminho concreto confirmado sob um artifact com glob cujo \`existingOutputPaths\` não está vazio.
 - Confirme cada edição com o usuário antes de escrever.
-- Se a solicitação mudar a *intenção* da change em vez de refiná-la, verifique primeiro se o workflow opcional \`/opsx:new\` está disponível. Se estiver, recomende começar do zero com \`/opsx:new\` (a heurística "Atualizar vs. Começar do Zero"). Se ele não estiver disponível, peça um nome de change distinto e ainda não usado e recomende \`openspec new change "<novo-nome-da-change>"\` em vez disso.`
+- Se a solicitação mudar a *intenção* da change em vez de refiná-la, ${INTENT_CHANGE_GUARDRAIL}.`
   };
 }

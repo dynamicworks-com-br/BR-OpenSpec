@@ -28,9 +28,21 @@ describe('command-generation/registry', () => {
       expect(adapter?.toolId).toBe('junie');
     });
 
+    it('should return AtomCode adapter for "atomcode"', () => {
+      const adapter = CommandAdapterRegistry.get('atomcode');
+      expect(adapter).toBeDefined();
+      expect(adapter?.toolId).toBe('atomcode');
+    });
+
     it('should return undefined for unregistered tool', () => {
       const adapter = CommandAdapterRegistry.get('unknown-tool');
       expect(adapter).toBeUndefined();
+    });
+
+    it('should return undefined for skills-only tools without adapters', () => {
+      expect(CommandAdapterRegistry.get('dsh')).toBeUndefined();
+      expect(CommandAdapterRegistry.get('hermes')).toBeUndefined();
+      expect(CommandAdapterRegistry.get('kimi')).toBeUndefined();
     });
 
     it('should return undefined for Codex', () => {
@@ -60,6 +72,13 @@ describe('command-generation/registry', () => {
       expect(toolIds).toContain('devin');
       expect(toolIds).not.toContain('codex');
     });
+    it('should include the AtomCode adapter', () => {
+      const adapters = CommandAdapterRegistry.getAll();
+      const toolIds = adapters.map((a) => a.toolId);
+
+      expect(toolIds).toContain('atomcode');
+    });
+
   });
 
   describe('has', () => {
@@ -68,6 +87,7 @@ describe('command-generation/registry', () => {
       expect(CommandAdapterRegistry.has('cursor')).toBe(true);
       expect(CommandAdapterRegistry.has('devin')).toBe(true);
       expect(CommandAdapterRegistry.has('junie')).toBe(true);
+      expect(CommandAdapterRegistry.has('atomcode')).toBe(true);
       expect(CommandAdapterRegistry.has('codex')).toBe(false);
     });
 
@@ -99,7 +119,7 @@ describe('command-generation/registry', () => {
       };
 
       // Tools that don't use YAML frontmatter (markdown headers or TOML or plain)
-      const noYamlFrontmatter = ['cline', 'command-code', 'kilocode', 'roocode', 'gemini', 'qwen'];
+      const noYamlFrontmatter = ['cline', 'command-code', 'kilocode', 'roocode', 'gemini', 'qwen', 'easycode'];
 
       const adapters = CommandAdapterRegistry.getAll();
       for (const adapter of adapters) {

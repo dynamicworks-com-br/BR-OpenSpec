@@ -5,14 +5,17 @@
  * templates file into workflow-focused modules.
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { PROJECT_ROOT_GUARD } from './project-root.js';
 
 export function getSyncSpecsSkillTemplate(): SkillTemplate {
   return {
     name: 'openspec-sync-specs',
-    description: 'Sincroniza delta specs de uma change para os specs principais. Use quando o usuário quiser atualizar os specs principais com alterações de um delta spec, sem arquivar a change.',
+    description: 'Sincroniza delta specs de uma change do BR-OpenSpec para os specs principais. Use quando o usuário quiser atualizar os specs principais com alterações de um delta spec, sem arquivar a change. Use também quando o usuário disser "openspec sync" ou "opsx sync".',
     instructions: `Sincroniza delta specs de uma change para os specs principais.
 
 Esta é uma operação **dirigida por agente** — você lerá os delta specs e editará diretamente os specs principais para aplicar as alterações. Isso permite mesclagem inteligente (por exemplo, adicionar um cenário sem copiar o requisito inteiro).
+
+${PROJECT_ROOT_GUARD}
 
 \`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
 
@@ -92,6 +95,13 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    b. **Leia o spec principal** em \`openspec/specs/<capability-path>/spec.md\` (pode ainda não existir)
 
+      **Se ainda não existir** (uma capability nova), faça o que o \`openspec archive\` faz:
+      somente requisitos ADDED podem ser aplicados — o passo d cria o spec a partir deles.
+      MODIFIED e RENAMED não têm requisito sobre o qual agir, então interrompa o sync para
+      essa capability e reporte que o spec principal dela não existe e que somente ADDED é
+      permitido para um spec novo; nunca invente o requisito ausente. REMOVED não tem nada
+      para remover — ignore e avise.
+
    c. **Aplique as alterações de forma inteligente**:
 
       **ADDED Requirements:**
@@ -143,9 +153,17 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
         (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
 
    d. **Crie um novo spec principal** se a capability ainda não existir:
+      - Somente quando o delta tiver requisitos ADDED para colocar nele e nenhum requisito
+        MODIFIED ou RENAMED tiver bloqueado esta capability no passo b. Caso contrário, não
+        crie nada e deixe o diretório de specs intocado. Para um delta só com REMOVED, se o
+        \`.openspec.yaml\` da change declarar \`retire_capabilities: true\`, reporte-o como já
+        aposentado e continue sem recriar o spec. Sem esse marcador, reporte o sync como
+        bloqueado: \`openspec archive\` o rejeita com \`Spec must have at least one requirement\`.
+        Um delta vazio não tem operações para sincronizar; reporte-o como bloqueado também.
+        Nunca escreva uma seção \`## Requirements\` vazia.
       - Crie \`openspec/specs/<capability-path>/spec.md\`
       - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
-        (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
+        (é o que o \`openspec archive\` faz); só escreva um placeholder breve (\`A definir\` / \`TBD\`) quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
       - Siga a **Referência de Formato de Spec Principal** abaixo
 
@@ -159,7 +177,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
-   - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
+   - Qualquer novo spec principal que ficou com um placeholder \`A definir\` / \`TBD\` no Purpose,
      para que ele seja escrito agora em vez de ficar pendente
    - Qualquer capability aposentada, nomeando o \`spec.md\` excluído, seu Purpose e
      ou um \`git checkout\` pronto para colar ou orientação de recuperação restrita ao checkout
@@ -167,6 +185,8 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 **Referência de Formato de Delta Spec**
 
 \`\`\`markdown
+# Spec Delta
+
 ## Purpose
 
 Somente em um delta que introduz uma capability totalmente nova. Semeia o novo spec principal.
@@ -276,6 +296,8 @@ export function getOpsxSyncCommandTemplate(): CommandTemplate {
 
 Esta é uma operação **dirigida por agente** — você lerá os delta specs e editará diretamente os specs principais para aplicar as alterações. Isso permite mesclagem inteligente (por exemplo, adicionar um cenário sem copiar o requisito inteiro).
 
+${PROJECT_ROOT_GUARD}
+
 \`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo, \`user-auth\` ou \`identity/user-auth\`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
 
 **Entrada**: Opcionalmente especifique um nome de change após \`/opsx:sync\` (por exemplo, \`/opsx:sync add-auth\`). Se omitido, verifique se pode ser inferido do contexto da conversa. Se vago ou ambíguo, você DEVE solicitar as changes disponíveis.
@@ -354,6 +376,13 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    b. **Leia o spec principal** em \`openspec/specs/<capability-path>/spec.md\` (pode ainda não existir)
 
+      **Se ainda não existir** (uma capability nova), faça o que o \`openspec archive\` faz:
+      somente requisitos ADDED podem ser aplicados — o passo d cria o spec a partir deles.
+      MODIFIED e RENAMED não têm requisito sobre o qual agir, então interrompa o sync para
+      essa capability e reporte que o spec principal dela não existe e que somente ADDED é
+      permitido para um spec novo; nunca invente o requisito ausente. REMOVED não tem nada
+      para remover — ignore e avise.
+
    c. **Aplique as alterações de forma inteligente**:
 
       **ADDED Requirements:**
@@ -405,9 +434,17 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
         (é o que o \`openspec archive\` faz; ele avisa e segue em frente)
 
    d. **Crie um novo spec principal** se a capability ainda não existir:
+      - Somente quando o delta tiver requisitos ADDED para colocar nele e nenhum requisito
+        MODIFIED ou RENAMED tiver bloqueado esta capability no passo b. Caso contrário, não
+        crie nada e deixe o diretório de specs intocado. Para um delta só com REMOVED, se o
+        \`.openspec.yaml\` da change declarar \`retire_capabilities: true\`, reporte-o como já
+        aposentado e continue sem recriar o spec. Sem esse marcador, reporte o sync como
+        bloqueado: \`openspec archive\` o rejeita com \`Spec must have at least one requirement\`.
+        Um delta vazio não tem operações para sincronizar; reporte-o como bloqueado também.
+        Nunca escreva uma seção \`## Requirements\` vazia.
       - Crie \`openspec/specs/<capability-path>/spec.md\`
       - Adicione a seção Purpose: copie o corpo do \`## Purpose\` do delta verbatim quando ele existir
-        (é o que o \`openspec archive\` faz); só escreva um placeholder TBD breve quando não existir
+        (é o que o \`openspec archive\` faz); só escreva um placeholder breve (\`A definir\` / \`TBD\`) quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
       - Siga a **Referência de Formato de Spec Principal** abaixo
 
@@ -421,7 +458,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
-   - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
+   - Qualquer novo spec principal que ficou com um placeholder \`A definir\` / \`TBD\` no Purpose,
      para que ele seja escrito agora em vez de ficar pendente
    - Qualquer capability aposentada, nomeando o \`spec.md\` excluído, seu Purpose e
      ou um \`git checkout\` pronto para colar ou orientação de recuperação restrita ao checkout
@@ -429,6 +466,8 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 **Referência de Formato de Delta Spec**
 
 \`\`\`markdown
+# Spec Delta
+
 ## Purpose
 
 Somente em um delta que introduz uma capability totalmente nova. Semeia o novo spec principal.

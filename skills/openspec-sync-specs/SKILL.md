@@ -1,6 +1,6 @@
 ---
 name: openspec-sync-specs
-description: Sincroniza delta specs de uma change para os specs principais. Use quando o usuário quiser atualizar os specs principais com alterações de um delta spec, sem arquivar a change.
+description: Sincroniza delta specs de uma change do BR-OpenSpec para os specs principais. Use quando o usuário quiser atualizar os specs principais com alterações de um delta spec, sem arquivar a change. Use também quando o usuário disser "openspec sync" ou "opsx sync".
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
@@ -12,6 +12,15 @@ metadata:
 Sincroniza delta specs de uma change para os specs principais.
 
 Esta é uma operação **dirigida por agente** — você lerá os delta specs e editará diretamente os specs principais para aplicar as alterações. Isso permite mesclagem inteligente (por exemplo, adicionar um cenário sem copiar o requisito inteiro).
+
+**Verificação do projeto:** Estes passos esperam um projeto que já usa o BR-OpenSpec. Antes do primeiro passo que escreve qualquer coisa (`new change`, `archive`, `sync specs` ou a autoria de um arquivo de artifact), confirme que o projeto tem uma raiz: execute `openspec list --json` e leia `root`. Um objeto root significa que o projeto está configurado. `"root": null` significa que não está — não há diretório `openspec/` aqui, e uma escrita como `openspec new change` criaria um como efeito colateral. O comando também sai com código diferente de zero, e isso é essa resposta, não um CLI quebrado: leia o JSON em vez de tentar de novo ou contornar.
+
+Sem raiz, o que acontece em seguida depende de como este workflow foi alcançado:
+
+- **Selecionado automaticamente**: você escolheu este workflow sozinho, sem o usuário nomear o BR-OpenSpec, nomear esta skill ou executar o slash command dela. Pare de usar o BR-OpenSpec e responda à solicitação normalmente, como faria sem o BR-OpenSpec instalado. Não peça para configurar nada e não mencione a configuração do BR-OpenSpec.
+- **Solicitação explícita do BR-OpenSpec**: o usuário nomeou o BR-OpenSpec, nomeou esta skill ou executou o slash command dela. Pare antes de escrever e pergunte como prosseguir: configurar este projeto (`openspec init`) ou continuar sem o BR-OpenSpec nesta solicitação. Aguarde a resposta.
+
+Nos dois ramos, nunca crie a raiz como efeito colateral: não execute `openspec init` até o usuário pedir, não crie arquivos `openspec/` à mão e não deixe um comando criá-la.
 
 `<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo, `user-auth` ou `identity/user-auth`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
 
@@ -91,6 +100,13 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 
    b. **Leia o spec principal** em `openspec/specs/<capability-path>/spec.md` (pode ainda não existir)
 
+      **Se ainda não existir** (uma capability nova), faça o que o `openspec archive` faz:
+      somente requisitos ADDED podem ser aplicados — o passo d cria o spec a partir deles.
+      MODIFIED e RENAMED não têm requisito sobre o qual agir, então interrompa o sync para
+      essa capability e reporte que o spec principal dela não existe e que somente ADDED é
+      permitido para um spec novo; nunca invente o requisito ausente. REMOVED não tem nada
+      para remover — ignore e avise.
+
    c. **Aplique as alterações de forma inteligente**:
 
       **ADDED Requirements:**
@@ -142,9 +158,17 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
         (é o que o `openspec archive` faz; ele avisa e segue em frente)
 
    d. **Crie um novo spec principal** se a capability ainda não existir:
+      - Somente quando o delta tiver requisitos ADDED para colocar nele e nenhum requisito
+        MODIFIED ou RENAMED tiver bloqueado esta capability no passo b. Caso contrário, não
+        crie nada e deixe o diretório de specs intocado. Para um delta só com REMOVED, se o
+        `.openspec.yaml` da change declarar `retire_capabilities: true`, reporte-o como já
+        aposentado e continue sem recriar o spec. Sem esse marcador, reporte o sync como
+        bloqueado: `openspec archive` o rejeita com `Spec must have at least one requirement`.
+        Um delta vazio não tem operações para sincronizar; reporte-o como bloqueado também.
+        Nunca escreva uma seção `## Requirements` vazia.
       - Crie `openspec/specs/<capability-path>/spec.md`
       - Adicione a seção Purpose: copie o corpo do `## Purpose` do delta verbatim quando ele existir
-        (é o que o `openspec archive` faz); só escreva um placeholder TBD breve quando não existir
+        (é o que o `openspec archive` faz); só escreva um placeholder breve (`A definir` / `TBD`) quando não existir
       - Adicione a seção Requirements com os requisitos ADDED
       - Siga a **Referência de Formato de Spec Principal** abaixo
 
@@ -158,7 +182,7 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
    Após aplicar todas as alterações, resuma:
    - Quais capabilities foram atualizadas
    - Quais alterações foram feitas (requisitos adicionados/modificados/removidos/renomeados)
-   - Qualquer novo spec principal que ficou com um placeholder TBD no Purpose,
+   - Qualquer novo spec principal que ficou com um placeholder `A definir` / `TBD` no Purpose,
      para que ele seja escrito agora em vez de ficar pendente
    - Qualquer capability aposentada, nomeando o `spec.md` excluído, seu Purpose e
      ou um `git checkout` pronto para colar ou orientação de recuperação restrita ao checkout
@@ -166,6 +190,8 @@ Esta é uma operação **dirigida por agente** — você lerá os delta specs e 
 **Referência de Formato de Delta Spec**
 
 ```markdown
+# Spec Delta
+
 ## Purpose
 
 Somente em um delta que introduz uma capability totalmente nova. Semeia o novo spec principal.

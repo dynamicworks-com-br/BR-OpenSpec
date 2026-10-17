@@ -1,6 +1,6 @@
 ---
 name: openspec-onboard
-description: Onboarding guiado para o BR-OpenSpec - percorra um ciclo completo de workflow com narração e trabalho real na codebase.
+description: Onboarding guiado para o BR-OpenSpec - percorra um ciclo completo de workflow com narração e trabalho real na codebase. Use também quando o usuário disser "openspec onboard" ou "opsx onboard".
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
@@ -9,7 +9,17 @@ metadata:
   version: "1.0"
 ---
 
+
 Guie o usuário através de seu primeiro ciclo completo de workflow do BR-OpenSpec. Esta é uma experiência de ensino - você fará trabalho real na codebase dele enquanto explica cada passo.
+
+**Verificação do projeto:** Estes passos esperam um projeto que já usa o BR-OpenSpec. Antes do primeiro passo que escreve qualquer coisa (`new change`, `archive`, `sync specs` ou a autoria de um arquivo de artifact), confirme que o projeto tem uma raiz: execute `openspec list --json` e leia `root`. Um objeto root significa que o projeto está configurado. `"root": null` significa que não está — não há diretório `openspec/` aqui, e uma escrita como `openspec new change` criaria um como efeito colateral. O comando também sai com código diferente de zero, e isso é essa resposta, não um CLI quebrado: leia o JSON em vez de tentar de novo ou contornar.
+
+Sem raiz, o que acontece em seguida depende de como este workflow foi alcançado:
+
+- **Selecionado automaticamente**: você escolheu este workflow sozinho, sem o usuário nomear o BR-OpenSpec, nomear esta skill ou executar o slash command dela. Pare de usar o BR-OpenSpec e responda à solicitação normalmente, como faria sem o BR-OpenSpec instalado. Não peça para configurar nada e não mencione a configuração do BR-OpenSpec.
+- **Solicitação explícita do BR-OpenSpec**: o usuário nomeou o BR-OpenSpec, nomeou esta skill ou executou o slash command dela. Pare antes de escrever e pergunte como prosseguir: configurar este projeto (`openspec init`) ou continuar sem o BR-OpenSpec nesta solicitação. Aguarde a resposta.
+
+Nos dois ramos, nunca crie a raiz como efeito colateral: não execute `openspec init` até o usuário pedir, não crie arquivos `openspec/` à mão e não deixe um comando criá-la.
 
 ---
 
@@ -170,7 +180,7 @@ Agora vamos criar uma change para conter nosso trabalho.
 ```
 ## Criando uma Change
 
-Uma "change" no BR-OpenSpec é um container para todo o pensamento e planejamento em torno de uma peça de trabalho. Ela fica em `openspec/changes/<nome>/` e armazena seus artifacts - proposal, specs, design, tasks.
+Uma "change" no BR-OpenSpec é um container para todo o pensamento e planejamento em torno de uma peça de trabalho. Ela fica no `changeRoot` reportado por `openspec status --change "<nome>" --json` e armazena seus artifacts - proposal, specs, design, tasks.
 
 Deixe-me criar uma para nossa tarefa.
 ```
@@ -182,11 +192,11 @@ openspec new change "<nome-derivado>"
 
 **MOSTRE:**
 ```
-Criado: `openspec/changes/<nome>/`
+Criado: <changeRoot do JSON de status>
 
 A estrutura de pastas:
 ```
-openspec/changes/<nome>/
+<changeRoot>/
 ├── proposal.md    ← Por que estamos fazendo isso (vazio, vamos preencher)
 ├── design.md      ← Como vamos construir (vazio)
 ├── specs/         ← Requisitos detalhados (vazio)
@@ -221,6 +231,8 @@ Aqui está um rascunho de proposal:
 
 ---
 
+# Proposal
+
 ## Why
 
 [1-2 frases explicando o problema/oportunidade]
@@ -231,14 +243,14 @@ Aqui está um rascunho de proposal:
 
 ## Capabilities
 
-### Novas Capabilities
+### New Capabilities
 - `<capability-path>`: [breve descrição]
 
-### Capabilities Modificadas
+### Modified Capabilities
 <!-- Se modificar comportamento existente -->
 - `<existing-capability-path>`: [breve descrição]
 
-## Impacto
+## Impact
 
 - `src/caminho/para/arquivo.ts`: [o que muda]
 - [outros arquivos se aplicável]
@@ -254,7 +266,7 @@ Após aprovação, salve a proposal:
 ```bash
 openspec instructions proposal --change "<nome>" --json
 ```
-Depois escreva o conteúdo em `openspec/changes/<nome>/proposal.md`.
+Depois escreva o conteúdo no `resolvedOutputPath` de `openspec instructions proposal --change "<nome>" --json`.
 
 ```
 Proposal salva. Este é seu documento de "por que" - você sempre pode voltar e refiná-lo à medida que o entendimento evolui.
@@ -275,12 +287,10 @@ Os specs definem **o que** estamos construindo em termos precisos e testáveis. 
 Para uma tarefa pequena como esta, talvez precisemos apenas de um arquivo spec.
 ```
 
-**FAÇA:** Crie o arquivo spec:
+**FAÇA:** Resolva onde o arquivo spec deve ser criado:
 ```bash
-# Unix/macOS
-mkdir -p openspec/changes/<nome>/specs/<capability-path>
-# Windows (PowerShell)
-# New-Item -ItemType Directory -Force -Path "openspec/changes/<nome>/specs/<capability-path>"
+openspec instructions specs --change "<nome>" --json
+# Use resolvedOutputPath do JSON. Se for um glob, escolha o caminho concreto do arquivo usando a instrução do schema e o contexto da change.
 ```
 
 Elabore o conteúdo do spec:
@@ -289,6 +299,8 @@ Elabore o conteúdo do spec:
 Aqui está o spec:
 
 ---
+
+# Spec Delta
 
 ## ADDED Requirements
 
@@ -307,7 +319,7 @@ O sistema SHALL <descrição do que o sistema deve fazer>
 Este formato - WHEN/THEN/AND - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste. Os marcadores estruturais (ADDED Requirements, Requirement, Scenario) e as palavras-chave (WHEN/THEN/AND, SHALL/MUST) ficam SEMPRE em inglês — é o protocolo que o parser e o validador reconhecem. Apenas o conteúdo descritivo é escrito em português.
 ```
 
-Salve em `openspec/changes/<nome>/specs/<capability-path>/spec.md`.
+Salve no caminho concreto escolhido a partir de `resolvedOutputPath`.
 
 ---
 
@@ -329,21 +341,23 @@ Aqui está o design:
 
 ---
 
-## Contexto
+# Design
+
+## Context
 
 [Contexto breve sobre o estado atual]
 
-## Objetivos / Não-Objetivos
+## Goals / Non-Goals
 
-**Objetivos:**
+**Goals:**
 - [O que estamos tentando alcançar]
 
-**Não-Objetivos:**
+**Non-Goals:**
 - [O que está explicitamente fora do escopo]
 
-## Decisões
+## Decisions
 
-### Decisão 1: [Decisão-chave]
+### Decision 1: [Decisão-chave]
 
 [Explicação da abordagem e racional]
 
@@ -352,7 +366,7 @@ Aqui está o design:
 Para uma tarefa pequena, isto captura as decisões-chave sem over-engineering.
 ```
 
-Salve em `openspec/changes/<nome>/design.md`.
+Salve no `resolvedOutputPath` de `openspec instructions design --change "<nome>" --json`.
 
 ---
 
@@ -364,7 +378,7 @@ Salve em `openspec/changes/<nome>/design.md`.
 
 Finalmente, quebramos o trabalho em tarefas de implementação - checkboxes que impulsionam a fase de apply.
 
-Elas devem ser pequenas, claras e em ordem lógica.
+Elas devem ser pequenas, claras e em ordem lógica. Cada grupo carrega os testes e a documentação do próprio trabalho - o último grupo é só para verificações de integração.
 ```
 
 **FAÇA:** Gere tarefas baseadas nos specs e design:
@@ -373,6 +387,8 @@ Elas devem ser pequenas, claras e em ordem lógica.
 Aqui estão as tarefas de implementação:
 
 ---
+
+# Tasks
 
 ## 1. [Categoria ou arquivo]
 
@@ -385,12 +401,17 @@ Aqui estão as tarefas de implementação:
 
 ---
 
-Cada checkbox se torna uma unidade de trabalho na fase de apply. Pronto para implementar?
+Cada checkbox se torna uma unidade de trabalho na fase de apply. Este detalhamento de tarefas está certo?
 ```
 
-**PAUSA** - Aguarde o usuário confirmar que está pronto para implementar.
+**PAUSA** - Aguarde aprovação/feedback do usuário.
 
-Salve em `openspec/changes/<nome>/tasks.md`.
+Após aprovação, salve no `resolvedOutputPath` de `openspec instructions tasks --change "<nome>" --json`.
+
+Depois pergunte:
+> "Tarefas salvas. Pronto para implementar?"
+
+**PAUSA** - Aguarde o usuário confirmar antes da implementação.
 
 ---
 
@@ -475,23 +496,18 @@ Este mesmo ritmo funciona para qualquer tamanho de change - uma pequena correç�
 
 ## Referência de Comandos
 
-**Workflow principal:**
+**Os comandos que você tem instalados:**
 
- | Comando           | O que faz                                   |
- |-------------------|---------------------------------------------|
- | `/openspec-propose` | Cria uma change e gera todos os artifacts   |
+ | Comando          | O que faz                                  |
+ |------------------|--------------------------------------------|
+ | `/openspec-propose` | Cria uma change e gera todos os artifacts |
  | `/openspec-explore` | Pensa sobre problemas antes/durante o trabalho |
- | `/openspec-apply-change`   | Implementa tarefas de uma change            |
- | `/openspec-archive-change` | Arquiva uma change concluída                |
-
-**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
-
- | Comando            | O que faz                                              |
- |--------------------|--------------------------------------------------------|
- | `/openspec-new-change`      | Inicia uma nova change, passo a passo pelos artifacts  |
- | `/openspec-continue-change` | Continua trabalhando em uma change existente           |
- | `/openspec-ff-change`       | Fast-forward: cria todos os artifacts de uma vez       |
- | `/openspec-verify-change`   | Verifica se implementação corresponde aos artifacts    |
+ | `/openspec-apply-change`   | Implementa tarefas de uma change |
+ | `/openspec-archive-change` | Arquiva uma change concluída |
+ | `/openspec-new-change`     | Inicia uma nova change, um artifact de cada vez |
+ | `/openspec-continue-change` | Continua trabalhando em uma change existente |
+ | `/openspec-ff-change`      | Fast-forward: cria todos os artifacts de uma vez |
+ | `/openspec-verify-change`  | Verifica se a implementação corresponde aos artifacts |
 
 ---
 
@@ -509,10 +525,10 @@ Experimente `/openspec-propose` em algo que você realmente quer construir. Voc�
 Se o usuário disser que precisa parar, quer pausar, ou parecer desengajado:
 
 ```
-Sem problema! Sua change está salva em `openspec/changes/<nome>/`.
+Sem problema! Sua change está salva no `changeRoot` reportado por `openspec status --change "<nome>" --json`.
 
-Para retomar de onde paramos depois:
-- `/openspec-continue-change <nome>` - Retoma a criação de artifacts (se instalado; caso contrário `openspec status --change "<nome>" --json` mostra o próximo artifact)
+Para retomar de onde paramos depois, `openspec status --change "<nome>" --json` mostra exatamente onde a change está.
+- `/openspec-continue-change <nome>` - Retoma a criação de artifacts
 - `/openspec-apply-change <nome>` - Pula para implementação (se tasks existirem)
 
 O trabalho não será perdido. Volte quando estiver pronto.
@@ -527,23 +543,18 @@ Se o usuário disser que apenas quer ver os comandos ou pular o tutorial:
 ```
 ## Referência Rápida do BR-OpenSpec
 
-**Workflow principal:**
+**Os comandos que você tem instalados:**
 
- | Comando                  | O que faz                                   |
- |--------------------------|---------------------------------------------|
- | `/openspec-propose <nome>` | Cria uma change e gera todos os artifacts   |
- | `/openspec-explore`        | Pensa sobre problemas (sem mudanças de código) |
- | `/openspec-apply-change <nome>`   | Implementa tarefas                          |
- | `/openspec-archive-change <nome>` | Arquiva quando concluído                    |
-
-**Comandos adicionais** (somente se instalados - a disponibilidade depende do seu perfil):
-
- | Comando                   | O que faz                        |
- |---------------------------|----------------------------------|
+ | Comando                  | O que faz                                  |
+ |--------------------------|--------------------------------------------|
+ | `/openspec-propose <nome>`  | Cria uma change e gera todos os artifacts |
+ | `/openspec-explore`         | Pensa sobre problemas (sem mudanças de código) |
+ | `/openspec-apply-change <nome>`    | Implementa tarefas |
+ | `/openspec-archive-change <nome>`  | Arquiva quando concluído |
  | `/openspec-new-change <nome>`      | Inicia uma nova change, passo a passo |
- | `/openspec-continue-change <nome>` | Continua uma change existente    |
+ | `/openspec-continue-change <nome>` | Continua uma change existente |
  | `/openspec-ff-change <nome>`       | Fast-forward: todos os artifacts de uma vez |
- | `/openspec-verify-change <nome>`   | Verifica implementação           |
+ | `/openspec-verify-change <nome>`   | Verifica a implementação |
 
 Experimente `/openspec-propose` para iniciar sua primeira change.
 ```

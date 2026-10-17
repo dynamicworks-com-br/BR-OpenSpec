@@ -6,12 +6,35 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { CODE_REVIEW_TEMPLATE_MESSAGES } from '../../../messages/index.js';
+import { optionalWorkflow } from '../optional-workflow.js';
+import { PROJECT_ROOT_GUARD } from './project-root.js';
+
+/**
+ * The review names `/opsx:verify` only to say this workflow is not that one.
+ * A profile that did not install verify must not advertise the missing command.
+ */
+const VERIFY_ASIDE = optionalWorkflow(
+  'verify',
+  '`/opsx:verify`',
+  'uma verificação de change'
+);
+
+const CODE_REVIEW_DESCRIPTION =
+  `${CODE_REVIEW_TEMPLATE_MESSAGES.skillDescription} Para projetos que usam o BR-OpenSpec. Use também quando o usuário disser "openspec code-review" ou "opsx code-review".`;
+
+function codeReviewInstructions(): string {
+  const body = CODE_REVIEW_TEMPLATE_MESSAGES.instructions.replaceAll(
+    '`/opsx:verify`',
+    VERIFY_ASIDE
+  );
+  return `${PROJECT_ROOT_GUARD}\n\n${body}`;
+}
 
 export function getCodeReviewSkillTemplate(): SkillTemplate {
   return {
     name: 'openspec-code-review',
-    description: CODE_REVIEW_TEMPLATE_MESSAGES.skillDescription,
-    instructions: CODE_REVIEW_TEMPLATE_MESSAGES.instructions,
+    description: CODE_REVIEW_DESCRIPTION,
+    instructions: codeReviewInstructions(),
     license: 'MIT',
     compatibility: CODE_REVIEW_TEMPLATE_MESSAGES.skillCompatibility,
     metadata: { author: 'openspec', version: '1.0' },
@@ -24,6 +47,6 @@ export function getOpsxCodeReviewCommandTemplate(): CommandTemplate {
     description: CODE_REVIEW_TEMPLATE_MESSAGES.opsxDescription,
     category: 'Workflow',
     tags: ['workflow', 'review', 'code-review', 'experimental'],
-    content: CODE_REVIEW_TEMPLATE_MESSAGES.instructions,
+    content: codeReviewInstructions(),
   };
 }
