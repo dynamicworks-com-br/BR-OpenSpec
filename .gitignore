@@ -152,8 +152,9 @@ CLAUDE.md
 /package-lock.json
 result
 
-# OpenCode
-.opencode/
+# OpenCode (ignora estado local, mas versiona os comandos de projeto compartilhados)
+.opencode/*
+!.opencode/commands/
 opencode.json
 
 # Codex

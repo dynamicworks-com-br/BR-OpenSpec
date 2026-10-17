@@ -250,9 +250,13 @@ pnpm exec tsc --noEmit
 pnpm lint
 ```
 
-### 8. Workflow Template
+### 8. Agent Command (`sync:upstream`)
 
-An upstream sync workflow template is available at `src/core/templates/workflows/upstream-sync.ts` for agent-assisted syncs. It provides step-by-step instructions for the entire process.
+The step-by-step instructions for an agent-assisted sync live in a single source of truth: `.claude/commands/sync/upstream.md` (Claude Code: `/sync:upstream`). The other agents get thin wrappers that only tell the agent to read and follow that file — edit the Claude command, never the wrappers:
+
+- Cursor: `.cursor/commands/sync-upstream.md` (`/sync-upstream`)
+- Antigravity: `.agents/workflows/sync-upstream.md` (`/sync-upstream`)
+- OpenCode: `.opencode/commands/sync-upstream.md` (`/sync-upstream`)
 
 ### Key Principle
 
