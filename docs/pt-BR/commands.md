@@ -359,7 +359,7 @@ IA:   Lendo os artefatos de add-dark-mode...
 ```
 
 **Dicas:**
-- Ele não cria artefatos faltantes - isso é trabalho do `/opsx:continue`
+- Ele não inicia um artefato que ainda não tem arquivos. Habilite `/opsx:continue` para isso, ou use `openspec status` e `openspec instructions` se esse fluxo opcional não estiver instalado.
 - Se a mudança já foi implementada, siga com `/opsx:apply` para que o código corresponda ao plano revisado
 - Se a sua revisão muda a *intenção* da mudança, comece do zero com uma nova mudança (veja [Quando Atualizar vs. Começar do Zero](opsx.md#quando-atualizar-vs-começar-do-zero))
 

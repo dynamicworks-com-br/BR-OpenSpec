@@ -184,17 +184,6 @@ The system SHALL provide consistent output formatting.
 - **WHEN** loading change state takes time
 - **THEN** the system displays a spinner during loading
 
-### Requirement: Experimental Isolation
-The system SHALL implement artifact workflow commands in isolation for easy removal.
-
-#### Scenario: Single file implementation
-- **WHEN** artifact workflow feature is implemented
-- **THEN** all commands are in `src/commands/artifact-workflow.ts`
-
-#### Scenario: Help text marking
-- **WHEN** user runs `--help` on any artifact workflow command
-- **THEN** help text indicates the command is experimental
-
 ### Requirement: Schema Apply Block
 
 The system SHALL support an `apply` block in schema definitions that controls when and how implementation begins.
@@ -209,8 +198,8 @@ The system SHALL support an `apply` block in schema definitions that controls wh
 #### Scenario: Schema without apply block
 
 - **WHEN** a schema has no `apply` block
-- **THEN** the system requires all artifacts to exist before apply is available
-- **AND** uses default instruction: "All artifacts complete. Proceed with implementation."
+- **THEN** the system requires all non-skipped artifacts to exist before apply is available
+- **AND** once those artifacts exist, uses default instruction: "All required artifacts complete. Proceed with implementation."
 
 ### Requirement: Apply Instructions Command
 
@@ -276,20 +265,21 @@ The `artifact-experimental-setup` command SHALL accept a `--tool <tool-id>` flag
 
 ### Requirement: Output messaging
 
-The setup command SHALL display clear output about what was generated.
+The `openspec init` command SHALL display clear output about what was generated.
 
 #### Scenario: Show target tool in output
 
-- **WHEN** setup command runs successfully
-- **THEN** output includes the target tool name (e.g., "Setting up for Cursor...")
+- **WHEN** initialization creates or refreshes a tool configuration
+- **THEN** output includes the tool name under `Criados:` or `Atualizados:`, respectively
 
 #### Scenario: Show generated paths
 
-- **WHEN** setup command completes
-- **THEN** output lists all generated skill file paths
-- **AND** lists all generated command file paths (if applicable)
+- **WHEN** initialization generates skills or commands
+- **THEN** output summarizes their counts and destination directories
+- **AND** only reports the types enabled by the selected profile and delivery mode
 
 #### Scenario: Show skipped commands message
 
-- **WHEN** command generation is skipped due to missing adapter
-- **THEN** output includes message: "Command generation skipped - no adapter for <tool>"
+- **WHEN** a inicialização pula a geração de comandos por falta de adaptador
+- **THEN** a saída inclui a mensagem: "Comandos ignorados para: <tools> (sem adaptador)"
+- **AND** `<tools>` lista os IDs das ferramentas ignoradas, separados por vírgula

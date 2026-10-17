@@ -111,7 +111,7 @@ específicas do projeto.
 
 A animação de boas-vindas também é ignorada quando a variável de ambiente `OPENSPEC_NO_ANIMATION` está definida (qualquer valor, inclusive vazio), quando `NO_COLOR` está definida com um valor não vazio, ou quando a preferência de movimento reduzido do sistema operacional está ativada (Reduce Motion do macOS, animações desabilitadas do GNOME).
 
-**IDs de ferramentas suportados (`--tools`)** — `windsurf` também é aceito, como alias de `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `command-code`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `minimax-code`, `opencode`, `pi`, `qoder`, `qwen`, `rovodev`, `roocode`, `trae`, `zed`, `vibe`, `agents`
+**IDs de ferramentas suportados (`--tools`)** — `windsurf` também é aceito, como alias de `devin`: `amazon-q`, `amp`, `antigravity`, `atomcode`, `auggie`, `bob`, `claude`, `cline`, `command-code`, `codex`, `dsh`, `devin`, `forgecode`, `codebuddy`, `codestudio`, `continue`, `costrict`, `crush`, `cursor`, `easycode`, `factory`, `gemini`, `github-copilot`, `gigacode`, `grok`, `gsd`, `hermes`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `minimax-code`, `vibe`, `opencode`, `pi`, `codeassistant`, `qoder`, `qwen`, `rovodev`, `roocode`, `trae`, `veai`, `warp`, `zed`, `agents`
 
 > Esta lista espelha `AI_TOOLS` em `src/core/config.ts`. Veja [Ferramentas Suportadas](supported-tools.md) para os caminhos de skill e comando de cada ferramenta.
 
@@ -477,6 +477,23 @@ Depois arquive a mudança normalmente:
 ```bash
 openspec archive retire-legacy --yes
 ```
+
+**Guarde seus próprios metadados:** uma chave de topo que começa com `x-` em
+minúsculas é sua. O BR-OpenSpec nunca a lê, escreve ou reporta, então
+`openspec validate --strict` continua verde numa mudança que carrega dados
+específicos de uma ferramenta:
+
+```yaml
+# openspec/changes/add-dark-mode/.openspec.yaml
+schema: spec-driven
+x-tracker: SB-5497
+x-jiraKey: ABC-1
+```
+
+O nome depois do prefixo é seu, em qualquer caixa ou grafia, desde que não seja
+vazio e não tenha espaço. O próprio prefixo é minúsculo, então `X-Tracker` ainda
+é reportado. Extensões existem só no topo. Qualquer outra chave de topo não
+reconhecida continua sendo reportada como sem efeito.
 
 Quando a mudança remove o último requisito da capability, o BR-OpenSpec exclui o
 `spec.md` ativo dela. Os deltas de outras capabilities na mesma mudança continuam

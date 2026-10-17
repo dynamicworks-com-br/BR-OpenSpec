@@ -111,7 +111,7 @@ field so BR-OpenSpec never overwrites project-specific guidance.
 
 The welcome animation is also skipped when the `OPENSPEC_NO_ANIMATION` environment variable is set (any value, including empty), when `NO_COLOR` is set to a non-empty value, or when the OS reduced-motion preference is enabled (macOS Reduce Motion, GNOME animations disabled).
 
-**Supported tool IDs (`--tools`)** — `windsurf` is also accepted, as an alias for `devin`: `amazon-q`, `antigravity`, `auggie`, `bob`, `claude`, `cline`, `command-code`, `codex`, `devin`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `forgecode`, `gemini`, `github-copilot`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `minimax-code`, `opencode`, `pi`, `qoder`, `qwen`, `rovodev`, `roocode`, `trae`, `zed`, `vibe`, `agents`
+**Supported tool IDs (`--tools`)** — `windsurf` is also accepted, as an alias for `devin`: `amazon-q`, `amp`, `antigravity`, `atomcode`, `auggie`, `bob`, `claude`, `cline`, `command-code`, `codex`, `dsh`, `devin`, `forgecode`, `codebuddy`, `codestudio`, `continue`, `costrict`, `crush`, `cursor`, `easycode`, `factory`, `gemini`, `github-copilot`, `gigacode`, `grok`, `gsd`, `hermes`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `minimax-code`, `vibe`, `opencode`, `pi`, `codeassistant`, `qoder`, `qwen`, `rovodev`, `roocode`, `trae`, `veai`, `warp`, `zed`, `agents`
 
 > This list mirrors `AI_TOOLS` in `src/core/config.ts`. See [Supported Tools](supported-tools.md) for each tool's skill and command paths.
 
@@ -485,6 +485,22 @@ Then archive the change normally:
 ```bash
 openspec archive retire-legacy --yes
 ```
+
+**Keep your own metadata:** a top-level key starting with a lowercase `x-` is
+yours. BR-OpenSpec never reads, writes or reports it, so `openspec validate
+--strict` stays green on a change that carries tool-specific data:
+
+```yaml
+# openspec/changes/add-dark-mode/.openspec.yaml
+schema: spec-driven
+x-tracker: SB-5497
+x-jiraKey: ABC-1
+```
+
+The name after the prefix is yours to choose, in any case or spelling, as long
+as it is not empty and has no whitespace in it. The prefix itself is lowercase,
+so `X-Tracker` is still reported. Extensions are top-level only. Any other
+unrecognized top-level key is still reported as having no effect.
 
 When the change removes the capability's last requirement, BR-OpenSpec deletes its
 live `spec.md`. Other capability deltas in the same change still update their
@@ -1124,12 +1140,33 @@ openspec completion install
 # Install for specific shell
 openspec completion install zsh
 
-# Generate script for manual installation
+# Generate script for manual installation (bash)
 openspec completion generate bash > ~/.bash_completion.d/openspec
 
 # Uninstall
 openspec completion uninstall
 ```
+
+**Windows (PowerShell):** Install completions for the current PowerShell host:
+
+```powershell
+$env:PROFILE = $PROFILE
+openspec completion install powershell
+. $PROFILE
+```
+
+`$env:PROFILE` tells OpenSpec which profile to configure in this session. The
+installer creates missing profile directories and adds a managed block that loads
+`OpenSpecCompletion.ps1`. Reloading the profile enables completions immediately.
+
+To uninstall from the current host, run:
+
+```powershell
+$env:PROFILE = $PROFILE
+openspec completion uninstall powershell
+```
+
+Restart PowerShell after uninstalling to clear completions from the current session.
 
 Completions are opt-in. The CLI mentions them once, on stderr, the first time you
 run a command in an interactive terminal, and never again — it also stays quiet
