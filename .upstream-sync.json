@@ -3,9 +3,9 @@
   "upstreamRepo": "Fission-AI/OpenSpec",
   "upstreamRemote": "upstream",
   "upstreamBranch": "main",
-  "lastSyncedCommit": "d0071d73",
-  "lastSyncedVersion": "v1.11.0-1-gd0071d7",
-  "lastSyncedDate": "2026-09-02",
+  "lastSyncedCommit": "c794978f4f8845ce59693373c9dd882ee776588c",
+  "lastSyncedVersion": "@fission-ai/openspec@1.14.3",
+  "lastSyncedDate": "2026-10-17",
   "deferred": [
     "Subsistema workspace/stores beta (src/core/workspace, src/core/store, src/core/context-store, src/core/planning-home, src/core/root-selection.ts, src/core/file-state.ts, src/core/change-status-policy.ts, src/commands/workspace, initiative) — inclui os STABLE 15ef3bcf, 93e27a75, 5199f41a, 520aa8c4, 6b3623a3 e, desta sync, 83644286 (schemas --store), 137404b4 (allowImplicitRoot), 9643888a (planningHome.root no schema.yaml), d9bcc185 (docs/stores-beta) e os hunks de file-state.ts (9cd845fc) e change-status-policy.ts (afea111c); portados apenas os recortes de fd92ccc (runCli/guarda de módulo principal) e 7c3accc (tipos PositionalType/PositionalDefinition) exigidos por commits estáveis",
     "website/ Cloudflare (65a7233f parcial, 0a99f410) e workflow de beta prerelease (8e9e457c); bumps de website 11a301d5/2b503389/b976fc06/80ad1fba/6d031f12/cfc74eeb/6926ccb1/b96b3e85 idem",
@@ -53,6 +53,16 @@
       "branch": "sync/upstream_20260901",
       "tag": "synced/upstream-v1.11.0",
       "scope": "Bloco A (84 commits novos: 60 portados — total ou parcialmente — em 24 commits temáticos, mais o 79f1dac6 resgatado de um falso positivo de 2026-07-19): guarda de caminhos de artefatos, aposentadoria de capabilities e archive transacional, SHALL/MUST como aviso (specs em PT-BR deixam de ser reprovadas), numeração de tasks, Purpose placeholder, templates de workflow (2 lotes), Codex skills-only em .agents, MiniMax Code, Rovo Dev, Command Code, Zed Agent, Antigravity em .agents, Copilot coding agent opt-in, init --language, telemetry.enabled, dica de completions na CLI (sem postinstall), fork de schema com fidelidade YAML, schema init --default, completions Fish, validate --archived, status --all, show --diff, inquirer v8, overrides de CVE e docs EN+PT-BR. Adiados: stores/workspace, website, docs-lab, agent-contract.md. Pulados: Version Packages e changesets do upstream.",
+      "plan": "PLANO-sync-upstream-20260901.md"
+    },
+    {
+      "date": "2026-10-17",
+      "fromCommit": "d0071d73",
+      "toCommit": "c794978f4f8845ce59693373c9dd882ee776588c",
+      "toVersion": "@fission-ai/openspec@1.14.3",
+      "branch": "sync/upstream_20261017",
+      "tag": "synced/upstream-v1.14.3",
+      "scope": "Bloco A até @fission-ai/openspec@1.14.3: list --archived/--all, comando version, alterações aninhadas, archive --json e caminho relativo de delta linkado, avisos de apply (delta ausente e arquivo fora de spec.md), apply.tracks em glob, nextSteps no status, caminhos de saída em instruções de artefato glob, .gitkeep no init, aliases do seletor, nota de workflows opcionais, reinício de IDE, contenção de symlink de spec, guarda de nome, cadeia de pré-requisitos do apply, escape de envelope, Purpose 'A definir', completion de schemas no zsh, overrides de CVE no package.json (pnpm 9) e hash pnpmDeps. Adiados: stores/workspace/planning-home/doctor/--store, website, docs-lab. Pulados: Version Packages, changelog e changesets do upstream, pnpm 10 e Vitest 4. Publish permanece com NPM_TOKEN.",
       "plan": "PLANO-sync-upstream-20260901.md"
     }
   ]
