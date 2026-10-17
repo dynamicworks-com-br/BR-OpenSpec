@@ -1,4 +1,4 @@
-import { execSync, execFileSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { createRequire } from 'module';
 import os from 'os';
 import { FEEDBACK_MESSAGES } from '../messages/index.js';
@@ -14,8 +14,10 @@ const TITLE_PREFIX_LENGTH = Array.from(FEEDBACK_MESSAGES.feedbackTitle('')).leng
  */
 function isGhInstalled(): boolean {
   try {
-    const command = process.platform === 'win32' ? 'where gh' : 'which gh';
-    execSync(command, { stdio: 'pipe' });
+    // execFileSync, not execSync: no shell is needed to look a binary up, and
+    // spawning one next to free-form issue text is the shape a future refactor
+    // most easily turns into command injection.
+    execFileSync(process.platform === 'win32' ? 'where' : 'which', ['gh'], { stdio: 'pipe' });
     return true;
   } catch {
     return false;
@@ -27,7 +29,7 @@ function isGhInstalled(): boolean {
  */
 function isGhAuthenticated(): boolean {
   try {
-    execSync('gh auth status', { stdio: 'pipe' });
+    execFileSync('gh', ['auth', 'status'], { stdio: 'pipe' });
     return true;
   } catch {
     return false;

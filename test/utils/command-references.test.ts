@@ -7,6 +7,8 @@ import {
 } from '../../src/utils/command-references.js';
 import type { CommandInvocation } from '../../src/core/command-generation/invocation.js';
 import { getApplyChangeSkillTemplate } from '../../src/core/templates/workflows/apply-change.js';
+import { resolveOptionalWorkflows } from '../../src/core/templates/optional-workflow.js';
+import { ALL_WORKFLOWS } from '../../src/core/profiles.js';
 
 const FLAT_SLASH: CommandInvocation = { style: 'flat', prefix: '/' };
 const FLAT_AT: CommandInvocation = { style: 'flat', prefix: '@' };
@@ -219,6 +221,9 @@ describe('getSkillReferenceTransformer', () => {
   it('uses the default /<name> form for tools without a custom prefix', () => {
     expect(getSkillReferenceTransformer('vibe')).toBe(transformToSkillReferences);
     expect(getSkillReferenceTransformer('forgecode')('/opsx:apply')).toBe('/openspec-apply-change');
+    expect(getSkillReferenceTransformer('hermes')('/opsx:apply')).toBe('/openspec-apply-change');
+    // dsh supports the user-facing /<name> gesture, so it keeps the default.
+    expect(getSkillReferenceTransformer('dsh')('/opsx:apply')).toBe('/openspec-apply-change');
   });
 
   it('uses /skill:<name> for Kimi Code, per its documented invocation syntax', () => {
@@ -236,8 +241,8 @@ describe('getSkillReferenceTransformer', () => {
     expect(transformer('Run /opsx:apply next')).toBe('Run $openspec-apply-change next');
   });
 
-  it('uses natural-language references for Rovo Dev, which has no slash surface', () => {
-    const transformer = getSkillReferenceTransformer('rovodev');
+  it.each(['gsd', 'rovodev', 'codeassistant'])('uses natural-language skill references for %s', (toolId) => {
+    const transformer = getSkillReferenceTransformer(toolId);
     expect(transformer('/opsx:propose')).toBe('a skill openspec-propose');
     expect(transformer('Run `/opsx:apply` then /opsx:archive')).toBe(
       'Run `a skill openspec-apply-change` then a skill openspec-archive-change'
@@ -356,6 +361,35 @@ describe('apply skill template generates valid per-target invocations', () => {
     expect(skill).toContain('arquivar esta change com `/opsx:archive`');
     // No bare, non-transformable skill-name prose remains.
     expect(skill).not.toContain('sugira usar openspec-continue-change');
+  });
+
+  // The blocked-state answer for an installation without `continue` (#1734).
+  // The conditional's fallback has to stand on its own: the agent gets no
+  // workflow to hand off to, so it needs the whole CLI recovery, not a
+  // shortened version of the installed branch.
+  it('gives the full CLI recovery when continue is not installed', () => {
+    const withoutContinue = resolveOptionalWorkflows(
+      skill,
+      new Set(ALL_WORKFLOWS.filter((id) => id !== 'continue'))
+    );
+    const blocked = withoutContinue.slice(
+      withoutContinue.indexOf('Se `state: "blocked"`'),
+      withoutContinue.indexOf('Se `state: "all_done"`')
+    );
+
+    expect(blocked).not.toContain('/opsx:continue');
+    expect(blocked).not.toContain('--store');
+    expect(blocked).toContain('pause a implementação');
+    expect(blocked).toContain('Se `missingArtifacts` não estiver vazio');
+    expect(blocked).toContain('openspec status --change "<nome>" --json');
+    expect(blocked).toContain('próximo artifact `ready` (não `skipped` nem `blocked`)');
+    expect(blocked).toContain('openspec instructions "<artifact-id>" --change "<nome>" --json');
+    expect(blocked).toContain(
+      'siga a instrução do CLI para criar ou reparar o arquivo de rastreamento configurado pelo schema'
+    );
+    expect(blocked).toContain(
+      'Não assuma que outro artifact está pronto nem comece a implementação enquanto estiver bloqueado'
+    );
   });
 
   const cases = [

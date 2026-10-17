@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DESCRIPTION_BUDGET,
+  formatOptionalWorkflowsNote,
   getOnboardingCommands,
 } from '../../src/core/onboarding-commands.js';
 import { ALL_WORKFLOWS, CORE_WORKFLOWS } from '../../src/core/profiles.js';
@@ -39,5 +40,48 @@ describe('getOnboardingCommands', () => {
         DESCRIPTION_BUDGET
       );
     }
+  });
+});
+
+describe('formatOptionalWorkflowsNote', () => {
+  it('names every workflow the core profile leaves out', () => {
+    const note = formatOptionalWorkflowsNote(CORE_WORKFLOWS);
+
+    expect(note).not.toBeNull();
+    expect(note?.[0]).toBe(
+      'Nota: mais 7 fluxos de trabalho disponíveis (new, continue, ff, bulk-archive, verify, code-review, onboard).'
+    );
+    expect(note?.[1]).toBe(
+      'Adicione-os com `openspec config profile`.'
+    );
+  });
+
+  it('lists the missing workflows in declaration order, not the order given', () => {
+    const installed = ALL_WORKFLOWS.filter(
+      (workflow) => workflow !== 'new' && workflow !== 'verify'
+    );
+
+    const note = formatOptionalWorkflowsNote([...installed].reverse());
+
+    expect(note?.[0]).toBe('Nota: mais 2 fluxos de trabalho disponíveis (new, verify).');
+  });
+
+  it('reads as a singular sentence when exactly one workflow is missing', () => {
+    const note = formatOptionalWorkflowsNote(
+      ALL_WORKFLOWS.filter((workflow) => workflow !== 'onboard')
+    );
+
+    expect(note?.[0]).toBe('Nota: mais 1 fluxo de trabalho disponível (onboard).');
+    expect(note?.[1]).toBe(
+      'Adicione-o com `openspec config profile`.'
+    );
+  });
+
+  it('returns null when every workflow is installed', () => {
+    expect(formatOptionalWorkflowsNote(ALL_WORKFLOWS)).toBeNull();
+  });
+
+  it('ignores workflow names that are not part of the system', () => {
+    expect(formatOptionalWorkflowsNote([...ALL_WORKFLOWS, 'not-a-workflow'])).toBeNull();
   });
 });

@@ -35,14 +35,14 @@ export const ProjectConfigSchema = z.object({
   schema: z
     .string()
     .min(1)
-    .describe('The workflow schema to use (e.g., "spec-driven")'),
+    .describe(PROJECT_CONFIG_MESSAGES.schemaFieldDescribe),
 
   // Optional: project context (injected into all artifact instructions)
   // Max size: 50KB (enforced during parsing)
   context: z
     .string()
     .optional()
-    .describe('Project context injected into all artifact instructions'),
+    .describe(PROJECT_CONFIG_MESSAGES.contextFieldDescribe),
 
   // Optional: per-artifact rules (additive to schema's built-in guidance)
   rules: z
@@ -51,7 +51,7 @@ export const ProjectConfigSchema = z.object({
       z.array(z.string()) // list of rules
     )
     .optional()
-    .describe('Per-artifact rules, keyed by artifact ID'),
+    .describe(PROJECT_CONFIG_MESSAGES.rulesFieldDescribe),
 
   // Optional: per-operation advisory guidance, kept separate from artifact rules.
   operations: z
@@ -60,7 +60,7 @@ export const ProjectConfigSchema = z.object({
       archive: OperationConfigSchema.optional(),
     })
     .optional()
-    .describe('Per-operation advisory guidance'),
+      .describe(PROJECT_CONFIG_MESSAGES.operationsFieldDescribe),
 
   // Optional: GitHub Copilot integration preferences. `cloudAgent` is the
   // opt-in for generating the Copilot cloud coding-agent files (a GitHub
@@ -70,7 +70,7 @@ export const ProjectConfigSchema = z.object({
       cloudAgent: z.boolean().optional(),
     })
     .optional()
-    .describe('GitHub Copilot integration preferences'),
+    .describe(PROJECT_CONFIG_MESSAGES.githubCopilotFieldDescribe),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
@@ -166,6 +166,54 @@ function parseOperations(raw: unknown): OperationsConfig | undefined {
 export const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
 
 /**
+ * Build the warning for an artifact whose `rules:` list is not an array of
+ * strings. Names the offending index and what YAML actually produced there, so
+ * a config that silently loses an entire rule set can be fixed without
+ * bisecting the list by hand. A bare `-` item containing an unquoted ": " is the
+ * common cause: YAML reads it as a mapping, so the hint points at quoting.
+ */
+function describeRulesShapeError(artifactId: string, rules: unknown): string {
+  const base = PROJECT_CONFIG_MESSAGES.rulesMustBeArrayOfStrings(artifactId);
+
+  if (!Array.isArray(rules)) {
+    return `${base}. ${PROJECT_CONFIG_MESSAGES.rulesFieldIs(artifactId, describeYamlType(rules))}`;
+  }
+
+  const bad = rules
+    .map((rule, index) => ({ rule, index }))
+    .filter(({ rule }) => typeof rule !== 'string');
+
+  if (bad.length === 0) {
+    return base;
+  }
+
+  // Name every offending index with its own shape, so a mixed list does not
+  // have to be re-bisected one item at a time.
+  const details = bad
+    .map(({ rule, index }) => PROJECT_CONFIG_MESSAGES.rulesItemIs(artifactId, index, describeYamlType(rule)))
+    .join('; ');
+
+  // A bare `-` item with an unquoted ": " is the common cause: YAML reads it as
+  // a mapping. Say so rather than leaving the reader to work out the quoting.
+  const hasMapping = bad.some(({ rule }) => rule !== null && typeof rule === 'object' && !Array.isArray(rule));
+  const hint = hasMapping ? PROJECT_CONFIG_MESSAGES.rulesUnquotedColonHint : '';
+
+  return `${base}. ${details}${hint}`;
+}
+
+/** Name a YAML value's shape in a warning, e.g. "a mapping" or "a number". */
+function describeYamlType(value: unknown): string {
+  if (value === null) return PROJECT_CONFIG_MESSAGES.yamlNull;
+  if (Array.isArray(value)) return PROJECT_CONFIG_MESSAGES.yamlNestedList;
+  const type = typeof value;
+  if (type === 'object') return PROJECT_CONFIG_MESSAGES.yamlMapping;
+  if (type === 'number') return PROJECT_CONFIG_MESSAGES.yamlNumber;
+  if (type === 'boolean') return PROJECT_CONFIG_MESSAGES.yamlBoolean;
+  if (type === 'string') return PROJECT_CONFIG_MESSAGES.yamlString;
+  return PROJECT_CONFIG_MESSAGES.yamlOther(type);
+}
+
+/**
  * Read and parse openspec/config.yaml from project root.
  * Uses resilient parsing - validates each field independently using Zod safeParse.
  * Returns null if file doesn't exist.
@@ -259,9 +307,7 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
               );
             }
           } else {
-            console.warn(
-              PROJECT_CONFIG_MESSAGES.rulesMustBeArrayOfStrings(artifactId)
-            );
+            console.warn(describeRulesShapeError(artifactId, rules));
           }
         }
 

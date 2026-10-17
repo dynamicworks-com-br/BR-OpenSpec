@@ -11,7 +11,7 @@ vi.mock('@inquirer/prompts', () => ({
 }));
 
 async function runConfigCommand(args: string[]): Promise<void> {
-  const { registerConfigCommand } = await import('../../src/commands/config.js');
+  const { registerConfigCommand } = await import('../../src/cli/commands/config.js');
   const program = new Command();
   registerConfigCommand(program);
   await program.parseAsync(['node', 'openspec', 'config', ...args]);
@@ -454,7 +454,7 @@ describe('config profile interactive flow', () => {
     expect(process.exitCode).toBeUndefined();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith('Nenhuma ferramenta configurada encontrada.');
-    expect(consoleLogSpy).toHaveBeenCalledWith('Configuração atualizada. Execute `openspec update` nos seus projetos para aplicar.');
+    expect(consoleLogSpy).toHaveBeenCalledWith('Execute `openspec update` nos seus outros projetos para aplicar.');
   });
 
   it('confirmed project apply should report the update failure reason', async () => {

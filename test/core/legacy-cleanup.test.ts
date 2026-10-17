@@ -275,7 +275,7 @@ ${OPENSPEC_MARKERS.end}`);
     it('should detect legacy Claude slash command directory', async () => {
       const dirPath = path.join(testDir, '.claude', 'commands', 'openspec');
       await fs.mkdir(dirPath, { recursive: true });
-      await fs.writeFile(path.join(dirPath, 'proposal.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'proposal.md'), '<!-- OPENSPEC:START -->\ncontent\n<!-- OPENSPEC:END -->\n');
 
       const result = await detectLegacySlashCommands(testDir);
       expect(result.directories).toContain('.claude/commands/openspec');
@@ -376,6 +376,21 @@ ${OPENSPEC_MARKERS.end}`);
       const result = await detectLegacySlashCommands(testDir);
       expect(result.files).toContain('.opencode/command/opsx-propose.md');
       expect(result.files).toContain('.opencode/command/openspec-new.md');
+    });
+
+    it('should detect Kilo workflows from the legacy command directory', async () => {
+      const dirPath = path.join(testDir, '.kilocode', 'workflows');
+      await fs.mkdir(dirPath, { recursive: true });
+      await fs.writeFile(path.join(dirPath, 'opsx-propose.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'openspec-apply.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'opsx-custom.md'), 'user content');
+      await fs.writeFile(path.join(dirPath, 'openspec-custom.md'), 'user content');
+
+      const result = await detectLegacySlashCommands(testDir);
+      expect(result.files).toContain('.kilocode/workflows/opsx-propose.md');
+      expect(result.files).toContain('.kilocode/workflows/openspec-apply.md');
+      expect(result.files).not.toContain('.kilocode/workflows/opsx-custom.md');
+      expect(result.files).not.toContain('.kilocode/workflows/openspec-custom.md');
     });
 
     it('should detect legacy CoStrict command files without claiming their directory', async () => {
@@ -611,7 +626,7 @@ ${OPENSPEC_MARKERS.end}`);
     it('should delete legacy slash command directories', async () => {
       const dirPath = path.join(testDir, '.claude', 'commands', 'openspec');
       await fs.mkdir(dirPath, { recursive: true });
-      await fs.writeFile(path.join(dirPath, 'proposal.md'), 'content');
+      await fs.writeFile(path.join(dirPath, 'proposal.md'), '<!-- OPENSPEC:START -->\ncontent\n<!-- OPENSPEC:END -->\n');
 
       const detection = await detectLegacyArtifacts(testDir);
       const result = await cleanupLegacyArtifacts(testDir, detection);
@@ -930,7 +945,9 @@ ${OPENSPEC_MARKERS.end}`);
       expect(summary).toContain('Arquivos a atualizar');
       expect(summary).toContain('• CLAUDE.md');
       // Should NOT be in removals
+      expect(summary).not.toContain('Arquivos a remover');
       expect(summary).not.toContain('Nenhum conteúdo do usuário a preservar');
+      expect(summary).not.toContain('serão excluídos por completo');
     });
 
     it('should format files to be updated', () => {
@@ -969,6 +986,7 @@ ${OPENSPEC_MARKERS.end}`);
       const summary = formatDetectionSummary(detection);
       expect(summary).toContain('Arquivos a remover');
       expect(summary).toContain('• .claude/commands/openspec/');
+      expect(summary).toContain('Estes arquivos serão excluídos por completo. Faça backup de qualquer conteúdo personalizado antes de continuar:');
     });
 
     it('should format slash command files', () => {
@@ -987,9 +1005,10 @@ ${OPENSPEC_MARKERS.end}`);
       const summary = formatDetectionSummary(detection);
       expect(summary).toContain('Arquivos a remover');
       expect(summary).toContain('• .cursor/commands/openspec-proposal.md');
+      expect(summary).toContain('Estes arquivos serão excluídos por completo. Faça backup de qualquer conteúdo personalizado antes de continuar:');
     });
 
-    it('should format openspec/AGENTS.md', () => {
+    it('should warn that openspec/AGENTS.md will be deleted entirely without claiming it has no user content', () => {
       const detection = {
         configFiles: [],
         configFilesToUpdate: [],
@@ -1005,6 +1024,9 @@ ${OPENSPEC_MARKERS.end}`);
       const summary = formatDetectionSummary(detection);
       expect(summary).toContain('Arquivos a remover');
       expect(summary).toContain('• openspec/AGENTS.md');
+      expect(summary).toContain('Estes arquivos serão excluídos por completo. Faça backup de qualquer conteúdo personalizado antes de continuar:');
+      expect(summary).not.toContain('Nenhum conteúdo do usuário a preservar');
+      expect(summary).not.toContain('No user content to preserve');
     });
 
     it('should include attention section for project.md', () => {
@@ -1025,7 +1047,8 @@ ${OPENSPEC_MARKERS.end}`);
       expect(summary).toContain('• openspec/project.md');
       expect(summary).toContain('Não excluiremos este arquivo');
       expect(summary).toContain('config.yaml');
-      expect(summary).toContain('"context:"');
+      expect(summary).toContain('Peça ao seu assistente de IA:');
+      expect(summary).toContain('regras dos artefatos correspondentes');
     });
 
     it('should include attention section with other legacy artifacts', () => {
@@ -1127,19 +1150,23 @@ ${OPENSPEC_MARKERS.end}`);
       expect(hint).toContain('openspec/project.md');
       expect(hint).toContain('Não excluiremos este arquivo');
       expect(hint).toContain('config.yaml');
-      expect(hint).toContain('"context:"');
+      expect(hint).toContain('Peça ao seu assistente de IA:');
     });
 
-    it('should include actionable instructions', () => {
+    it('should include a pasteable AI-assisted migration request', () => {
       const hint = formatProjectMdMigrationHint();
-      expect(hint).toContain('mova qualquer conteúdo útil');
-      expect(hint).toContain('exclua o arquivo quando estiver pronto');
+      expect(hint).toContain('Revise openspec/project.md e migre o conteúdo útil para');
+      expect(hint).toContain('Não exclua o project.md.');
+      expect(hint).toContain('Revise o config.yaml e então exclua o project.md quando estiver pronto.');
     });
 
-    it('should explain the new context section benefits', () => {
+    it('should guide the agent to distill and route the content', () => {
       const hint = formatProjectMdMigrationHint();
-      expect(hint).toContain('incluído em toda solicitação BR-OpenSpec');
-      expect(hint).toContain('confiavelmente');
+      expect(hint).toContain('Mantenha o contexto conciso: inclua apenas fatos');
+      expect(hint).toContain('do projeto necessários durante a criação de artefatos, apply e archive');
+      expect(hint).toContain('regras dos artefatos correspondentes');
+      expect(hint).toContain('entrada de operations correspondente');
+      expect(hint).toContain('Deixe de fora material genérico, desatualizado ou verboso');
     });
   });
 
@@ -1161,6 +1188,7 @@ ${OPENSPEC_MARKERS.end}`);
       expect(LEGACY_SLASH_COMMAND_PATHS['claude']).toEqual({
         type: 'directory',
         path: '.claude/commands/openspec',
+        managedFileNames: ['proposal.md', 'apply.md', 'archive.md'],
       });
 
       expect(LEGACY_SLASH_COMMAND_PATHS['cursor']).toEqual({
@@ -1171,6 +1199,16 @@ ${OPENSPEC_MARKERS.end}`);
       expect(LEGACY_SLASH_COMMAND_PATHS['devin']).toEqual({
         type: 'files',
         pattern: '.windsurf/workflows/openspec-*.md',
+      });
+
+      expect(LEGACY_SLASH_COMMAND_PATHS['kilocode']).toEqual({
+        type: 'files',
+        pattern: [
+          ...ALL_WORKFLOWS.map(workflow => `.kilocode/workflows/opsx-${workflow}.md`),
+          '.kilocode/workflows/openspec-proposal.md',
+          '.kilocode/workflows/openspec-apply.md',
+          '.kilocode/workflows/openspec-archive.md',
+        ],
       });
     });
 

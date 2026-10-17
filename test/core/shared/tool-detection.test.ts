@@ -55,6 +55,8 @@ describe('tool-detection', () => {
       expect(tools).toContain('claude');
       expect(tools).toContain('cursor');
       expect(tools).toContain('devin');
+      expect(tools).toContain('gsd');
+      expect(tools).toContain('dsh');
       // `--tools all` resolves to exactly this list, so `agents` being here is what
       // puts the shared target in an `--tools all` run.
       expect(tools).toContain('agents');
@@ -141,6 +143,19 @@ describe('tool-detection', () => {
       await fs.writeFile(localSkill, 'test content');
 
       expect(getToolSkillStatus(testDir, 'minimax-code').configured).toBe(false);
+    });
+
+    it('should detect DeepSeek Harness skills under project .dsh/skills', async () => {
+      const skillDir = path.join(testDir, '.dsh', 'skills', 'openspec-explore');
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.writeFile(path.join(skillDir, 'SKILL.md'), 'test content');
+
+      expect(getToolSkillStatus(testDir, 'dsh')).toMatchObject({
+        configured: true,
+        fullyConfigured: false,
+        skillCount: 1,
+      });
+      expect(getConfiguredTools(testDir)).toEqual(['dsh']);
     });
   });
 
@@ -385,6 +400,7 @@ Content here
     // cline — a directory that is not the tool's skillsDir at all.
     it.each([
       ['gemini', path.join('.gemini', 'commands', 'opsx', 'explore.toml')],
+      ['easycode', path.join('.easycode', 'commands', 'opsx', 'explore.toml')],
       ['cursor', path.join('.cursor', 'commands', 'opsx-explore.md')],
       ['cline', path.join('.clinerules', 'workflows', 'opsx-explore.md')],
     ])('should fingerprint commands-only %s installs', async (toolId, explorePath) => {
