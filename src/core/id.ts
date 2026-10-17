@@ -7,6 +7,11 @@ import { ID_MESSAGES } from '../messages/index.js';
  * Mantido mínimo de propósito: a gramática kebab de ids (stores/worksets)
  * pertence ao subsistema de stores, ainda não portado para o fork.
  */
+/** Identificador kebab-case: letras minúsculas, números e hífens simples. */
+export function isKebabId(value: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value);
+}
+
 export function folderStyleNameProblem(
   value: string,
   label: string

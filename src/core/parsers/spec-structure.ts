@@ -1,5 +1,6 @@
 import { buildCodeFenceMask } from './code-fence.js';
 import { SPEC_STRUCTURE_MESSAGES } from '../../messages/index.js';
+import { normalizeRequirementName } from './requirement-blocks.js';
 
 const REQUIREMENTS_SECTION_HEADER = /^##\s+Requirements\s*$/i;
 const TOP_LEVEL_SECTION_HEADER = /^##\s+/;
@@ -69,10 +70,9 @@ export function findMainSpecStructureIssues(content: string): MainSpecStructureI
       continue;
     }
 
-    // Dois `### Requirement:` com o mesmo nome dentro de `## Requirements`:
-    // a reconciliação por nome colapsaria um dos blocos ao atualizar o outro,
-    // então o spec é rejeitado antes de qualquer delta ser aplicado.
-    const requirementName = requirementMatch[1].trim();
+    // The same name every other reader uses, so a closed heading
+    // (`### Requirement: Foo ###`) duplicates `### Requirement: Foo`.
+    const requirementName = normalizeRequirementName(requirementMatch[1]);
     const previousLine = requirementLines.get(requirementName);
     if (previousLine !== undefined) {
       issues.push({

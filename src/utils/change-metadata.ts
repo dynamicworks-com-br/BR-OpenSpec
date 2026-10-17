@@ -1,12 +1,102 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as yaml from 'yaml';
-import { ChangeMetadataSchema, type ChangeMetadata } from '../core/artifact-graph/types.js';
+import {
+  CHANGE_METADATA_KNOWN_KEYS,
+  ChangeMetadataSchema,
+  type ChangeMetadata,
+} from '../core/change-metadata/schema.js';
 import { listSchemas, resolveSchema } from '../core/artifact-graph/resolver.js';
 import { readProjectConfig, type ProjectConfig } from '../core/project-config.js';
 import { CHANGE_METADATA_MESSAGES } from '../messages/index.js';
 
+export type { ChangeMetadata };
+
+/** Strip terminal controls from untrusted metadata before it is printed inline. */
+function sanitizeInline(value: string, maxLength = 300): string {
+  const flattened = value
+    .replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u206f]+/g, ' ')
+    .trim();
+  return flattened.length > maxLength ? `${flattened.slice(0, maxLength)}…` : flattened;
+}
+
 export const METADATA_FILENAME = '.openspec.yaml';
+
+export { CHANGE_METADATA_KNOWN_KEYS };
+
+/**
+ * Extension keys: a top-level key starting with a lowercase `x-` belongs to a
+ * tool or team that reads `.openspec.yaml` alongside OpenSpec (a tracker id, an
+ * owner). OpenSpec ignores it and does not report it as unknown. As with
+ * OpenAPI's `x-` extensions, the name after the prefix may use any case or
+ * spelling, but must be non-empty and free of whitespace, so `x-`, `x- foo`
+ * and `X-Foo` are still reported. Extensions are top-level only: a key inside
+ * `initiative:` is rejected by that object's strict schema.
+ */
+export const EXTENSION_KEY_PATTERN = /^x-\S+$/;
+
+export function isExtensionMetadataKey(key: string): boolean {
+  return EXTENSION_KEY_PATTERN.test(key);
+}
+
+/**
+ * Unknown top-level keys on a parsed .openspec.yaml object. Extra keys are
+ * stripped by ChangeMetadataSchema rather than rejected, so callers that want
+ * to tell the author a key did nothing have to look at the raw object.
+ * Extension keys (`x-*`) are not unknown: they are deliberately someone else's.
+ */
+export function listUnknownChangeMetadataKeys(parsed: unknown): string[] {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return [];
+  }
+  const known = new Set<string>(CHANGE_METADATA_KNOWN_KEYS);
+  return Object.keys(parsed as Record<string, unknown>)
+    .filter((key) => !known.has(key) && !isExtensionMetadataKey(key))
+    .sort();
+}
+
+/**
+ * Human-readable warning for keys ChangeMetadataSchema strips. Names the
+ * unknown keys, the keys that do exist, and (when present) why `skip_design`
+ * is not `skip_specs`.
+ */
+export function formatUnknownChangeMetadataKeysMessage(keys: string[]): string {
+  // The keys come from the file as written, so a quoted key can carry a
+  // terminal escape; it is printed as inline text.
+  const listed = keys.map((key) => sanitizeInline(key, 100)).join(', ');
+  const known = [...CHANGE_METADATA_KNOWN_KEYS].join(', ');
+  let message = CHANGE_METADATA_MESSAGES.unknownKeys(METADATA_FILENAME, listed, known);
+  if (keys.some((key) => /^x-/i.test(key))) {
+    message += CHANGE_METADATA_MESSAGES.extensionKeyHint;
+  }
+  if (keys.includes('skip_design')) {
+    message += CHANGE_METADATA_MESSAGES.skipDesignNotSupported;
+  }
+  return message;
+}
+
+/**
+ * Non-throwing read of unknown top-level keys. Missing, unreadable, or
+ * unparseable files yield no keys: those failures already have their own
+ * diagnostics on the read path.
+ */
+export function readUnknownChangeMetadataKeys(changeDir: string): string[] {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(path.join(changeDir, METADATA_FILENAME), 'utf-8');
+  } catch {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = yaml.parse(raw);
+  } catch {
+    return [];
+  }
+
+  return listUnknownChangeMetadataKeys(parsed);
+}
 
 /**
  * Error thrown when change metadata validation fails.
@@ -45,6 +135,11 @@ export function validateSchemaName(
 
 /**
  * Writes change metadata to .openspec.yaml in the change directory.
+ *
+ * Meant for a new file only (`createChange` refuses an existing change
+ * directory). `ChangeMetadataSchema` strips unknown keys, including `x-`
+ * extension keys, so a caller that rewrites an existing file must merge those
+ * keys back from the raw YAML first or it silently deletes them.
  *
  * @param changeDir - The path to the change directory
  * @param metadata - The metadata to write

@@ -51,14 +51,14 @@ export const VALIDATION_MESSAGES = {
   // Warnings
   PURPOSE_TOO_BRIEF: `A seção Purpose é muito breve (menos de ${MIN_PURPOSE_LENGTH} caracteres)`,
   PURPOSE_IS_PLACEHOLDER:
-    'A seção Purpose ainda é um placeholder, não um Purpose que alguém escreveu (a frase que o `openspec archive` ' +
-    'grava para uma nova capability, ou um marcador `A definir`/`TBD`/`TODO` deixado no lugar). Substitua-a por uma ' +
-    'descrição de para que serve esta capability, editando o spec principal diretamente: um `## Purpose` em um delta ' +
-    'só é lido quando a capability é criada, então não pode substituir este.',
-  REQUIREMENT_TOO_LONG: `O texto do requisito é muito longo (>${MAX_REQUIREMENT_TEXT_LENGTH} caracteres). Considere dividi-lo.`,
+    'A seção Purpose ainda é um placeholder, e não um Purpose que alguém escreveu (a frase que `openspec archive` ' +
+    'grava para uma capability nova, ou um marcador `TBD`/`TODO`/`A definir` deixado no lugar). Substitua pelo ' +
+    'propósito desta capability, editando o spec principal diretamente: um `## Purpose` em um delta só é lido ' +
+    'quando a capability é criada, então não substitui este.',
+  REQUIREMENT_TOO_LONG: `O texto do requisito é muito longo (>${MAX_REQUIREMENT_TEXT_LENGTH} caracteres). Mova exemplos e casos de borda para cenários, ou divida em requisitos separados que descrevam um comportamento cada.`,
   DELTA_DESCRIPTION_TOO_BRIEF: 'A descrição do delta é muito breve',
-  DELTA_MISSING_REQUIREMENTS: 'O delta deve incluir requisitos',
-
+  DELTA_MISSING_REQUIREMENTS: 'O delta deveria incluir requisitos',
+  
   // Guidance snippets (appended to primary messages for remediation)
   GUIDE_NO_DELTAS:
     'Nenhum delta encontrado. Certifique-se de que a alteração possui um diretório specs/ com pastas de capacidade (ex: specs/http-server/spec.md) contendo arquivos .md que usam cabeçalhos de delta (## ADDED/MODIFIED/REMOVED/RENAMED Requirements) e que cada requisito inclui pelo menos um bloco "#### Scenario:". Se esta alteração intencionalmente não modifica specs (refatoração pura, ferramental, docs), defina "skip_specs: true" no .openspec.yaml da alteração em vez disso. Dica: execute "openspec change show <change-id> --json --deltas-only" para inspecionar os deltas analisados.',

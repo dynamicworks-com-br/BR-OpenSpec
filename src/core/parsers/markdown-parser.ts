@@ -1,6 +1,7 @@
 import { Spec, Change, Requirement, Scenario, Delta, DeltaOperation } from '../schemas/index.js';
 import { SPEC_MESSAGES, CHANGE_MESSAGES } from '../../messages/index.js';
-import { buildCodeFenceMask, extractRequirementText } from './requirement-text.js';
+import { buildCodeFenceMask, extractRequirementText, hasScenarioBody } from './requirement-text.js';
+import { normalizeRequirementName, scenarioNameFromHeaderText } from './requirement-blocks.js';
 
 export interface Section {
   level: number;
@@ -161,6 +162,9 @@ export class MarkdownParser {
       const scenarios = this.parseScenarios(child);
 
       requirements.push({
+        // The name archive matches on, so a JSON reader can cite a requirement
+        // the way a MODIFIED or REMOVED header must.
+        name: normalizeRequirementName(child.title.replace(/^Requirement:\s*/i, '')),
         text,
         scenarios,
       });
@@ -173,9 +177,11 @@ export class MarkdownParser {
     const scenarios: Scenario[] = [];
     
     for (const scenarioSection of requirementSection.children) {
-      // Store the raw text content of the scenario section
-      if (scenarioSection.content.trim()) {
+      // Store the raw text content of the scenario section. A header with no
+      // body is not a scenario; the delta counter applies the same rule.
+      if (hasScenarioBody(scenarioSection.content)) {
         scenarios.push({
+          name: scenarioNameFromHeaderText(scenarioSection.title),
           rawText: scenarioSection.content
         });
       }

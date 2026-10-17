@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { FileSystemUtils } from './file-system.js';
+import { assertDiscoveredSpecFile } from './spec-path-containment.js';
+import { parseDeltaSpec } from '../core/parsers/requirement-blocks.js';
 
 export interface DiscoveredSpec {
   /** Spec id relative to the specs root, forward-slash separated on every platform (e.g. "web" or "platform/session-layout"). */
@@ -9,26 +10,16 @@ export interface DiscoveredSpec {
   specFile: string;
 }
 
-function assertDiscoveredSpecPath(specsRoot: string, capabilityDir: string, specFile: string): void {
-  try {
-    FileSystemUtils.assertPathWithin(specsRoot, specFile);
-  } catch {
-    // Diretórios de capability diretos podem ser, de propósito, links externos
-    // de monorepo. Nesse caso, confine o arquivo à própria capability.
-    FileSystemUtils.assertPathWithin(capabilityDir, specFile);
-  }
-}
-
 /**
  * Recursively discover every `spec.md` under a specs root, so both the flat
  * `specs/<id>/spec.md` layout and nested `specs/<area>/<id>/spec.md` layouts
  * are found (#1353). A `spec.md` sitting directly in the root is ignored,
  * matching the historical requirement that specs live in a capability folder.
  * Dot-directories are skipped and symlinked directories are not followed.
- * Um `spec.md` symlinkado dentro da capability É resolvido: `hasAnyFileUnder`
- * e os globs do artifact graph contam-no como conteúdo, então descartá-lo aqui
- * perderia silenciosamente o delta no arquivamento. Um link para fora da sua
- * capability é rejeitado e um link pendente é ignorado. Results are sorted by id.
+ * A symlinked `spec.md` IS resolved: `hasAnyFileUnder` and the artifact
+ * graph's globs both count it as content, so dropping it here would silently
+ * lose the delta on archive. `assertDiscoveredSpecFile` decides how far such
+ * a link may point; a dangling link is skipped. Results are sorted by id.
  *
  * A missing root (ENOENT) yields an empty list, but any other read failure
  * (EACCES, EIO, ...) is thrown rather than swallowed: since this feeds the
@@ -52,12 +43,12 @@ export async function discoverSpecFiles(specsRoot: string): Promise<DiscoveredSp
       } else if (entry.name === 'spec.md' && segments.length > 0) {
         const specFile = path.join(dir, entry.name);
         if (entry.isFile()) {
-          assertDiscoveredSpecPath(specsRoot, dir, specFile);
+          assertDiscoveredSpecFile(specsRoot, specFile);
           results.push({ id: segments.join('/'), specFile });
         } else if (entry.isSymbolicLink()) {
           try {
             if ((await fs.stat(specFile)).isFile()) {
-              assertDiscoveredSpecPath(specsRoot, dir, specFile);
+              assertDiscoveredSpecFile(specsRoot, specFile);
               results.push({ id: segments.join('/'), specFile });
             }
           } catch (err: any) {
@@ -73,6 +64,64 @@ export async function discoverSpecFiles(specsRoot: string): Promise<DiscoveredSp
   // process's ICU locale, so ordering could vary by OS/CI. Code-point ordering
   // guarantees the deterministic output the docstring promises.
   return results.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+export interface UnreadDeltaFile {
+  /** File path relative to the specs root, forward-slash separated. */
+  path: string;
+  /** The spec.md the merge path reads for it, relative to the specs root. */
+  expected: string;
+}
+
+/**
+ * Markdown files under a change's specs/ that carry delta sections but are not
+ * a capability's `spec.md`, so discoverSpecFiles, and with it validate and
+ * archive, never reads them: `specs/user-auth.md`, or `specs/user-auth/delta.md`
+ * beside or instead of the capability's spec.md. The artifact graph's
+ * recursive specs/ markdown glob does match them, so status and apply report
+ * the specs as written while archive has nothing to merge. A `spec.md` at the
+ * specs/ root has its own check (#1385) and is not repeated here. Notes with
+ * no delta section are not deltas and are not reported. The walk matches
+ * discoverSpecFiles: dot entries are skipped, symlinked directories are not
+ * followed, and a dangling link is skipped. A missing root yields an empty
+ * list; any other read failure is thrown. Results are sorted by path.
+ */
+export async function findUnreadDeltaFiles(specsRoot: string): Promise<UnreadDeltaFile[]> {
+  const results: UnreadDeltaFile[] = [];
+  const walk = async (dir: string, segments: string[]): Promise<void> => {
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch (err: any) {
+      if (err?.code === 'ENOENT' || err?.code === 'ENOTDIR') return;
+      throw err;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      if (entry.isDirectory()) {
+        await walk(path.join(dir, entry.name), [...segments, entry.name]);
+        continue;
+      }
+      if (!entry.isFile() && !entry.isSymbolicLink()) continue;
+      if (entry.name === 'spec.md' || !entry.name.toLowerCase().endsWith('.md')) continue;
+      const filePath = path.join(dir, entry.name);
+      let content: string;
+      try {
+        if (entry.isSymbolicLink() && !(await fs.stat(filePath)).isFile()) continue;
+        content = await fs.readFile(filePath, 'utf-8');
+      } catch (err: any) {
+        // A dangling link is not content; anything else fails loudly.
+        if (err?.code === 'ENOENT') continue;
+        throw err;
+      }
+      if (!Object.values(parseDeltaSpec(content).sectionPresence).some(Boolean)) continue;
+      const capability =
+        segments.length > 0 ? segments.join('/') : entry.name.slice(0, -'.md'.length);
+      results.push({ path: [...segments, entry.name].join('/'), expected: `${capability}/spec.md` });
+    }
+  };
+  await walk(specsRoot, []);
+  return results.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
 /**

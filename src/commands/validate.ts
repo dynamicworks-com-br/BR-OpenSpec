@@ -6,12 +6,32 @@ import { isInteractive, resolveNoInteractive } from '../utils/interactive.js';
 import { getSpecIds } from '../utils/item-discovery.js';
 import { getAvailableChanges } from './workflow/shared.js';
 import { nearestMatches } from '../utils/match.js';
-import { CLI_MESSAGES, VALIDATE_MESSAGES } from '../messages/index.js';
+import { CLI_MESSAGES, ID_MESSAGES, VALIDATE_MESSAGES } from '../messages/index.js';
 import { promises as fs } from 'fs';
 import { getTaskProgressDetailForChange, type SchemaGlobCache } from '../utils/task-progress.js';
 import { FileSystemUtils } from '../utils/file-system.js';
+import { folderStyleNameProblem } from '../core/id.js';
 
 type ItemType = 'change' | 'spec';
+
+/**
+ * Rejects ids that leave the planning root. Nested spec ids (`area/name`)
+ * stay legal: each `/` segment is checked, and a backslash is refused whole.
+ */
+function itemNameProblem(itemName: string, type: ItemType | undefined): string | null {
+  const labels: ItemType[] = type ? [type] : ['spec', 'change'];
+  for (const kind of labels) {
+    const label = kind === 'spec' ? ID_MESSAGES.specIdLabel : ID_MESSAGES.changeNameLabel;
+    if (/[\\]/u.test(itemName)) {
+      return ID_MESSAGES.mustNotContainPathSeparators(label);
+    }
+    for (const segment of itemName.split('/')) {
+      const problem = folderStyleNameProblem(segment, label);
+      if (problem) return problem;
+    }
+  }
+  return null;
+}
 
 interface ExecuteOptions {
   all?: boolean;
@@ -72,6 +92,18 @@ export class ValidateCommand {
 
     // Direct item validation with type detection or override
     const typeOverride = this.normalizeType(options.type);
+    const nameProblem = itemNameProblem(itemName, typeOverride);
+    if (nameProblem) {
+      if (options.json) {
+        console.log(JSON.stringify({
+          status: [{ severity: 'error', code: 'invalid_item', message: nameProblem }],
+        }));
+      } else {
+        console.error(nameProblem);
+      }
+      process.exitCode = 1;
+      return;
+    }
     await this.validateDirectItem(itemName, { typeOverride, strict: !!options.strict, json: !!options.json });
   }
 
@@ -189,6 +221,7 @@ export class ValidateCommand {
     }
     if (report.valid) {
       console.log(type === 'change' ? VALIDATE_MESSAGES.changeIsValid(id) : VALIDATE_MESSAGES.specIsValid(id));
+      this.printNonBlockingIssues(report.issues);
     } else {
       console.error(type === 'change' ? VALIDATE_MESSAGES.changeHasIssues(id) : VALIDATE_MESSAGES.specHasIssues(id));
       for (const issue of report.issues) {
@@ -197,6 +230,14 @@ export class ValidateCommand {
         console.error(`${prefix} [${label}] ${issue.path}: ${issue.message}`);
       }
       this.printNextSteps(type, report.issues);
+    }
+  }
+
+  private printNonBlockingIssues(issues: Array<{ level: string; path: string; message: string }>): void {
+    for (const issue of issues) {
+      if (issue.level === 'ERROR') continue;
+      const prefix = issue.level === 'WARNING' ? '⚠' : 'ℹ';
+      console.error(`${prefix} [${issue.level}] ${issue.path}: ${issue.message}`);
     }
   }
 
@@ -338,8 +379,10 @@ export class ValidateCommand {
       console.log(JSON.stringify(out, null, 2));
     } else {
       for (const res of results) {
-        if (res.valid) console.log(`✓ ${res.type}/${res.id}`);
-        else console.error(`✗ ${res.type}/${res.id}`);
+        if (res.valid) {
+          console.log(`✓ ${res.type}/${res.id}`);
+          this.printNonBlockingIssues(res.issues);
+        } else console.error(`✗ ${res.type}/${res.id}`);
       }
       console.log(VALIDATE_MESSAGES.totals(summary.totals.passed, summary.totals.failed, summary.totals.items));
     }

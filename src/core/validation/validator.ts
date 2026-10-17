@@ -5,27 +5,42 @@ import { SpecSchema, ChangeSchema, Spec, Change } from '../schemas/index.js';
 import { MarkdownParser } from '../parsers/markdown-parser.js';
 import { ChangeParser } from '../parsers/change-parser.js';
 import { ValidationReport, ValidationIssue, ValidationLevel } from './types.js';
+import { findSpecUpdates, buildUpdatedSpec } from '../specs-apply.js';
 import {
   MIN_PURPOSE_LENGTH,
   MAX_REQUIREMENT_TEXT_LENGTH,
   VALIDATION_MESSAGES
 } from './constants.js';
-import { parseDeltaSpec, foldRequirementName, normalizeRequirementName, extractRequirementsSection, findMissingCurrentScenarios, type RequirementBlock } from '../parsers/requirement-blocks.js';
+import {
+  parseDeltaSpec,
+  foldRequirementName,
+  normalizeRequirementName,
+  extractRequirementsSection,
+  diffScenarioNames,
+  describeScenarioBalance,
+  describeUnappliedContent,
+  type RequirementBlock,
+} from '../parsers/requirement-blocks.js';
 import {
   extractRequirementBody as extractRequirementBodyShared,
   containsShallOrMust as containsShallOrMustShared,
   countScenarios as countScenariosShared,
+  countEmptyScenarios,
 } from '../parsers/requirement-text.js';
 import { findMainSpecStructureIssues } from '../parsers/spec-structure.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
-import { discoverSpecFiles, hasAnyFileUnder } from '../../utils/spec-discovery.js';
+import { assertDiscoveredSpecFile } from '../../utils/spec-path-containment.js';
+import { discoverSpecFiles, findUnreadDeltaFiles, hasAnyFileUnder } from '../../utils/spec-discovery.js';
 import {
   METADATA_FILENAME,
+  formatUnknownChangeMetadataKeysMessage,
   readSkipSpecsMarker,
+  readUnknownChangeMetadataKeys,
   resolveSchemaForChange,
 } from '../../utils/change-metadata.js';
 import { resolveTaskFilesForChange } from '../../utils/task-progress.js';
 import { findTaskNumberingIssues } from './task-numbering.js';
+import { findMissingTaskCheckboxIssues } from './task-checkboxes.js';
 import { findPurposePlaceholderIssue } from './purpose-placeholder.js';
 import { getPackageSchemasDir, getSchemaDir } from '../artifact-graph/index.js';
 import { VALIDATOR_MESSAGES } from '../../messages/index.js';
@@ -145,9 +160,10 @@ export class Validator {
    * - No duplicates within sections; no cross-section conflicts per spec
    *
    * When `options.mainSpecsDir` is given, MODIFIED blocks are also checked
-   * against the current main specs for the scenario loss archive refuses to
-   * apply (#1477). When `options.projectRoot` is given, the schema's tracked
-   * task files are checked for ambiguous numbering (#1520). Omitting either
+   * against the current main specs for scenario loss (#1477), and merge
+   * conflicts are reported as INFO without changing the verdict (#1112).
+   * When `options.projectRoot` is given, the schema's tracked task files are
+   * checked for ambiguous numbering (#1520). Omitting either
    * option keeps existing library and archive callers behaving as before.
    */
   async validateChangeDeltaSpecs(
@@ -191,6 +207,7 @@ export class Validator {
         } catch {
           continue;
         }
+        if (content === undefined) continue;
 
         const plan = parseDeltaSpec(content);
         const entryPath = FileSystemUtils.toPosixPath(path.relative(specsDir, specFile));
@@ -210,6 +227,47 @@ export class Validator {
             message: nameless
               ? VALIDATOR_MESSAGES.skippedHeaderNameless(stray.header, stray.section)
               : VALIDATOR_MESSAGES.skippedHeaderNotRequirement(stray.header, stray.section),
+          });
+        }
+
+        // A FROM:/TO: line that never formed a pair. Reported here so the author
+        // learns at authoring time, rather than having archive either skip the
+        // rename or apply it to a requirement they never named.
+        for (const unpaired of plan.unpairedRenames) {
+          const missing = unpaired.side === 'FROM' ? 'TO' : 'FROM';
+          issues.push({
+            level: 'ERROR',
+            path: entryPath,
+            line: unpaired.line,
+            message: VALIDATOR_MESSAGES.renamedUnpaired(unpaired.side, unpaired.name, missing),
+          });
+        }
+
+        // A well-formed requirement written outside every delta section. The
+        // reader only looks inside the four delta sections, so this block is
+        // ignored - reported as a WARNING rather than an ERROR because a
+        // handful of pre-format archived changes still carry this shape, and
+        // the fix is to move the block, not to reject the change outright.
+        for (const orphan of plan.orphanedRequirements) {
+          const where = orphan.section
+            ? VALIDATOR_MESSAGES.underSection(orphan.section)
+            : VALIDATOR_MESSAGES.aboveFirstSection;
+          issues.push({
+            level: 'WARNING',
+            path: entryPath,
+            line: orphan.line,
+            message: VALIDATOR_MESSAGES.orphanRequirementIgnored(orphan.name, where),
+          });
+        }
+
+        // Archive carries requirement blocks only, by design. Warn so text
+        // written elsewhere is moved rather than lost without notice.
+        for (const lost of plan.unappliedContent) {
+          issues.push({
+            level: 'WARNING',
+            path: entryPath,
+            line: lost.line,
+            message: VALIDATOR_MESSAGES.unappliedNotCarried(describeUnappliedContent(lost, true)),
           });
         }
 
@@ -260,9 +318,20 @@ export class Validator {
               ),
             });
           }
+          // Same limit the main spec enforces after archive (#1976), so
+          // `validate <change> --strict` catches a new overlong requirement
+          // before it lands. MODIFIED is left alone: its text is the existing
+          // requirement, which the specs instruction says to keep whole.
+          if (requirementText && requirementText.length > MAX_REQUIREMENT_TEXT_LENGTH) {
+            issues.push({
+              level: 'WARNING',
+              path: entryPath,
+              message: `ADDED "${block.name}": ${VALIDATION_MESSAGES.REQUIREMENT_TOO_LONG}`,
+            });
+          }
           const scenarioCount = this.countScenarios(block.raw);
           if (scenarioCount < 1) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingScenarioAdded(block.name) });
+            issues.push({ level: 'ERROR', path: entryPath, message: `${VALIDATOR_MESSAGES.missingScenarioAdded(block.name)}${this.emptyScenarioHint(block.raw)}` });
           }
         }
 
@@ -297,7 +366,7 @@ export class Validator {
           }
           const scenarioCount = this.countScenarios(block.raw);
           if (scenarioCount < 1) {
-            issues.push({ level: 'ERROR', path: entryPath, message: VALIDATOR_MESSAGES.missingScenarioModified(block.name) });
+            issues.push({ level: 'ERROR', path: entryPath, message: `${VALIDATOR_MESSAGES.missingScenarioModified(block.name)}${this.emptyScenarioHint(block.raw)}` });
           }
         }
 
@@ -309,14 +378,13 @@ export class Validator {
             ...specId.split('/'),
             'spec.md'
           );
-          FileSystemUtils.assertPathWithin(path.dirname(mainSpecFile), mainSpecFile);
           issues.push(
             ...(await this.findScenarioLossIssues(
               plan.modified,
               plan.renamed,
               mainSpecFile,
               entryPath,
-              path.dirname(mainSpecFile)
+              options.mainSpecsDir
             ))
           );
         }
@@ -389,6 +457,23 @@ export class Validator {
           }
         }
       }
+
+      // Reuse archive's merge builder to report conflicts with the main specs.
+      // Keep structural errors and scenario loss in their existing diagnostics.
+      if (options.mainSpecsDir) {
+        issues.push(
+          ...(await this.findArchiveBlockers(changeDir, options.mainSpecsDir, [
+            ...issues.filter((issue) => issue.level === 'ERROR').map((issue) => issue.path),
+            // Collected in the loop above but not turned into issues until
+            // after this try block, so they are invisible to the filter. A
+            // delta with no parsed sections has nothing for the merge to
+            // apply, which it reports as a failure of its own - on top of the
+            // error that actually names the mistake.
+            ...missingHeaderSpecs,
+            ...emptySectionSpecs.map((spec) => spec.path),
+          ]))
+        );
+      }
     } catch (error) {
       // A missing specs dir (or a stray `specs` file) means no deltas;
       // anything else (EACCES, EIO) must stay loud — discoverSpecFiles
@@ -399,6 +484,18 @@ export class Validator {
       if (code !== 'ENOENT' && code !== 'ENOTDIR') {
         throw error;
       }
+    }
+
+    // The same drop happens to delta sections in any other file the merge
+    // path does not read (specs/<capability>.md, a note beside spec.md),
+    // while the artifact graph's specs/**/*.md glob counts it as written.
+    const unreadDeltaFiles = await findUnreadDeltaFiles(specsDir);
+    for (const file of unreadDeltaFiles) {
+      issues.push({
+        level: 'ERROR',
+        path: file.path,
+        message: VALIDATOR_MESSAGES.unreadDeltaSpec(file.path, file.expected),
+      });
     }
 
     for (const { path: specPath, sections } of emptySectionSpecs) {
@@ -419,6 +516,15 @@ export class Validator {
     const marker = readSkipSpecsMarker(changeDir);
     if (marker.invalidReason) {
       issues.push({ level: 'ERROR', path: METADATA_FILENAME, message: this.formatInvalidMarkerMessage(marker.invalidReason) });
+    }
+
+    const unknownMetadataKeys = readUnknownChangeMetadataKeys(changeDir);
+    if (unknownMetadataKeys.length > 0) {
+      issues.push({
+        level: 'WARNING',
+        path: METADATA_FILENAME,
+        message: formatUnknownChangeMetadataKeysMessage(unknownMetadataKeys),
+      });
     }
 
     // ANY file under specs/ contradicts the marker - not just parsed deltas.
@@ -442,10 +548,10 @@ export class Validator {
       issues.push({ level: 'ERROR', path: 'file', message: VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_CONFLICT });
     }
 
-    // The root-level error already names the file and the fix; adding "No
-    // deltas found" on top would contradict it, since the deltas are sitting in
-    // the file just reported.
-    if (totalDeltas === 0 && !hasRootLevelSpec) {
+    // The root-level and unread-file errors already name the file and the fix;
+    // adding "No deltas found" on top would contradict them, since the deltas
+    // are sitting in the files just reported.
+    if (totalDeltas === 0 && !hasRootLevelSpec && unreadDeltaFiles.length === 0) {
       if (skipSpecs && !specsDirHasFiles) {
         issues.push({ level: 'INFO', path: 'file', message: VALIDATION_MESSAGES.CHANGE_SKIP_SPECS_ACCEPTED });
       } else if (!skipSpecs) {
@@ -454,67 +560,137 @@ export class Validator {
     }
 
     if (options.projectRoot) {
-      issues.push(...await this.collectTaskNumberingIssues(changeDir, options.projectRoot));
+      issues.push(...await this.collectTaskFileIssues(changeDir, options.projectRoot));
     }
 
     return this.createReport(issues);
   }
 
-  private async collectTaskNumberingIssues(
+  /**
+   * Lints the change's task files.
+   *
+   * Two checks with deliberately different reach. Checkbox formatting is read
+   * from whatever the change's own schema declares as its tracked task output,
+   * because every schema's progress, apply and archive behavior is computed by
+   * counting checkboxes in exactly those files. Numbering stays scoped to the
+   * built-in `spec-driven` schema, whose template is the one that numbers tasks
+   * in the first place.
+   *
+   * The checkbox check never falls back to a bare top-level `tasks.md`: a file
+   * no artifact declares is not a tracked task list, and warning about its
+   * formatting would be a guess about a file the tool does not read.
+   */
+  private async collectTaskFileIssues(
     changeDir: string,
     projectRoot: string
   ): Promise<ValidationIssue[]> {
+    let trackedFiles: string[];
+    try {
+      trackedFiles = resolveTaskFilesForChange(changeDir, projectRoot);
+    } catch {
+      return [];
+    }
+
+    const files = trackedFiles.length > 0 ? trackedFiles : [path.join(changeDir, 'tasks.md')];
+    const { documents, unreadable } = await this.readTaskDocuments(changeDir, files);
+    const toWarning = (issue: { path: string; line: number; message: string }): ValidationIssue => ({
+      level: 'WARNING',
+      path: issue.path,
+      line: issue.line,
+      message: issue.message,
+    });
+
+    const issues: ValidationIssue[] = [];
+    // "No file here holds a checkbox" is a claim about the whole tracked set, so
+    // a file that exists but could not be read withdraws it: the checkboxes may
+    // be in exactly that file. `validate --archived` is the surface that reports
+    // an unreadable task file loudly (#205); this one must not guess from it.
+    if (trackedFiles.length > 0 && unreadable === 0) {
+      issues.push(...findMissingTaskCheckboxIssues(documents).map(toWarning));
+    }
+    if (this.usesBuiltInSpecDrivenSchema(changeDir, projectRoot)) {
+      issues.push(...findTaskNumberingIssues(documents).map(toWarning));
+    }
+    return issues;
+  }
+
+  /**
+   * Reads task files into change-relative documents, counting the ones that
+   * exist but could not be read. A file that is simply absent is not counted:
+   * the resolver only returns files it found, so the remaining read failures
+   * are permissions and I/O, and a check that reasons over the whole set needs
+   * to know its evidence was incomplete.
+   */
+  private async readTaskDocuments(
+    changeDir: string,
+    files: readonly string[]
+  ): Promise<{ documents: Array<{ path: string; content: string }>; unreadable: number }> {
+    const documents: Array<{ path: string; content: string }> = [];
+    let unreadable = 0;
+    for (const file of files) {
+      let content: string;
+      try {
+        content = await fs.readFile(file, 'utf-8');
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') unreadable++;
+        continue;
+      }
+
+      documents.push({ path: this.taskDocumentPath(changeDir, file), content });
+    }
+
+    documents.sort((left, right) => left.path.localeCompare(right.path));
+    return { documents, unreadable };
+  }
+
+  /**
+   * Names a task file relative to its change, POSIX-separated.
+   *
+   * Both sides are canonicalized first. `resolveArtifactOutputs` hands back real
+   * paths, while `changeDir` carries whatever spelling the caller resolved, and
+   * the two can differ without being apart: on Windows a short 8.3 alias
+   * (`RUNNER~1`) against its expanded form turned `tasks.md` into a
+   * `../../../..`-prefixed absolute path in the report, and a symlinked project
+   * directory does the same elsewhere. Canonicalizing recovers the real
+   * relationship. The Windows CI job is the regression guard — the mismatch
+   * cannot be staged on POSIX, where the spawned CLI's `process.cwd()` is
+   * already physical.
+   *
+   * A path that still escapes would be a resolver bug rather than a spelling
+   * difference, but the report must never leak an absolute filesystem path, so
+   * the file name stands in.
+   */
+  private taskDocumentPath(changeDir: string, file: string): string {
+    const relative = path.relative(
+      FileSystemUtils.canonicalizeExistingPath(changeDir),
+      FileSystemUtils.canonicalizeExistingPath(file)
+    );
+    const escapes = relative === '' || relative.startsWith('..') || path.isAbsolute(relative);
+    return escapes ? path.basename(file) : FileSystemUtils.toPosixPath(relative);
+  }
+
+  /**
+   * True when the change resolves to the package's own `spec-driven` schema. A
+   * project schema that merely reuses the name is not it, so checks written
+   * against the built-in template never fire on someone else's task format.
+   */
+  private usesBuiltInSpecDrivenSchema(changeDir: string, projectRoot: string): boolean {
     try {
       const schemaName = resolveSchemaForChange(changeDir, undefined, projectRoot).replace(
         /\.ya?ml$/,
         ''
       );
+      if (schemaName !== 'spec-driven') return false;
       const schemaDir = getSchemaDir(schemaName, projectRoot);
+      if (schemaDir === null) return false;
       const builtInSchemaDir = path.join(getPackageSchemasDir(), 'spec-driven');
-      if (
-        schemaName !== 'spec-driven' ||
-        schemaDir === null ||
-        FileSystemUtils.canonicalizeExistingPath(schemaDir) !==
-          FileSystemUtils.canonicalizeExistingPath(builtInSchemaDir)
-      ) {
-        return [];
-      }
+      return (
+        FileSystemUtils.canonicalizeExistingPath(schemaDir) ===
+        FileSystemUtils.canonicalizeExistingPath(builtInSchemaDir)
+      );
     } catch {
-      return [];
+      return false;
     }
-
-    let taskFiles: string[];
-    try {
-      taskFiles = resolveTaskFilesForChange(changeDir, projectRoot);
-    } catch {
-      return [];
-    }
-    if (taskFiles.length === 0) {
-      taskFiles = [path.join(changeDir, 'tasks.md')];
-    }
-
-    const documents: Array<{ path: string; content: string }> = [];
-    for (const taskFile of taskFiles) {
-      let content: string;
-      try {
-        content = await fs.readFile(taskFile, 'utf-8');
-      } catch {
-        continue;
-      }
-
-      documents.push({
-        path: FileSystemUtils.toPosixPath(path.relative(changeDir, taskFile)),
-        content,
-      });
-    }
-
-    documents.sort((left, right) => left.path.localeCompare(right.path));
-    return findTaskNumberingIssues(documents).map((issue) => ({
-      level: 'WARNING',
-      path: issue.path,
-      line: issue.line,
-      message: issue.message,
-    }));
   }
 
   /**
@@ -536,7 +712,7 @@ export class Validator {
     mainSpecRoot: string
   ): Promise<ValidationIssue[]> {
     let mainContent: string;
-    FileSystemUtils.assertPathWithin(mainSpecRoot, mainSpecFile);
+    assertDiscoveredSpecFile(mainSpecRoot, mainSpecFile);
     try {
       mainContent = await fs.readFile(mainSpecFile, 'utf-8');
     } catch (error) {
@@ -598,14 +774,15 @@ export class Validator {
       if (renamedAway.has(key)) continue;
       const current = currentBlockFor(key);
       if (!current) continue;
-      const missing = findMissingCurrentScenarios(current, block);
-      if (missing.length === 0) continue;
+      const diff = diffScenarioNames(current, block);
+      if (diff.missing.length === 0) continue;
       issues.push({
         level: 'ERROR',
         path: entryPath,
-        message: VALIDATOR_MESSAGES.modifiedOmitsCurrentScenarios(
+        message: VALIDATOR_MESSAGES.modifiedOmitsCurrentScenariosWithBalance(
           block.name,
-          missing.map(name => `"${name}"`).join(', ')
+          diff.missing.map(name => `"${name}"`).join(', '),
+          describeScenarioBalance(diff)
         ),
       });
     }
@@ -667,7 +844,7 @@ export class Validator {
     spec.requirements.forEach((req, index) => {
       if (req.text.length > MAX_REQUIREMENT_TEXT_LENGTH) {
         issues.push({
-          level: 'INFO',
+          level: 'WARNING',
           path: `requirements[${index}]`,
           message: VALIDATION_MESSAGES.REQUIREMENT_TOO_LONG,
         });
@@ -772,6 +949,70 @@ export class Validator {
     return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
   }
 
+  /**
+   * Dry-run archive's merge builder without writing its result. Reusing the
+   * builder preserves its already-synced delta rules instead of duplicating them.
+   * INFO leaves the verdict unchanged: a missing target can be a typo or a
+   * requirement introduced by a sibling change that has not archived yet.
+   * This does not run archive's later merged-spec validation or retirement checks.
+   */
+  private async findArchiveBlockers(
+    changeDir: string,
+    mainSpecsDir: string,
+    alreadyReportedPaths: string[]
+  ): Promise<ValidationIssue[]> {
+    const alreadyReported = new Set(alreadyReportedPaths);
+    // Only ever reaches a generated skeleton's placeholder Purpose, which this
+    // dry run discards.
+    const changeName = path.basename(changeDir);
+    const issues: ValidationIssue[] = [];
+
+    let updates: Awaited<ReturnType<typeof findSpecUpdates>>;
+    try {
+      updates = await findSpecUpdates(changeDir, mainSpecsDir);
+    } catch (error) {
+      // An incomplete advisory check must not discard the validation report.
+      // Source discovery already ran above; archive retains its own path guards.
+      return [{
+        level: 'INFO',
+        path: 'specs',
+        message: VALIDATOR_MESSAGES.archiveMergeCheckFailed(
+          error instanceof Error ? error.message : String(error)
+        ),
+      }];
+    }
+
+    for (const update of updates) {
+      // discoverSpecFiles builds both this id and the entryPath the checks
+      // above report under, from the same walk.
+      const entryPath = FileSystemUtils.toPosixPath(`${update.id}/spec.md`);
+      // A delta those checks already rejected would be reported twice, the
+      // second time in archive's wording rather than the wording that names
+      // the actual mistake.
+      if (alreadyReported.has(entryPath)) continue;
+
+      try {
+        await buildUpdatedSpec(update, changeName, { silent: true });
+      } catch (error) {
+        // Only the thrown preconditions, which carry no errno. A filesystem
+        // error says nothing about whether the delta applies, and `validate
+        // --all` reads six changes at once, so a transient EMFILE would report
+        // a collision that is not there - the same reason the scenario-loss
+        // check above reads only the codes that mean the file is unusable.
+        if ((error as NodeJS.ErrnoException)?.code !== undefined) continue;
+        issues.push({
+          level: 'INFO',
+          path: entryPath,
+          message: VALIDATOR_MESSAGES.archiveWouldRefuseDelta(
+            error instanceof Error ? error.message : String(error)
+          ),
+        });
+      }
+    }
+
+    return issues;
+  }
+
   private createReport(issues: ValidationIssue[]): ValidationReport {
     const errors = issues.filter(i => i.level === 'ERROR').length;
     const warnings = issues.filter(i => i.level === 'WARNING').length;
@@ -814,6 +1055,16 @@ export class Validator {
     // Fence-aware count via the shared reader: a `#### Scenario:` inside a fenced
     // example is not a real scenario. Drop the header line (index 0).
     return countScenariosShared(blockRaw.split('\n').slice(1));
+  }
+
+  /**
+   * Why a requirement with a visible scenario header still has no scenario:
+   * the header has no body, and the spec path archive validates against does
+   * not count it. Empty when the block has no bare scenario header.
+   */
+  private emptyScenarioHint(blockRaw: string): string {
+    if (countEmptyScenarios(blockRaw.split('\n').slice(1)) === 0) return '';
+    return VALIDATOR_MESSAGES.emptyScenarioHint;
   }
 
   private formatSectionList(sections: string[]): string {

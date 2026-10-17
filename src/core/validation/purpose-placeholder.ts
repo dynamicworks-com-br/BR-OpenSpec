@@ -42,15 +42,39 @@ export interface PurposePlaceholderIssue {
 }
 
 /**
- * Um `A definir`, `TBD` ou `TODO` abrindo o Purpose. O lookahead o mantém fora
- * de uma palavra mais longa que só começa com essas letras, como "TBDs",
- * "TODOs" ou "A definirmos", mas ainda permite a pontuação com que um marcador
- * costuma ser escrito: `TODO:`, `TBD -`, `A definir.`. Rejeita qualquer letra,
- * dígito ou marca combinante, e não só os ASCII que `\b` conhece, porque um
- * Purpose é prosa e prosa nem sempre é escrita em alfabeto latino — `TBD`
- * seguido de um dígito indo-arábico é tão palavra maior quanto "TBDs".
+ * A `TBD` or `TODO` opening the Purpose.
+ *
+ * `WORD_END` keeps the marker off a longer word that merely begins with those
+ * letters, like "TBDs" or "TODOs", while still allowing the punctuation a
+ * marker is usually written with: `TODO:`, `TBD -`. It rejects any letter,
+ * digit or combining mark rather than only the ASCII ones `\b` knows about,
+ * because a Purpose is prose and prose is not always written in Latin script -
+ * `TBD` followed by an Arabic-Indic digit is as much a longer word as `TBDs`.
+ *
+ * Case is what separates the marker from the word. `TODO` shouted in capitals
+ * is the marker whatever follows it, so `TODO write this later` is still an
+ * unwritten Purpose. Written in any other case it is only a marker when
+ * punctuation or the end of the line says so, because `todo` is an extremely
+ * frequent sentence opener in Spanish ("Todo el...") and Portuguese ("Todo
+ * o..."), and ordinary prose in those languages is not a placeholder. That
+ * keeps the lowercase forms an agent really does leave behind - `todo - write
+ * this later`, `tbd.` - reported, without reading a Spanish sentence as one.
  */
-const LEADING_MARKER = /^(?:TBD|TODO|A definir)(?![\p{L}\p{N}\p{M}_])/iu;
+const WORD_END = '(?![\\p{L}\\p{N}\\p{M}_])';
+const MARKER_PUNCTUATION = '(?=[ \\t]*(?:$|\\n|[:\\-\u2013\u2014.,;()\\[\\]{}]))';
+
+/**
+ * `TBD`/`TODO` in capitals, and the fork's `A definir`, whatever follows.
+ * `A definir` is case-sensitive here so "a definição" is not a marker; the
+ * punctuated pattern below covers `a definir -` and `a definir:`.
+ */
+const LEADING_MARKER_SHOUTED = new RegExp(`^(?:TBD|TODO|A definir)${WORD_END}`, 'u');
+
+/** Any other case: a marker only when punctuation or the line end says so. */
+const LEADING_MARKER_PUNCTUATED = new RegExp(
+  `^(?:TBD|TODO|A definir)${WORD_END}${MARKER_PUNCTUATION}`,
+  'iu'
+);
 
 const PURPOSE_HEADER = /^ {0,3}##(?!#)[ \t]+Purpose[ \t]*$/i;
 const TOP_LEVEL_HEADER = /^ {0,3}#{1,2}(?!#)[ \t]+/;
@@ -109,7 +133,8 @@ export function findPurposePlaceholderIssue(
   // aqui, e fica para as regras de brevidade e de Purpose vazio pela mesma
   // razão.
   const prose = unfencedLines(overview).join('\n').trim();
-  const leading = LEADING_MARKER.test(prose);
+  const leading =
+    LEADING_MARKER_SHOUTED.test(prose) || LEADING_MARKER_PUNCTUATED.test(prose);
   if (!leading && generatedPlaceholderPrefixIndex(prose) === undefined) return null;
   // A regra que casou decide onde o placeholder está, então o localizador é
   // informado. Quando as duas casam, o marcador de abertura vence: ele fica na
