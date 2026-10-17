@@ -1,12 +1,102 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as yaml from 'yaml';
-import { ChangeMetadataSchema, type ChangeMetadata } from '../core/artifact-graph/types.js';
+import {
+  CHANGE_METADATA_KNOWN_KEYS,
+  ChangeMetadataSchema,
+  type ChangeMetadata,
+} from '../core/change-metadata/schema.js';
 import { listSchemas, resolveSchema } from '../core/artifact-graph/resolver.js';
 import { readProjectConfig, type ProjectConfig } from '../core/project-config.js';
 import { CHANGE_METADATA_MESSAGES } from '../messages/index.js';
 
+export type { ChangeMetadata };
+
+/** Strip terminal controls from untrusted metadata before it is printed inline. */
+function sanitizeInline(value: string, maxLength = 300): string {
+  const flattened = value
+    .replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u206f]+/g, ' ')
+    .trim();
+  return flattened.length > maxLength ? `${flattened.slice(0, maxLength)}…` : flattened;
+}
+
 export const METADATA_FILENAME = '.openspec.yaml';
+
+export { CHANGE_METADATA_KNOWN_KEYS };
+
+/**
+ * Extension keys: a top-level key starting with a lowercase `x-` belongs to a
+ * tool or team that reads `.openspec.yaml` alongside OpenSpec (a tracker id, an
+ * owner). OpenSpec ignores it and does not report it as unknown. As with
+ * OpenAPI's `x-` extensions, the name after the prefix may use any case or
+ * spelling, but must be non-empty and free of whitespace, so `x-`, `x- foo`
+ * and `X-Foo` are still reported. Extensions are top-level only: a key inside
+ * `initiative:` is rejected by that object's strict schema.
+ */
+export const EXTENSION_KEY_PATTERN = /^x-\S+$/;
+
+export function isExtensionMetadataKey(key: string): boolean {
+  return EXTENSION_KEY_PATTERN.test(key);
+}
+
+/**
+ * Unknown top-level keys on a parsed .openspec.yaml object. Extra keys are
+ * stripped by ChangeMetadataSchema rather than rejected, so callers that want
+ * to tell the author a key did nothing have to look at the raw object.
+ * Extension keys (`x-*`) are not unknown: they are deliberately someone else's.
+ */
+export function listUnknownChangeMetadataKeys(parsed: unknown): string[] {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return [];
+  }
+  const known = new Set<string>(CHANGE_METADATA_KNOWN_KEYS);
+  return Object.keys(parsed as Record<string, unknown>)
+    .filter((key) => !known.has(key) && !isExtensionMetadataKey(key))
+    .sort();
+}
+
+/**
+ * Human-readable warning for keys ChangeMetadataSchema strips. Names the
+ * unknown keys, the keys that do exist, and (when present) why `skip_design`
+ * is not `skip_specs`.
+ */
+export function formatUnknownChangeMetadataKeysMessage(keys: string[]): string {
+  // The keys come from the file as written, so a quoted key can carry a
+  // terminal escape; it is printed as inline text.
+  const listed = keys.map((key) => sanitizeInline(key, 100)).join(', ');
+  const known = [...CHANGE_METADATA_KNOWN_KEYS].join(', ');
+  let message = CHANGE_METADATA_MESSAGES.unknownKeys(METADATA_FILENAME, listed, known);
+  if (keys.some((key) => /^x-/i.test(key))) {
+    message += CHANGE_METADATA_MESSAGES.extensionKeyHint;
+  }
+  if (keys.includes('skip_design')) {
+    message += CHANGE_METADATA_MESSAGES.skipDesignNotSupported;
+  }
+  return message;
+}
+
+/**
+ * Non-throwing read of unknown top-level keys. Missing, unreadable, or
+ * unparseable files yield no keys: those failures already have their own
+ * diagnostics on the read path.
+ */
+export function readUnknownChangeMetadataKeys(changeDir: string): string[] {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(path.join(changeDir, METADATA_FILENAME), 'utf-8');
+  } catch {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = yaml.parse(raw);
+  } catch {
+    return [];
+  }
+
+  return listUnknownChangeMetadataKeys(parsed);
+}
 
 /**
  * Error thrown when change metadata validation fails.
@@ -45,6 +135,11 @@ export function validateSchemaName(
 
 /**
  * Writes change metadata to .openspec.yaml in the change directory.
+ *
+ * Meant for a new file only (`createChange` refuses an existing change
+ * directory). `ChangeMetadataSchema` strips unknown keys, including `x-`
+ * extension keys, so a caller that rewrites an existing file must merge those
+ * keys back from the raw YAML first or it silently deletes them.
  *
  * @param changeDir - The path to the change directory
  * @param metadata - The metadata to write
@@ -163,6 +258,10 @@ export interface ResolveSchemaForChangeOptions {
  *
  * @param changeDir - The path to the change directory
  * @param explicitSchema - Optional explicit schema override
+ * @param projectRootOverride - Optional project root. When omitted it is derived
+ * from changeDir (assumed to be projectRoot/openspec/changes/<name>); callers
+ * whose change lives at a different depth (e.g. changes/archive/<name>) pass it
+ * explicitly so metadata and config are read from the right root
  * @param options - Optional pre-read project config, so a command can reuse a
  * single config snapshot instead of letting this fallback read it again
  * @returns The resolved schema name
@@ -170,10 +269,11 @@ export interface ResolveSchemaForChangeOptions {
 export function resolveSchemaForChange(
   changeDir: string,
   explicitSchema?: string,
+  projectRootOverride?: string,
   options: ResolveSchemaForChangeOptions = {}
 ): string {
   // Derive project root from changeDir (changeDir is typically projectRoot/openspec/changes/change-name)
-  const projectRoot = path.resolve(changeDir, '../../..');
+  const projectRoot = projectRootOverride ?? path.resolve(changeDir, '../../..');
 
   // 1. Explicit override wins
   if (explicitSchema) {
@@ -212,19 +312,22 @@ export function resolveSchemaForChange(
   return 'spec-driven';
 }
 
-export interface SkipSpecsMarker {
+export interface MetadataMarker {
   /**
    * True when the metadata parses under ChangeMetadataSchema, sets
-   * skip_specs: true, and names a schema that loads.
+   * the requested boolean marker to true, and names a schema that loads.
    */
   declared: boolean;
   /**
-   * Set when the marker cannot be honored: skip_specs appears in a file that
+   * Set when the marker cannot be honored: it appears in a file that
    * fails the metadata contract, or the metadata file exists but cannot be
    * read at all (so whether the marker is set cannot even be determined).
    */
   invalidReason?: string;
 }
+
+/** @deprecated Use MetadataMarker. */
+export type SkipSpecsMarker = MetadataMarker;
 
 /**
  * Non-throwing read of the skip_specs marker. The marker only counts when the
@@ -238,7 +341,48 @@ export interface SkipSpecsMarker {
  * <root>/openspec/changes/<name>). Missing metadata means "not declared"; a
  * marker that cannot be honored yields invalidReason so callers can say why.
  */
-export function readSkipSpecsMarker(changeDir: string): SkipSpecsMarker {
+export function readSkipSpecsMarker(changeDir: string): MetadataMarker {
+  return readBooleanMarker(changeDir, 'skip_specs');
+}
+
+/**
+ * Leitura sem lançar erro do marcador retire_capabilities, com exatamente a
+ * semântica que `readSkipSpecsMarker` documenta acima.
+ *
+ * Controla a única ação do archive que remove um arquivo de `openspec/specs/`:
+ * quando as entradas REMOVED de uma alteração levam o último requisito de uma
+ * capability, o archive exclui o spec principal esvaziado em vez de abortar em
+ * um spec que não consegue escrever (#1302). Declarado em vez de inferido
+ * porque a exclusão só é recuperável a partir do git, então é decisão do autor.
+ */
+export function readRetireCapabilitiesMarker(changeDir: string): MetadataMarker {
+  return readBooleanMarker(changeDir, 'retire_capabilities');
+}
+
+/**
+ * Um marcador que não pode ser honrado, com a razão tornada segura para
+ * impressão.
+ *
+ * Toda razão cita algo que o autor escreveu - um nome de schema, uma mensagem
+ * do parser que o carrega, um erro de sistema de arquivos com um caminho - e os
+ * chamadores a imprimem direto no terminal (`openspec archive`,
+ * `openspec validate`). Um CR cru poderia forjar uma linha própria e um ESC
+ * poderia redesenhar a tela, então caracteres de controle nunca saem daqui.
+ */
+function unhonorable(reason: string): MetadataMarker {
+  return { declared: false, invalidReason: reason.replace(/[\u0000-\u001f\u007f]/g, '?') };
+}
+
+/**
+ * Implementação compartilhada dos marcadores booleanos dos metadados da
+ * alteração, indexada pelo nome do campo. Um corpo só, em vez de dois, para que
+ * um marcador nunca passe a honrar metadados que o outro rejeita - que é todo o
+ * sentido do contrato descrito acima.
+ */
+function readBooleanMarker(
+  changeDir: string,
+  key: 'skip_specs' | 'retire_capabilities'
+): MetadataMarker {
   let raw: string;
   try {
     raw = fs.readFileSync(path.join(changeDir, METADATA_FILENAME), 'utf-8');
@@ -252,10 +396,7 @@ export function readSkipSpecsMarker(changeDir: string): SkipSpecsMarker {
     // the change as unmarked while every metadata-reading surface errors.
     const message =
       err instanceof Error ? err.message : String(err);
-    return {
-      declared: false,
-      invalidReason: CHANGE_METADATA_MESSAGES.markerMetadataUnreadable(message),
-    };
+    return unhonorable(CHANGE_METADATA_MESSAGES.markerMetadataUnreadable(message));
   }
 
   let parsed: unknown;
@@ -264,14 +405,15 @@ export function readSkipSpecsMarker(changeDir: string): SkipSpecsMarker {
   } catch {
     // Anchored so a comment like "# maybe add skip_specs later" does not
     // claim the marker was set.
-    return /^\s*(['"]?)skip_specs\1\s*:/m.test(raw)
-      ? { declared: false, invalidReason: CHANGE_METADATA_MESSAGES.markerNotValidYaml }
+    const mentioned = new RegExp(`^\\s*(['"]?)${key}\\1\\s*:`, 'm').test(raw);
+    return mentioned
+      ? unhonorable(CHANGE_METADATA_MESSAGES.markerNotValidYaml)
       : { declared: false };
   }
 
   const result = ChangeMetadataSchema.safeParse(parsed);
   if (result.success) {
-    if (result.data.skip_specs !== true) {
+    if (result.data[key] !== true) {
       return { declared: false };
     }
     // Schema loading is checked only when the marker is set: a broken schema
@@ -284,15 +426,12 @@ export function readSkipSpecsMarker(changeDir: string): SkipSpecsMarker {
     try {
       const projectRoot = path.resolve(changeDir, '../../..');
       if (!listSchemas(projectRoot).includes(result.data.schema)) {
-        return {
-          declared: false,
-          invalidReason: CHANGE_METADATA_MESSAGES.markerUnknownSchema(result.data.schema),
-        };
+        return unhonorable(CHANGE_METADATA_MESSAGES.markerUnknownSchema(result.data.schema));
       }
       resolveSchema(result.data.schema, projectRoot);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return { declared: false, invalidReason: message };
+      return unhonorable(message);
     }
     return { declared: true };
   }
@@ -305,12 +444,12 @@ export function readSkipSpecsMarker(changeDir: string): SkipSpecsMarker {
   const markerMentioned =
     typeof parsed === 'object' &&
     parsed !== null &&
-    'skip_specs' in parsed &&
-    (parsed as Record<string, unknown>).skip_specs !== false;
+    key in parsed &&
+    (parsed as Record<string, unknown>)[key] !== false;
   if (markerMentioned) {
     const first = result.error.issues[0];
     const where = first.path.length > 0 ? `${first.path.join('.')}: ` : '';
-    return { declared: false, invalidReason: `${where}${first.message}` };
+    return unhonorable(`${where}${first.message}`);
   }
   return { declared: false };
 }

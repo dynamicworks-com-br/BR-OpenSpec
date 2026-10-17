@@ -47,6 +47,7 @@ Apenas os arquivos gerenciados pelo BR-OpenSpec que estão sendo substituídos:
 - Cline: `.clinerules/workflows/openspec-*.md`
 - Roo: `.roo/commands/openspec-*.md`
 - GitHub Copilot: `.github/prompts/openspec-*.prompt.md` (somente extensões de IDE; não suportado no Copilot CLI)
+- Codex: o BR-OpenSpec agora usa o caminho canônico `.agents/skills/openspec-*`. Os arquivos `SKILL.md` gerenciados pelo BR-OpenSpec sob o antigo caminho `.codex/skills` só são reconciliados depois que as substitutas existem; arquivos personalizados e cópias divergentes ficam onde estão. Se uma árvore `.agents` sem marcador já contém skills do BR-OpenSpec, o BR-OpenSpec preserva a renderização existente dela — Codex (`$openspec-*`) ou genérica (`/openspec-*`) — em vez de adivinhar pelo diretório legado. Selecione `codex` explicitamente com `openspec init` para trocar a titularidade. A limpeza de prompts legados continua alcançando apenas os nomes de arquivo da allowlist do BR-OpenSpec em `$CODEX_HOME/prompts` ou `~/.codex/prompts`.
 - E outros (Augment, Continue, Amazon Q, etc.)
 
 A migração detecta quais ferramentas você tem configuradas e limpa seus arquivos legados.
@@ -155,6 +156,8 @@ openspec init --force --tools claude
 ```
 
 O flag `--force` pula as solicitações e aceita automaticamente a limpeza.
+
+Isso inclui a limpeza dos arquivos de prompt do Codex gerenciados pelo BR-OpenSpec no diretório global de prompts do Codex. A limpeza alcança apenas os nomes de arquivo de prompt legados do Codex que estão na allowlist do BR-OpenSpec, os remove somente depois que as skills substitutas `.agents/skills/openspec-*` existem, e preserva todos os demais arquivos.
 
 ---
 
@@ -408,6 +411,8 @@ O OPSX usa o padrão emergente de **skills**:
 ```
 
 As skills são reconhecidas em múltiplas ferramentas de codificação com IA e fornecem metadados mais ricos.
+
+O Codex é somente-skills no OPSX. O BR-OpenSpec não gera mais arquivos de prompt personalizados do Codex; use os diretórios gerados `.agents/skills/openspec-*`.
 
 ---
 

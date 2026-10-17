@@ -377,6 +377,53 @@ describe('validate: MODIFIED blocks that would drop a main-spec scenario (#1477)
     }
   });
 
+  it('detects a dropped level-4 scenario whose header is not labeled "Scenario:"', async () => {
+    // The spec path (SCENARIO_HEADER / countScenarios) counts EVERY `#### `
+    // child of a requirement as a scenario, so archive replaces the whole block
+    // and drops an unlabeled `#### Edge case`. The loss check must see it too,
+    // or the drop is silent (validate passes, archive deletes it with no error).
+    await writeMainSpec(
+      'widgets',
+      mainSpec(
+        `### Requirement: Widget state\nThe system SHALL report the widget state.\n\n#### Scenario: Existing scenario\n- **WHEN** queried\n- **THEN** the state is reported\n\n#### Edge case\n- **WHEN** disabled\n- **THEN** nothing is reported`
+      )
+    );
+    const changeDir = await writeChange(
+      'drop-unlabeled-scenario',
+      'widgets',
+      `## MODIFIED Requirements\n\n### Requirement: Widget state\nThe system SHALL report the widget state.\n\n#### Scenario: Existing scenario\n- **WHEN** queried\n- **THEN** the state is reported\n`
+    );
+
+    const report = await validate(changeDir);
+
+    expect(report.valid).toBe(false);
+    expect(lossIssue(report)?.message).toContain('"Edge case"');
+    // Parity: archive refuses the same change, naming the same scenario.
+    expect(await archiveError(changeDir)).toContain('Edge case');
+  });
+
+  it('detects a dropped labeled scenario even when an unlabeled sibling is kept', async () => {
+    // The reverse of the case above: labels and non-labels are counted the same
+    // way, in both directions, so dropping the labeled one is still caught.
+    await writeMainSpec(
+      'widgets',
+      mainSpec(
+        `### Requirement: Widget state\nThe system SHALL report the widget state.\n\n#### Scenario: Labeled\n- **WHEN** queried\n- **THEN** the state is reported\n\n#### Unlabeled\n- **WHEN** idle\n- **THEN** idle is reported`
+      )
+    );
+    const changeDir = await writeChange(
+      'drop-labeled-keep-unlabeled',
+      'widgets',
+      `## MODIFIED Requirements\n\n### Requirement: Widget state\nThe system SHALL report the widget state.\n\n#### Unlabeled\n- **WHEN** idle\n- **THEN** idle is reported\n`
+    );
+
+    const report = await validate(changeDir);
+
+    expect(report.valid).toBe(false);
+    expect(lossIssue(report)?.message).toContain('"Labeled"');
+    expect(await archiveError(changeDir)).toContain('Labeled');
+  });
+
   it('does not name scenarios for a MODIFIED the same delta renames away', async () => {
     // The block this MODIFIED would land on is not the one it names, so any
     // scenario reported here would send the author after the wrong requirement.
@@ -398,5 +445,40 @@ describe('validate: MODIFIED blocks that would drop a main-spec scenario (#1477)
     expect(report.valid).toBe(false);
     expect(lossIssue(report)).toBeUndefined();
     expect(report.issues.map((i) => i.message).join('\n')).toContain('MODIFIED referencia nome antigo de RENAMED');
+  });
+  it('reports both new headings when one current scenario is replaced by two (#1697)', async () => {
+    await writeMainSpec(
+      'widgets',
+      mainSpec(`### Requirement: Widget state\nThe system SHALL report the widget state.\n\n#### Scenario: Existing scenario\n- **WHEN** queried\n- **THEN** the state is reported`)
+    );
+    const widened = `## MODIFIED Requirements\n\n### Requirement: Widget state\nThe system SHALL report the widget state.\n\n#### Scenario: Existing scenario, first branch\n- **WHEN** queried in the first case\n- **THEN** the first state is reported\n\n#### Scenario: Existing scenario, second branch\n- **WHEN** queried in the second case\n- **THEN** the second state is reported\n`;
+    const changeDir = await writeChange('widen-scenario', 'widgets', widened);
+
+    const report = await validate(changeDir);
+    const issue = lossIssue(report);
+
+    // The guard still fires: a widened title is a dropped name, and nothing
+    // here decides whether that was deliberate.
+    expect(report.valid).toBe(false);
+    expect(issue?.message).toContain('"Existing scenario"');
+    expect(issue?.message).toContain(
+      'O bloco modificado tem 2 cenários; o spec atual tem 1 cenário. Adiciona 2 cenários que não estão no spec atual: "Existing scenario, first branch", "Existing scenario, second branch".'
+    );
+    // Parity: archive refuses the same change and prints the same sentence.
+    expect(await archiveError(changeDir)).toContain(
+      'Adiciona 2 cenários que não estão no spec atual: "Existing scenario, first branch", "Existing scenario, second branch".'
+    );
+  });
+
+  it('says the block adds none when scenarios are only dropped (#1697)', async () => {
+    await writeMainSpec('widgets', mainSpec(TWO_SCENARIO_REQUIREMENT));
+    const changeDir = await writeChange('drop-scenario', 'widgets', DELTA_KEEPING_ONE);
+
+    const issue = lossIssue(await validate(changeDir));
+
+    expect(issue?.message).toContain(
+      'O bloco modificado tem 1 cenário; o spec atual tem 2 cenários. Não adiciona nenhum.'
+    );
+    expect(await archiveError(changeDir)).toContain('Não adiciona nenhum.');
   });
 });

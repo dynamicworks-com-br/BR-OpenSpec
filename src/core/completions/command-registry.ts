@@ -46,8 +46,21 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
         takesValue: true,
       },
       {
+        name: 'language',
+        description: CLI_DESCRIPTIONS.language,
+        takesValue: true,
+      },
+      {
         name: 'no-animation',
         description: CLI_DESCRIPTIONS.noAnimation,
+      },
+      {
+        name: 'copilot-cloud',
+        description: CLI_DESCRIPTIONS.copilotCloudCompletion,
+      },
+      {
+        name: 'no-copilot-cloud',
+        description: CLI_DESCRIPTIONS.noCopilotCloudCompletion,
       },
     ],
   },
@@ -57,6 +70,17 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
     acceptsPositional: true,
     positionalType: 'path',
     flags: [],
+  },
+  {
+    name: 'version',
+    description: CLI_DESCRIPTIONS.version,
+    flags: [
+      COMMON_FLAGS.json,
+      {
+        name: 'check',
+        description: CLI_DESCRIPTIONS.versionCheck,
+      },
+    ],
   },
   {
     name: 'list',
@@ -69,6 +93,20 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       {
         name: 'changes',
         description: CLI_DESCRIPTIONS.listChanges,
+      },
+      {
+        name: 'archived',
+        description: CLI_DESCRIPTIONS.listArchived,
+      },
+      {
+        name: 'all',
+        description: CLI_DESCRIPTIONS.listAllChanges,
+      },
+      {
+        name: 'sort',
+        description: CLI_DESCRIPTIONS.listSort,
+        takesValue: true,
+        values: ['recent', 'name'],
       },
     ],
   },
@@ -94,6 +132,16 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       {
         name: 'specs',
         description: CLI_DESCRIPTIONS.validateSpecs,
+      },
+      {
+        name: 'archived',
+        description: CLI_DESCRIPTIONS.validateArchived,
+      },
+      {
+        name: 'report',
+        description: CLI_DESCRIPTIONS.validateReport,
+        takesValue: true,
+        values: ['full', 'findings'],
       },
       COMMON_FLAGS.type,
       COMMON_FLAGS.strict,
@@ -122,6 +170,10 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
       {
         name: 'requirements-only',
         description: CLI_DESCRIPTIONS.showRequirementsOnly,
+      },
+      {
+        name: 'diff',
+        description: CLI_DESCRIPTIONS.showDiff,
       },
       {
         name: 'requirements',
@@ -191,6 +243,10 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
           {
             name: 'requirements-only',
             description: CLI_DESCRIPTIONS.changeShowRequirementsOnly,
+          },
+          {
+            name: 'diff',
+            description: CLI_DESCRIPTIONS.changeShowDiff,
           },
           COMMON_FLAGS.noInteractive,
         ],

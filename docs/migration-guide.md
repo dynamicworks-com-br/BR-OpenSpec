@@ -47,6 +47,7 @@ Only BR-OpenSpec-managed files that are being replaced:
 - Cline: `.clinerules/workflows/openspec-*.md`
 - Roo: `.roo/commands/openspec-*.md`
 - GitHub Copilot: `.github/prompts/openspec-*.prompt.md` (IDE extensions only; not supported in Copilot CLI)
+- Codex: BR-OpenSpec now uses the canonical `.agents/skills/openspec-*` path. BR-OpenSpec-managed `SKILL.md` files under the former `.codex/skills` path are reconciled only after replacements exist; custom files and divergent copies stay in place. If an unmarked `.agents` tree already contains BR-OpenSpec skills, BR-OpenSpec preserves its existing Codex (`$openspec-*`) or generic (`/openspec-*`) rendering instead of guessing from the legacy directory. Select `codex` explicitly with `openspec init` to switch ownership. Legacy prompt cleanup still targets only BR-OpenSpec's allowlisted filenames in `$CODEX_HOME/prompts` or `~/.codex/prompts`.
 - And others (Augment, Continue, Amazon Q, etc.)
 
 The migration detects whichever tools you have configured and cleans up their legacy files.
@@ -155,6 +156,8 @@ openspec init --force --tools claude
 ```
 
 The `--force` flag skips prompts and auto-accepts cleanup.
+
+This includes cleanup of BR-OpenSpec-managed Codex prompt files in the global Codex prompt directory. Cleanup only targets BR-OpenSpec's allowlisted legacy Codex prompt filenames, removes them only after replacement `.agents/skills/openspec-*` skills exist, and preserves all other files.
 
 ---
 
@@ -408,6 +411,8 @@ OPSX uses the emerging **skills** standard:
 ```
 
 Skills are recognized across multiple AI coding tools and provide richer metadata.
+
+Codex is skills-only in OPSX. BR-OpenSpec no longer generates Codex custom prompt files; use the generated `.agents/skills/openspec-*` directories instead.
 
 ---
 

@@ -1,6 +1,7 @@
 import * as nodeFs from 'fs';
 import path from 'path';
 import { FILE_SYSTEM_MESSAGES } from '../messages/index.js';
+import { detectLineEnding, matchLineEnding } from './line-endings.js';
 
 const fs = nodeFs.promises;
 const { constants: fsConstants } = nodeFs;
@@ -82,7 +83,7 @@ function findMarkerIndex(
 export class FileSystemUtils {
   /**
    * Converts a path to use forward slashes (POSIX style).
-   * Essential for cross-platform compatibility with glob libraries like fast-glob.
+   * Essential for cross-platform compatibility with glob libraries like tinyglobby.
    */
   static toPosixPath(p: string): string {
     return p.replace(/\\/g, '/');
@@ -92,6 +93,24 @@ export class FileSystemUtils {
    * Returns a canonical absolute path when the target exists.
    * Falls back to path.resolve() so callers can still produce a stable absolute path.
    */
+  /**
+   * Raiz do projeto na forma canônica do sistema de arquivos.
+   *
+   * Use isto — e não `process.cwd()` direto — sempre que a raiz for usada para
+   * derivar caminhos que depois entram numa comparação (`path.relative`,
+   * `assertPathWithin`, fingerprints). A descoberta de artefatos devolve
+   * caminhos já canonicalizados, então uma raiz na grafia que o `cwd` tiver
+   * faz `path.relative` comparar duas grafias do mesmo caminho e produzir um
+   * relativo que escapa da raiz.
+   *
+   * No Linux e no macOS o `cwd` já vem resolvido, então isto é um no-op. No
+   * Windows os caminhos curtos 8.3 (`RUNNER~1` × `runneradmin`) fazem as
+   * grafias divergirem de verdade.
+   */
+  static canonicalProjectRoot(): string {
+    return this.canonicalizeExistingPath(process.cwd());
+  }
+
   static canonicalizeExistingPath(targetPath: string): string {
     try {
       // Prefer the native resolver so Windows short-path aliases are expanded.
@@ -101,6 +120,116 @@ export class FileSystemUtils {
         return nodeFs.realpathSync(targetPath);
       } catch {
         return path.resolve(targetPath);
+      }
+    }
+  }
+
+  /**
+   * Recusa um alvo que sai do diretório permitido, inclusive através de um
+   * link simbólico existente no próprio alvo ou em um de seus diretórios pais.
+   * Sufixos ainda inexistentes são resolvidos a partir do ancestral existente
+   * mais próximo.
+   */
+  static assertPathWithin(allowedDirectory: string, targetPath: string): void {
+    const resolvedDirectory = path.resolve(allowedDirectory);
+    const resolvedTarget = path.resolve(targetPath);
+
+    if (!this.isPathWithin(resolvedDirectory, resolvedTarget)) {
+      throw new Error(FILE_SYSTEM_MESSAGES.pathOutsideAllowedDirectory(targetPath));
+    }
+
+    const canonicalDirectory = this.canonicalizePotentialPath(resolvedDirectory);
+    const canonicalTarget = this.canonicalizePotentialPath(resolvedTarget);
+    if (!this.isPathWithin(canonicalDirectory, canonicalTarget)) {
+      throw new Error(FILE_SYSTEM_MESSAGES.pathOutsideAllowedDirectory(targetPath));
+    }
+  }
+
+  /**
+   * Like assertPathWithin, but a targetPath that is itself a symlink may
+   * resolve outside allowedDirectory, so a project can keep a managed
+   * directory (for example openspec/changes) in another repository. Its parent
+   * must still be confined and the link must resolve to an existing path.
+   */
+  static assertPathWithinAllowingLinkedLeaf(allowedDirectory: string, targetPath: string): void {
+    const resolvedTarget = path.resolve(targetPath);
+    let isLink = false;
+    try {
+      isLink = nodeFs.lstatSync(resolvedTarget).isSymbolicLink();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    if (!isLink) {
+      this.assertPathWithin(allowedDirectory, resolvedTarget);
+      return;
+    }
+
+    this.assertPathWithin(allowedDirectory, path.dirname(resolvedTarget));
+    // Throws for a dangling link, which cannot be proven to be a directory.
+    nodeFs.realpathSync.native(resolvedTarget);
+  }
+
+  static resolveProjectArtifactPath(projectPath: string, artifactPath: string): string {
+    if (path.isAbsolute(artifactPath)) {
+      throw new Error(FILE_SYSTEM_MESSAGES.refusingArtifactOutsideProject(artifactPath));
+    }
+
+    const targetPath = path.join(projectPath, artifactPath);
+    this.assertPathWithin(projectPath, targetPath);
+    return targetPath;
+  }
+
+  static assertProjectArtifactPath(projectPath: string, targetPath: string): void {
+    this.assertPathWithin(projectPath, targetPath);
+  }
+
+  private static isPathWithin(allowedDirectory: string, targetPath: string): boolean {
+    const relative = path.relative(allowedDirectory, targetPath);
+    return (
+      relative === '' ||
+      (relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative))
+    );
+  }
+
+  private static canonicalizePotentialPath(targetPath: string): string {
+    let existingPath = targetPath;
+    const missingSegments: string[] = [];
+
+    while (true) {
+      try {
+        // lstat distingue um caminho inexistente de um link simbólico pendente.
+        // Um link pendente não pode ser provado confinado, então o realpath
+        // precisa falhar nele.
+        nodeFs.lstatSync(existingPath);
+        const canonicalExisting = nodeFs.realpathSync.native(existingPath);
+        return path.resolve(canonicalExisting, ...missingSegments);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT') {
+          throw error;
+        }
+
+        try {
+          if (nodeFs.lstatSync(existingPath).isSymbolicLink()) {
+            throw new Error(FILE_SYSTEM_MESSAGES.danglingSymbolicLink(existingPath));
+          }
+        } catch (lstatError) {
+          if ((lstatError as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw lstatError;
+          }
+        }
+
+        const parent = path.dirname(existingPath);
+        if (parent === existingPath) {
+          throw new Error(FILE_SYSTEM_MESSAGES.noExistingParent(targetPath));
+        }
+        missingSegments.unshift(path.basename(existingPath));
+        existingPath = parent;
       }
     }
   }
@@ -245,10 +374,16 @@ export class FileSystemUtils {
     endMarker: string
   ): Promise<void> {
     let existingContent = '';
-    
+    // The managed block is composed with '\n', so splicing it into a CRLF file
+    // would leave mixed endings behind. bash reports a stray '\r' in .bashrc as
+    // "$'\r': command not found", so settle the whole file on the convention it
+    // already used. A file that does not exist yet stays LF.
+    let originalContent: string | undefined;
+
     if (await this.fileExists(filePath)) {
       existingContent = await this.readFile(filePath);
-      
+      originalContent = existingContent;
+
       const startIndex = findMarkerIndex(existingContent, startMarker);
       const endIndex = startIndex !== -1
         ? findMarkerIndex(existingContent, endMarker, startIndex + startMarker.length)
@@ -272,8 +407,13 @@ export class FileSystemUtils {
     } else {
       existingContent = startMarker + '\n' + content + '\n' + endMarker;
     }
-    
-    await this.writeFile(filePath, existingContent);
+
+    await this.writeFile(
+      filePath,
+      originalContent === undefined
+        ? existingContent
+        : matchLineEnding(existingContent, originalContent)
+    );
   }
 
   static async ensureWritePermissions(dirPath: string): Promise<boolean> {
@@ -359,14 +499,23 @@ export function removeMarkerBlock(
   const before = content.substring(0, lineStart);
   const after = content.substring(lineEnd);
 
+  // The file's own newline, used for every ending this function writes. The
+  // blank-line collapse below rebuilds the separator it matched, so spelling it
+  // '\n' would leave a CRLF file with a mixed pair wherever a run was collapsed
+  // - the stray '\r' that bash reports as "$'\r': command not found".
+  //
+  // Dominant rather than "contains a CRLF anywhere", so that one stray CRLF in
+  // an otherwise-LF file does not pull the whole rewrite to CRLF. This is the
+  // same reading matchLineEnding uses, so both write paths agree.
+  const newline = detectLineEnding(content) ?? '\n';
+
   // Clean up double blank lines (handle both Unix \n and Windows \r\n)
   let result = before + after;
-  result = result.replace(/(\r?\n){3,}/g, '\n\n');
+  result = result.replace(/(\r?\n){3,}/g, newline + newline);
 
   // Trim trailing whitespace but preserve leading whitespace and original newline style
   if (result.trimEnd() === '') {
     return '';
   }
-  const newline = content.includes('\r\n') ? '\r\n' : '\n';
   return result.trimEnd() + newline;
 }

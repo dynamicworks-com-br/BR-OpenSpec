@@ -1,6 +1,6 @@
 ---
 name: openspec-bulk-archive-change
-description: Arquiva múltiplas changes concluídas de uma vez. Use ao arquivar várias changes paralelas.
+description: Arquiva múltiplas changes concluídas do BR-OpenSpec de uma vez. Use ao arquivar várias changes paralelas. Use também para um pedido de arquivamento no plural — "openspec bulk-archive", "opsx bulk-archive", "openspec archive all" ou "openspec archive these changes".
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer openspec CLI.
@@ -12,6 +12,17 @@ metadata:
 Arquiva múltiplas changes concluídas em uma única operação.
 
 Esta skill permite arquivar changes em lote, tratando conflitos de specs de forma inteligente verificando a codebase para determinar o que está realmente implementado.
+
+**Verificação do projeto:** Estes passos esperam um projeto que já usa o BR-OpenSpec. Antes do primeiro passo que escreve qualquer coisa (`new change`, `archive`, `sync specs` ou a autoria de um arquivo de artifact), confirme que o projeto tem uma raiz: execute `openspec list --json` e leia `root`. Um objeto root significa que o projeto está configurado. `"root": null` significa que não está — não há diretório `openspec/` aqui, e uma escrita como `openspec new change` criaria um como efeito colateral. O comando também sai com código diferente de zero, e isso é essa resposta, não um CLI quebrado: leia o JSON em vez de tentar de novo ou contornar.
+
+Sem raiz, o que acontece em seguida depende de como este workflow foi alcançado:
+
+- **Selecionado automaticamente**: você escolheu este workflow sozinho, sem o usuário nomear o BR-OpenSpec, nomear esta skill ou executar o slash command dela. Pare de usar o BR-OpenSpec e responda à solicitação normalmente, como faria sem o BR-OpenSpec instalado. Não peça para configurar nada e não mencione a configuração do BR-OpenSpec.
+- **Solicitação explícita do BR-OpenSpec**: o usuário nomeou o BR-OpenSpec, nomeou esta skill ou executou o slash command dela. Pare antes de escrever e pergunte como prosseguir: configurar este projeto (`openspec init`) ou continuar sem o BR-OpenSpec nesta solicitação. Aguarde a resposta.
+
+Nos dois ramos, nunca crie a raiz como efeito colateral: não execute `openspec init` até o usuário pedir, não crie arquivos `openspec/` à mão e não deixe um comando criá-la.
+
+`<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo, `user-auth` ou `identity/user-auth`). Preserve o caminho completo de cada delta spec ao resolver seu spec principal.
 
 **Entrada**: Nenhuma necessária (solicita seleção)
 
@@ -26,7 +37,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 2. **Solicite a seleção de changes**
 
    Peça ao usuário que escolha as changes (multi-seleção):
-   - Mostre cada change com seu schema
+   - Mostre cada nome de change e o status das tarefas da saída da lista
    - Inclua uma opção para "Todas as changes"
    - Permita qualquer número de seleções (1+ funciona, 2+ é o caso típico)
 
@@ -61,15 +72,24 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
 3. **Validação em lote - colete o status de todas as changes selecionadas**
 
+   Execute `openspec list --json` uma vez para o progresso das tarefas. Se a
+   consulta falhar, retornar JSON inválido, omitir qualquer change selecionada,
+   duplicá-la ou devolver contagens inválidas, reporte o problema e pare antes
+   de sincronizar ou arquivar o lote.
+
    Para cada change selecionada, colete:
 
    a. **Status dos artifacts** - Execute `openspec status --change "<nome>" --json`
-      - Analise `schemaName` e lista de `artifacts`
+      - Analise `schemaName`, `artifacts`, `changeRoot`, `artifactPaths` e `actionContext`
       - Note quais artifacts estão `done` vs outros estados
 
-   b. **Conclusão de tarefas** - Leia `openspec/changes/<nome>/tasks.md`
-      - Conte `- [ ]` (incompleto) vs `- [x]` (concluído)
-      - Se não existir arquivo de tasks, note como "Sem tarefas"
+   b. **Conclusão de tarefas** - Encontre a entrada em `changes` da resposta da lista cujo `name` corresponda exatamente a esta change
+      - Exija inteiros não negativos `totalTasks` e `completedTasks`, com `completedTasks <= totalTasks`
+      - Tarefas incompletas = `totalTasks - completedTasks`
+      - O CLI resolve os arquivos de tarefas rastreados pelo schema, incluindo nomes de artifact personalizados, caminhos de saída e globs
+      - Não infira a conclusão das tarefas a partir do status do artifact, de um id de artifact `tasks` ou da ausência de um `tasks.md` no topo
+      - O CLI conta como concluídos apenas os marcadores de checkbox `x`/`X`; os demais marcadores permanecem incompletos
+      - Se `totalTasks` for zero, note como "Sem tarefas"
 
    c. **Delta specs** - Verifique `artifactPaths.specs.existingOutputPaths` do JSON de status
       - Liste quais capability specs existem
@@ -81,16 +101,23 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Avalie isso independentemente para cada change, incluindo lotes com
         schemas mistos em que alguns schemas não têm artifact `specs`.
 
+   d. **Destino do arquivo** - Calcule o nome de destino de cada change uma vez e registre-o como o `<target-name>` daquela change
+      - Use o nome da change como está quando ele já começa com um prefixo `YYYY-MM-DD-`; caso contrário, prefixe a data atual como `YYYY-MM-DD-<nome>` (mesma regra do `openspec archive`)
+      - Verifique se `openspec/changes/archive/<target-name>` já existe
+      - Se existir, ou se outra change selecionada resolver para o mesmo nome de destino, marque cada uma dessas changes como `Bloqueado` com `O diretório de arquivo já existe`
+      - Uma change bloqueada nunca é sincronizada nem movida: mostre-a como `Bloqueado` na tabela do passo 6, deixe-a fora da resolução de conflitos (resolva os conflitos dela usando apenas as outras changes) e registre-a como Falha no passo 8d
+      - Verificar aqui, antes que qualquer spec principal seja escrito, corresponde ao `openspec archive`: uma colisão encontrada depois do sync deixaria specs principais reescritos para um arquivamento que nunca aconteceu
+
 4. **Detecte conflitos de specs**
 
-   Construa um mapa de `capability -> [changes que a tocam]`:
+   Construa um mapa chaveado por `<capability-path>`, o caminho exato relativo a `specs/`:
 
-   ```
-   auth -> [change-a, change-b]  <- CONFLITO (2+ changes)
-   api  -> [change-c]            <- OK (apenas 1 change)
+   ```text
+   identity/user-auth -> [change-a, change-b]  <- CONFLITO (2+ changes)
+   billing/user-auth  -> [change-c]            <- OK (caminho completo diferente)
    ```
 
-   Um conflito existe quando 2+ changes selecionadas têm delta specs para a mesma capability.
+   Um conflito existe quando 2+ changes selecionadas têm delta specs para exatamente o mesmo `<capability-path>`.
 
 5. **Resolva conflitos de forma agentica**
 
@@ -108,7 +135,7 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
       - Se nenhuma está implementada -> ignore o sync de specs, avise o usuário
 
    d. **Registre a resolução** para cada conflito:
-      - Uma decisão de inclusão ou exclusão para cada delta spec, por change e capability
+      - Uma decisão de inclusão ou exclusão para cada delta spec, por change e `<capability-path>`
       - Quais delta specs incluídos aplicar e em qual ordem
       - Quais delta specs excluir do sync porque a implementação deles está ausente
       - Racional (o que foi encontrado na codebase)
@@ -117,23 +144,23 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    Exiba uma tabela resumindo todas as changes:
 
-   ```
-   | Change              | Artifacts | Tarefas | Specs   | Conflitos | Status |
-   |---------------------|-----------|---------|---------|-----------|--------|
-   | schema-management   | Done      | 5/5     | 2 delta | Nenhum    | Pronto |
-   | project-config      | Done      | 3/3     | 1 delta | Nenhum    | Pronto |
-   | add-oauth           | Done      | 4/4     | 1 delta | auth (!)  | Pronto*|
-   | add-verify-skill    | 1 restante| 2/5     | Nenhum  | Nenhum    | Aviso  |
+   ```markdown
+   | Change              | Artifacts | Tarefas | Specs   | Conflitos              | Status |
+   |---------------------|-----------|---------|---------|------------------------|--------|
+   | schema-management   | Done      | 5/5     | 2 delta | Nenhum                 | Pronto |
+   | project-config      | Done      | 3/3     | 1 delta | Nenhum                 | Pronto |
+   | add-oauth           | Done      | 4/4     | 1 delta | identity/user-auth (!) | Pronto*|
+   | add-verify-skill    | 1 restante| 2/5     | Nenhum  | Nenhum                 | Aviso  |
    ```
 
    Para conflitos, mostre a resolução:
-   ```
+   ```text
    * Resolução de conflito:
-     - auth spec: Aplicará add-oauth depois add-jwt (ambas implementadas, ordem cronológica)
+     - identity/user-auth spec: Aplicará add-oauth depois add-jwt (ambas implementadas, ordem cronológica)
    ```
 
    Para changes incompletas, mostre avisos:
-   ```
+   ```text
    Avisos:
    - add-verify-skill: 1 artifact incompleto, 3 tarefas incompletas
    ```
@@ -153,8 +180,8 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    Encaminhe conforme a intenção da resposta, não pelo rótulo exato — você escreveu esses rótulos,
    então corresponda ao que o usuário escolheu em vez do texto acima:
    - "Cancelar" — pare, não arquive. Reporte que nada foi arquivado e pule os passos restantes.
-   - A opção de arquivar tudo — prossiga com todas as changes selecionadas
-   - A opção de arquivar apenas as prontas — prossiga apenas com as changes que a tabela do passo 6 marca como `Pronto` ou `Pronto*`, e registre o restante como Ignorado no passo 8d. Se o parceiro de conflito de uma change `Pronto*` for ignorado, derive novamente a resolução daquele conflito usando apenas as changes que estão sendo arquivadas.
+   - A opção de arquivar tudo — prossiga com todas as changes selecionadas que não estejam `Bloqueado`
+   - A opção de arquivar apenas as prontas — prossiga apenas com as changes que a tabela do passo 6 marca como `Pronto` ou `Pronto*`, e registre o restante como Ignorado no passo 8d, exceto changes `Bloqueado`, que permanecem Falha com `O diretório de arquivo já existe`. Se o parceiro de conflito de uma change `Pronto*` for ignorado, derive novamente a resolução daquele conflito usando apenas as changes que estão sendo arquivadas.
    - Qualquer outra resposta — pergunte novamente em vez de arquivar
 
    Antes que o passo 8 escreva o primeiro spec principal ou mova qualquer
@@ -183,11 +210,9 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
    Processe as changes na ordem determinada (respeitando a resolução de conflitos):
 
    a. **Sincronize os delta specs incluídos**:
-      - Execute o workflow `/openspec-sync-specs` inline (merge inteligente dirigido
-        por agente) apenas para changes com entradas em `includedDeltas`,
-        passando somente os caminhos de delta incluídos e instruindo-o
-        explicitamente a ignorar os `excludedDeltas` daquela change. Aguarde
-        a conclusão.
+      - execute o workflow `openspec-sync-specs` inline (merge inteligente dirigido por agente) apenas para changes com entradas em `includedDeltas`, passando somente os caminhos de delta incluídos e instruindo-o explicitamente a ignorar os `excludedDeltas` daquela change. Aguarde a conclusão.
+      - Se o sync reportar qualquer condição de parada ou bloqueio, trate o sync como falho. Pare de processar aquela change imediatamente. Antes de continuar para a próxima change, registre o resultado desta change como Falha nos resultados do lote, incluindo a condição de bloqueio/erro do sync.
+      - Não faça a comparação de conteúdo pós-sync e não mova o `changeRoot` dela; deixe a change intacta.
       - Para conflitos, aplique na ordem resolvida.
       - Passe o snapshot de regras de specs obtido daquela change para o sync
         inline; o sync inline deve reutilizá-lo sem buscar instruções novamente
@@ -195,49 +220,55 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
         aquela change. Elas não mudam a resolução de conflitos, o comportamento
         de arquivamento ou os contratos do CLI, e seu texto não é copiado para
         nenhum arquivo de saída
-      - Não o delegue a uma tarefa em background — o passo 8c moveria o
-        diretório da change enquanto um sync ainda o lê.
+      - Não o delegue a uma tarefa em background — o passo 8c moveria `changeRoot` enquanto um sync ainda o lê.
       - Se uma change não tiver delta specs incluídos, não execute o workflow
         de sync para ela.
 
-   b. **Verifique os delta specs incluídos antes de mover a change**:
+   b. **Verifique os delta specs incluídos antes de mover `changeRoot`**:
       - Refaça a comparação apenas para os delta specs em `includedDeltas`
-        contra o spec principal em `openspec/specs/<capability>/spec.md`.
+        contra o spec principal em `openspec/specs/<capability-path>/spec.md`.
       - Verifique que os specs principais foram atualizados:
         - Requisitos ADDED presentes
         - Requisitos MODIFIED carregando as alterações de cenário e descrição
           nomeadas no delta, com seus demais cenários intactos
-        - Requisitos REMOVED ausentes
+        - Requisitos REMOVED ausentes — e, onde este sync aposentou uma capability
+          (removeu seu último requisito, deixando `## Requirements` vazio), seu spec
+          principal foi excluído em vez de deixado vazio
         - Requisitos RENAMED presentes sob o novo nome e ausentes sob o antigo
       - Não verifique os delta specs em `excludedDeltas`; eles ficam
         intencionalmente sem sync.
       - Se o sync falhar ou qualquer capability não corresponder à
-        verificação, reporte a divergência e falhe/ignore a movimentação
-        daquela change — não a arquive. O diretório da change permanece
+        verificação, reporte a divergência e falhe/ignore a movimentação do
+        `changeRoot` daquela change — não a arquive. `changeRoot` permanece
         intacto.
 
    c. **Realize o arquivamento**:
 
-      Nome de destino (`<target-name>`): o `openspec archive` usa o nome da change como está quando ele já começa com um prefixo `YYYY-MM-DD-`; caso contrário, prefixa a data atual como `YYYY-MM-DD-<nome>` (nunca empilha uma segunda data).
+      Nome de destino: use o `<target-name>` registrado para esta change no passo 3d, sem alteração. Nunca o recalcule aqui: um lote que passa da meia-noite verificaria uma data no passo 3 e moveria para outra.
+
+      **Verifique se o destino já existe:**
+      - Verifique novamente imediatamente antes da movimentação, mesmo que o passo 3 já tenha verificado: o destino pode aparecer no meio do lote
+      - Se sim: registre esta change como Falha com `O diretório de arquivo já existe`, deixe `changeRoot` onde está, reporte quaisquer specs principais que o passo 8a já tenha sincronizado para ela e continue com as changes restantes
+      - Se não: mova `changeRoot` para o diretório de archive
 
       ```bash
-      openspec archive <nome>
+      mkdir -p "openspec/changes/archive"
+      mv "<changeRoot>" "openspec/changes/archive/<target-name>"
       ```
 
-      Se precisar manipular programaticamente, construa os caminhos com `path.join()`
-      ou `path.resolve()` e use `fs.rename()` — evite comandos shell e separadores `/` hardcoded.
+      **Confirme que a movimentação não aninhou:** `mv` sai com código 0 mesmo quando o destino apareceu depois da verificação, movendo a change *para dentro* dele. Se `openspec/changes/archive/<target-name>/<change-directory-name>` agora existir (o último segmento de caminho de `changeRoot`), mova esse diretório de volta para `changeRoot` e registre esta change como Falha com `O diretório de arquivo já existe`. Nunca a reporte como arquivada.
 
    d. **Rastreie o resultado** para cada change:
       - Sucesso: arquivado com sucesso
       - Falha: erro durante o arquivamento ou na verificação de specs (registre o erro)
       - Ignorado: usuário escolheu não arquivar (se aplicável)
-      - Sync ignorado: para cada delta em `excludedDeltas`, reporte `sync skipped` com a change, a capability e a razão registrada. Isso é distinto de ignorar o arquivamento.
+      - Sync ignorado: para cada delta em `excludedDeltas`, reporte `sync skipped` com a change, o `<capability-path>` e a razão registrada. Isso é distinto de ignorar o arquivamento.
 
 9. **Exiba o resumo**
 
    Mostre os resultados finais:
 
-   ```
+   ```markdown
    ## Arquivamento em Lote Concluído
 
    3 changes arquivadas:
@@ -250,12 +281,12 @@ Esta skill permite arquivar changes em lote, tratando conflitos de specs de form
 
    Resumo de sync de specs:
    - 4 delta specs sincronizados com os specs principais
-   - 1 delta spec com sync ignorado (add-jwt/auth: implementação não encontrada)
-   - 1 conflito resolvido (auth: sincronizado add-oauth, ignorado add-jwt)
+   - 1 delta spec com sync ignorado (add-jwt, identity/user-auth: implementação não encontrada)
+   - 1 conflito resolvido (identity/user-auth: sincronizado add-oauth, ignorado add-jwt)
    ```
 
    Se houver falhas:
-   ```
+   ```text
    1 change falhou:
    - some-change: O diretório de arquivo já existe
    ```
@@ -341,12 +372,13 @@ Nenhuma change ativa encontrada. Crie uma nova change para começar.
 - Nunca arquive depois que o usuário cancela a confirmação — um lote cancelado não arquiva nada
 - Rastreie e reporte todos os resultados (sucesso/ignorado/falha)
 - Preservar .openspec.yaml ao mover para o arquivo
-- O diretório de destino do arquivo usa a data atual: YYYY-MM-DD-<nome>; um nome que já começa com um prefixo `YYYY-MM-DD-` é usado como está (nunca empilhe uma segunda data)
+- O diretório de destino do arquivo usa a data atual, calculada uma vez no passo 3d e reutilizada na movimentação: YYYY-MM-DD-<nome>; um nome que já começa com um prefixo `YYYY-MM-DD-` é usado como está (nunca empilhe uma segunda data)
 - Se o destino do arquivo existir, falhe aquela change mas continue com as outras
-- Se sync for solicitado, execute o workflow `/openspec-sync-specs` inline (agent-driven) para cada change com delta specs incluídos
+- Verifique todo destino de arquivo no passo 3, antes da primeira escrita de spec principal; uma change cujo destino existe nunca é sincronizada nem movida
+- Se sync for solicitado, execute o workflow `openspec-sync-specs` inline (agent-driven) para cada change com delta specs incluídos
 - Carregue as decisões por delta de `includedDeltas` e `excludedDeltas` para a execução; sincronize e verifique apenas os deltas incluídos
 - Reporte cada delta excluído como `sync skipped` sem tratar o arquivamento em si como ignorado
-- Nunca arquive uma change enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais em `openspec/specs/<capability>/spec.md` antes de mover o diretório da change
+- Nunca arquive uma change enquanto um sync de specs ainda estiver em andamento — execute o sync inline e verifique os specs principais em `openspec/specs/<capability-path>/spec.md` antes de mover `changeRoot`
 - Obtenha as entradas de arquivamento uma vez antes da inspeção de specs ou movimentações
 - Obtenha todos os snapshots de regras de specs necessários antes da primeira escrita de spec principal ou movimentação do lote
 - Uma consulta de entradas de arquivamento malsucedida nunca bloqueia o lote; ele prossegue sem contexto nem orientação

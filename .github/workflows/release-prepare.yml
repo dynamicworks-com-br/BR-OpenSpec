@@ -4,10 +4,11 @@ on:
   push:
     branches: [main]
 
+# Floor for the workflow. The prepare job widens this to pull-requests: write
+# for the Version Packages PR.
 permissions:
   contents: write
-  pull-requests: write
-  id-token: write # Required for npm OIDC trusted publishing
+  id-token: write # Required for npm provenance (NPM_CONFIG_PROVENANCE)
 
 concurrency:
   group: release-${{ github.ref }}
@@ -17,15 +18,16 @@ jobs:
   prepare:
     if: github.repository == 'dynamicworks-com-br/BR-OpenSpec'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write # changesets opens/updates the Version Packages PR
+      id-token: write # Required for npm provenance (NPM_CONFIG_PROVENANCE)
     steps:
-      # Generate GitHub App token first - used for checkout and changesets
-      # This allows git operations to trigger CI workflows on the version PR
-      # (GITHUB_TOKEN cannot trigger workflows by design)
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - uses: actions/setup-node@v7.0.0
         with:
@@ -35,16 +37,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Opens/updates the Version Packages PR; publishes when the Version PR merges
+      # Opens or updates the Version Packages PR and publishes when that PR
+      # merges. npm authentication stays on NPM_TOKEN; provenance is requested
+      # alongside it. This workflow does not use OIDC-only trusted publishing.
       - name: Create/Update Version PR
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          title: 'chore(release): version packages'
-          createGithubReleases: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-title: 'chore(release): version packages'
+          create-github-releases: true
           # Use CI-specific release script: relies on version PR having been merged
           # so package.json already contains the bumped version.
-          publish: pnpm run release:ci
+          publish-script: pnpm run release:ci
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

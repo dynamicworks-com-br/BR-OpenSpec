@@ -1,0 +1,9 @@
+# Mantém funcionando a URL de issue em branco pré-preenchida do `openspec feedback`.
+blank_issues_enabled: true
+contact_links:
+  - name: Mudança de desenho central
+    url: https://github.com/dynamicworks-com-br/BR-OpenSpec/discussions
+    about: Qualquer coisa que mude como o BR-OpenSpec funciona no núcleo começa como uma discussão, conforme o passo 1 do CONTRIBUTING.
+  - name: Dúvida ou ajuda com o seu setup
+    url: https://github.com/dynamicworks-com-br/BR-OpenSpec/issues
+    about: Não tem certeza se é um bug? Abra uma issue e vamos ajudar a estreitar.

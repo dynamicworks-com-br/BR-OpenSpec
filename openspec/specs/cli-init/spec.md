@@ -223,6 +223,12 @@ The command SHALL generate opsx slash commands for selected AI tools.
 - **THEN** OpenSpec SHALL treat it as a supported tool with `skillsDir: '.kimi-code'`
 - **AND** command-file generation SHALL be skipped because no Kimi adapter is registered
 
+#### Scenario: Grok Build skips command-file generation
+
+- **WHEN** the user selects Grok Build during initialization
+- **THEN** OpenSpec SHALL treat it as a supported tool with `skillsDir: '.grok'`
+- **AND** command-file generation SHALL be skipped because no Grok adapter is registered
+
 ### Requirement: Config File Generation
 
 The command SHALL create an OpenSpec config file with schema settings.
@@ -240,6 +246,35 @@ The command SHALL create an OpenSpec config file with schema settings.
 - **AND** `openspec/config.yaml` already exists
 - **THEN** preserve the existing config file
 - **AND** display "(exists)" indicator in output
+
+### Requirement: Artifact Language Configuration
+
+The command SHALL let users configure the artifact language during initialization without changing existing project guidance.
+
+#### Scenario: Configuring language for a new project
+
+- **WHEN** the user runs `openspec init --language <language>` and no OpenSpec config exists
+- **THEN** create `openspec/config.yaml` with context instructing agents to write artifacts in the selected language
+- **AND** keep OpenSpec structural headings and `SHALL`/`MUST` requirement keywords in English
+- **AND** make the language context available to artifact instructions
+
+#### Scenario: Protecting existing project context
+
+- **WHEN** the user runs `openspec init --language <language>` and an OpenSpec config already exists without the same generated language guidance
+- **THEN** fail before changing project files
+- **AND** direct the user to edit the existing config context
+
+#### Scenario: Rejecting an unsafe language value
+
+- **WHEN** the `--language` value is empty, multiline, contains control characters, or would exceed the project context size limit
+- **THEN** fail before creating OpenSpec files
+- **AND** explain why the value is invalid
+
+#### Scenario: Language config cannot be written
+
+- **WHEN** the user runs `openspec init --language <language>` and the new config cannot be written
+- **THEN** fail instead of reporting successful initialization
+- **AND** avoid creating unrelated tool files when writability can be determined in advance
 
 ### Requirement: Experimental Command Alias
 

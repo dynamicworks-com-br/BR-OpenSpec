@@ -10,8 +10,8 @@
  * src/utils/command-references.ts at the call site.
  */
 
+import { ALL_WORKFLOWS, type WorkflowId } from './profiles.js';
 import { ONBOARDING_MESSAGES } from '../messages/index.js';
-import type { WorkflowId } from './profiles.js';
 
 export type OnboardingCommand = {
   workflow: WorkflowId;
@@ -48,4 +48,32 @@ export function getOnboardingCommands(
 ): OnboardingCommand[] {
   const installed = new Set(workflows);
   return ONBOARDING_COMMANDS.filter((entry) => installed.has(entry.workflow));
+}
+
+/**
+ * Returns the note telling a user which workflows their profile left out, or
+ * null when every workflow is already installed.
+ *
+ * Setup output otherwise never names the workflows that exist but were not
+ * installed, so a user on the default profile has no way to learn that
+ * `/opsx:ff` and friends are one command away. The docs say it; nobody reads
+ * the docs before typing a command that isn't there.
+ */
+export function formatOptionalWorkflowsNote(
+  installedWorkflows: readonly string[]
+): string[] | null {
+  const installed = new Set(installedWorkflows);
+  const missing = ALL_WORKFLOWS.filter((workflow) => !installed.has(workflow));
+
+  if (missing.length === 0) {
+    return null;
+  }
+
+  // `openspec config profile` offers to apply to this project before it
+  // exits, and prints the `openspec update` guidance itself when declined, so
+  // naming a second command here would be one step too many.
+  return [
+    ONBOARDING_MESSAGES.optionalWorkflowsAvailable(missing.length, missing.join(', ')),
+    ONBOARDING_MESSAGES.addWithConfigProfile(missing.length === 1),
+  ];
 }

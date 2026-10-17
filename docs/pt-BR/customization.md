@@ -18,6 +18,7 @@ O arquivo `openspec/config.yaml` é a maneira mais fácil de personalizar o BR-O
 - **Injetar contexto do projeto** - A IA vê sua stack tecnológica, convenções, etc.
 - **Adicionar regras por artefato** - Regras personalizadas para artefatos específicos
 - **Adicionar orientação por operação** - Preferências consultivas para o trabalho de apply e archive
+- **Lembrar escolhas de integração** - por exemplo, o opt-in do [Copilot coding agent (nuvem) do GitHub](supported-tools.md#copilot-coding-agent-nuvem-do-github)
 
 ### Configuração Rápida
 
@@ -52,6 +53,11 @@ operations:
   archive:
     guidance:
       - Mantenha o resumo de conclusão conciso
+
+# Definido pelo `openspec init` quando você escolhe (ou recusa) o Copilot coding
+# agent (nuvem) do GitHub; controla se `init`/`update` geram os arquivos dele.
+githubCopilot:
+  cloudAgent: false
 ```
 
 ### Como Funciona
@@ -423,6 +429,7 @@ Schemas da comunidade não são embutidos no core do BR-OpenSpec — eles vivem 
 | `nanopm` | @nmrtn | [nmrtn/nanopm](https://github.com/nmrtn/nanopm/tree/main/openspec-schema) | Fluxo PM-first. Roda o pipeline de planejamento do [nanopm](https://github.com/nmrtn/nanopm) (auditoria → estratégia → roadmap → PRD) antes da implementação. Conecta o planejamento de produto ao fluxo de engenharia orientado a specs do BR-OpenSpec. Os artefatos são lidos de `.nanopm/`, se presente — a proposal parte da auditoria, o design da estratégia e as tasks do detalhamento do PRD. |
 | `e2e-runbooks` | @Lukk17 | [Lukk17/openspec-schemas](https://github.com/Lukk17/openspec-schemas/tree/master/openspec/schemas/e2e-runbooks) | Runbooks de teste end-to-end no nível da capability. Cada capability ganha uma spec imutável, um template de tasks imutável e um registro de execução com timestamp por execução. As asserções cobrem apenas comportamento observável (status HTTP, corpo da resposta, estado persistido — nunca substrings de log); cada execução registra início/fim em UTC, duração e a melhor estimativa de consumo de tokens de LLM. |
 | `anvil` | @jikkujoyce | [jikkujoyce/openspec-schemas](https://github.com/jikkujoyce/openspec-schemas/tree/main/schemas/anvil) | Fluxo spec-driven com disciplina de TDD e uma etapa de revisão adversarial. Fluxo: `proposal` → `specs` → `design` → `review` → `test-plan` → `tasks` → `apply` → `verify`. O `review` é escrito por um revisor de contexto novo e somente leitura (um segundo modelo, quando disponível) e emite uma linha `VERDICT:` dizendo ao agente para condicionar `test-plan`, `tasks` e `apply`; o BR-OpenSpec só verifica se os artefatos existem, então faça o gate valer com seu próprio CI ou hook. O `test-plan` mapeia cada cenário da spec para um teste nomeado e funciona também como um registro red/green que o `verify` audita. |
+| `ml-research` | @tsenst | [idealo/openspec-schemas](https://github.com/idealo/openspec-schemas/tree/main/openspec/schemas/ml-research) | Fluxo de experimento de machine learning. Fluxo: `proposal` → `design` → `evaluation` → `tasks` → `apply` → `specs`. O `evaluation` fixa métricas, critérios de sucesso e a condição de falsificação antes da execução; o `apply` escreve `results.md`; `specs` registra apenas achados sustentados por evidência (hipóteses refutadas incluídas) como requisitos `Finding:` com blocos `Evidence:` ligados. |
 
 > Quer contribuir com um schema da comunidade? Abra uma issue com o link do seu repositório, ou envie um PR adicionando uma linha a esta tabela.
 

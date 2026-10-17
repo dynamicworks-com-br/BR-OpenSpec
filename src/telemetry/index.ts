@@ -4,7 +4,8 @@
  * Privacy-first design:
  * - Only tracks command name and version
  * - No arguments, file paths, or content
- * - Opt-out via OPENSPEC_TELEMETRY=0 or DO_NOT_TRACK=1
+ * - Opt-out via OPENSPEC_TELEMETRY=0, DO_NOT_TRACK=1, or
+ *   `openspec config set telemetry.enabled false`
  * - Auto-disabled in CI environments
  * - Anonymous ID is a random UUID with no relation to the user
  *
@@ -19,7 +20,10 @@
  * versions and broke installs (#1390).
  */
 import { randomUUID } from 'crypto';
+import { getGlobalConfig, isGlobalConfigUnreadable } from '../core/global-config.js';
+import { isCiEnvironment } from '../utils/ci.js';
 import { getTelemetryConfig, updateTelemetryConfig } from './config.js';
+import { isTelemetryOptedOutByEnv } from './opt-out.js';
 import { TELEMETRY_MESSAGES } from '../messages/index.js';
 
 // PostHog API key - public key for client-side analytics
@@ -61,24 +65,38 @@ async function safeTelemetryFetch(url: string, options: RequestInit): Promise<Re
 /**
  * Check if telemetry is enabled.
  *
- * Disabled when:
- * - OPENSPEC_TELEMETRY=0
- * - DO_NOT_TRACK=1
- * - CI=true (any CI environment)
+ * Precedence (first match wins):
+ * 1. OPENSPEC_TELEMETRY set to anything but an on-value (1/true/yes/on) → disabled
+ * 2. DO_NOT_TRACK set to anything but an off-value (0/false/no/off) → disabled
+ * 3. CI set to a truthy/on value → disabled (same rule as version-check)
+ * 4. global config telemetry.enabled === false → disabled
+ * 5. global config file exists but cannot be parsed → disabled
+ * 6. otherwise enabled (unset config means on; opt-out model)
+ *
+ * Kept synchronous so call sites need not become async. Reads config via
+ * sync getGlobalConfig() rather than async getTelemetryConfig().
  */
 export function isTelemetryEnabled(): boolean {
-  // Check explicit opt-out
-  if (process.env.OPENSPEC_TELEMETRY === '0') {
+  // Explicit opt-out, and the DO_NOT_TRACK standard. Both are read
+  // tolerantly (see opt-out.ts): an opt-out that only worked for one exact
+  // spelling would leave users tracked who believe they are not.
+  if (isTelemetryOptedOutByEnv()) {
     return false;
   }
 
-  // Respect DO_NOT_TRACK standard
-  if (process.env.DO_NOT_TRACK === '1') {
+  // Auto-disable in CI environments (providers use true/1/yes/…)
+  if (isCiEnvironment()) {
     return false;
   }
 
-  // Auto-disable in CI environments
-  if (process.env.CI === 'true') {
+  // Global config opt-out (env/CI remain hard overrides above)
+  if (getGlobalConfig().telemetry?.enabled === false) {
+    return false;
+  }
+
+  // A config file that cannot be parsed reads as defaults, which carry no
+  // opt-out, but the file itself may hold one. Unknown is not consent.
+  if (isGlobalConfigUnreadable()) {
     return false;
   }
 
@@ -103,9 +121,10 @@ export async function getOrCreateAnonymousId(): Promise<string> {
   }
 
   // Generate new UUID and persist
-  anonymousId = randomUUID();
-  await updateTelemetryConfig({ anonymousId });
-  return anonymousId;
+  const createdId = randomUUID();
+  anonymousId = createdId;
+  await updateTelemetryConfig({ anonymousId: createdId });
+  return createdId;
 }
 
 /**
@@ -149,6 +168,14 @@ export async function trackCommand(commandName: string, version: string): Promis
   }
 
   try {
+    // Disclosure before collection. A --json run defers the notice (printing
+    // it would corrupt machine-readable output), and for a user whose runs
+    // are all --json it may never have appeared — so nothing is sent, and no
+    // anonymous id is created, until the notice has actually been shown.
+    if (!(await getTelemetryConfig()).noticeSeen) {
+      return;
+    }
+
     const userId = await getOrCreateAnonymousId();
 
     sendEvent(userId, 'command_executed', {
@@ -165,7 +192,9 @@ export async function trackCommand(commandName: string, version: string): Promis
 /**
  * Show first-run telemetry notice if not already seen.
  */
-export async function maybeShowTelemetryNotice(): Promise<void> {
+export async function maybeShowTelemetryNotice(
+  options: { silent?: boolean } = {}
+): Promise<void> {
   if (!isTelemetryEnabled()) {
     return;
   }
@@ -176,8 +205,16 @@ export async function maybeShowTelemetryNotice(): Promise<void> {
       return;
     }
 
-    // Display notice
-    console.log(TELEMETRY_MESSAGES.firstRunNotice);
+    // In --json mode the notice would pollute stdout and break parsers, so
+    // defer it: skip the notice AND leave noticeSeen unset so the disclosure
+    // still appears on the user's first later non-JSON run.
+    if (options.silent) {
+      return;
+    }
+
+    // Display notice on stderr, not stdout: stdout is reserved for command
+    // output (raw passthrough text, JSON, etc.) and must stay parser/pipe-safe.
+    console.error(TELEMETRY_MESSAGES.firstRunNotice);
 
     // Mark as seen
     await updateTelemetryConfig({ noticeSeen: true });

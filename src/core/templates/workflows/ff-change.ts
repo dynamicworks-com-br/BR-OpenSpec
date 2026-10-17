@@ -5,12 +5,36 @@
  * templates file into workflow-focused modules.
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { optionalWorkflow } from '../optional-workflow.js';
+import { PROJECT_ROOT_GUARD } from './project-root.js';
+
+/**
+ * The implementation handoff, resolved at generation time so a profile
+ * without `apply` is not told to run it (see optional-workflow.ts).
+ *
+ * The two surfaces word this differently on purpose (#258): a command-only
+ * tool has no conversational agent to ask, so its prompt names a command or
+ * the CLI and never invites "ask me to implement".
+ */
+const SKILL_APPLY_HANDOFF = optionalWorkflow(
+  'apply',
+  'Execute `/opsx:apply` ou peça-me para implementar para começar a trabalhar nas tarefas.',
+  'Peça-me para implementar para começar a trabalhar nas tarefas.'
+);
+
+const COMMAND_APPLY_HANDOFF = optionalWorkflow(
+  'apply',
+  'Execute `/opsx:apply` para começar a implementar.',
+  'Execute `openspec instructions apply --change "<nome>" --json` para obter a lista de tarefas e começar a implementar.'
+);
 
 export function getFfChangeSkillTemplate(): SkillTemplate {
   return {
     name: 'openspec-ff-change',
-    description: 'Avance rapidamente pela criação de artifacts do BR-OpenSpec. Use quando o usuário quiser criar rapidamente todos os artifacts necessários para implementação sem passar por cada um individualmente.',
+    description: 'Avance rapidamente pela criação de artifacts do BR-OpenSpec. Use quando o usuário quiser criar rapidamente todos os artifacts necessários para implementação sem passar por cada um individualmente. Use também quando o usuário disser "openspec ff" ou "opsx ff".',
     instructions: `Avance rapidamente pela criação de artifacts - gere tudo o que é necessário para iniciar a implementação de uma vez só.
+
+${PROJECT_ROOT_GUARD}
 
 **Entrada**: A solicitação do usuário deve incluir um nome de change (kebab-case) OU uma descrição do que ele quer construir.
 
@@ -38,6 +62,7 @@ export function getFfChangeSkillTemplate(): SkillTemplate {
    Analise o JSON para obter:
    - \`applyRequires\`: array de IDs de artifacts necessários antes da implementação (por exemplo, \`["tasks"]\`)
    - \`artifacts\`: lista de todos os artifacts, cada um com seu \`status\` e suas arestas \`requires\` (os IDs de artifact dos quais ele depende diretamente)
+   - \`changeRoot\`, \`artifactPaths\` e \`actionContext\`: contexto de caminho e escopo. Use-os em vez de assumir caminhos locais do repositório.
 
 4. **Crie todos os artifacts do conjunto necessário**
 
@@ -56,21 +81,26 @@ export function getFfChangeSkillTemplate(): SkillTemplate {
         - \`template\`: A estrutura a ser usada para seu arquivo de saída
         - \`instruction\`: Orientação específica do schema para este tipo de artifact
         - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - pare e escolha outro artifact
-        - \`outputPath\`: Onde escrever o artifact
+        - \`resolvedOutputPath\`: Caminho ou padrão resolvido onde escrever o artifact
         - \`dependencies\`: Artifacts concluídos para ler como contexto
       - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
-      - Se o campo \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o para produzir o artifact em vez de escrever o arquivo você mesmo, depois verifique se o arquivo do artifact existe em \`outputPath\`
-      - Caso contrário, crie o arquivo do artifact usando \`template\` como a estrutura e escreva-o em \`outputPath\`; se for um glob, siga o \`instruction\` para escolher o caminho concreto do arquivo
+      - **Inspecione o projeto relevante antes de rascunhar**: Leia \`context\` e \`rules\` primeiro, depois inspecione a implementação relevante, testes próximos, configuração e documentação fora de \`openspec/\`. Mantenha a inspeção somente leitura e proporcional à change; reutilize os achados nos artifacts seguintes e inspecione mais apenas quando necessário.
+        - Identifique o projeto alvo a partir da solicitação e do contexto do projeto. Se o alvo não estiver claro, pergunte. Para changes greenfield ou que não sejam de código, inspecione a estrutura disponível e os documentos relevantes. Se o código-fonte não estiver disponível, declare a limitação e pergunte quando isso afetar materialmente o plano.
+        - Ancore escopo, abordagem e tarefas no que você encontrar. Distinga comportamento observado de suposições e de acréscimos propostos; traga à tona conflitos com specs existentes em vez de decidir silenciosamente qual está certo.
+        - Faça essa descoberta agora, em vez de deixar tarefas genéricas de "explorar a codebase" ou "fazer um plano" para a implementação. Mantenha qualquer investigação de acompanhamento específica de uma pergunta ainda não resolvida.
+      - Escolha o caminho de saída antes de criar qualquer coisa. Se \`resolvedOutputPath\` for um glob, siga \`instruction\` para escolher um caminho concreto dentro de \`changeRoot\` que case com o glob, e verifique que ele permanece dentro de \`changeRoot\` depois de resolver symlinks, tanto nos diretórios pai quanto no próprio arquivo se ele já existir; se não permanecer, pare e avise o usuário. Caso contrário, o caminho de saída é \`resolvedOutputPath\`
+      - Se o campo \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o somente se ele puder escrever o artifact nesse caminho de saída; caso contrário, pare e avise o usuário. Depois verifique se o arquivo do artifact existe nesse caminho de saída
+      - Caso contrário, crie o arquivo do artifact usando \`template\` como a estrutura e escreva-o nesse caminho de saída
       - Aplique \`context\` e \`rules\` como restrições - mas NÃO copie-os para o arquivo
       - Mostre breve progresso: "✓ Criado <artifact-id>"
 
    b. **Continue até que todos os artifacts do conjunto necessário existam (não apenas o \`apply.requires\`)**
       - Após criar cada artifact, reexecute \`openspec status --change "<nome>" --json\`
       - O conjunto necessário é o \`applyRequires\` mais todo artifact alcançável a partir deles seguindo as arestas \`requires\` do \`status --json\` - percorra-as transitivamente (o spec-driven fecha sobre proposal, specs, design, tasks). Deixe artifacts fora desse conjunto em paz
-      - Um artifact com \`status: "skipped"\` já está satisfeito: a change declara \`skip_specs\` em \`.openspec.yaml\`, então seus arquivos NÃO devem existir. Nunca tente criá-lo
       - O \`status\` é apenas existência de arquivo, então um artifact de \`applyRequires\` marcado como \`done\` NÃO significa que suas dependências existam - escrever \`tasks.md\` cedo marca \`tasks\` como done sem que \`specs\` jamais tenha sido escrito. Use as arestas \`requires\` de cada artifact, não o \`status\`, para montar o conjunto necessário: um artifact \`done\` ainda lista do que depende
+      - Um artifact com \`status: "skipped"\` já está satisfeito: a change declara \`skip_specs\` em \`.openspec.yaml\`, então seus arquivos NÃO devem existir. Nunca tente criá-lo
       - Crie todo artifact do conjunto necessário que estiver faltando, depois verifique novamente - criar um pode desbloquear outros
-      - Pule um apenas quando o próprio \`instruction\` dele disser que é condicional: execute \`openspec instructions <artifact-id> --change "<nome>" --json\` e pule somente se o campo \`instruction\` o marcar como opcional (por exemplo, "crie apenas se..."). O \`design.md\` do spec-driven se qualifica; \`specs\` nunca. Avise o usuário e não reconsidere
+      - Pule um apenas quando o \`status\` já o reportar como \`skipped\`, ou quando o próprio \`instruction\` dele disser que é condicional: execute \`openspec instructions <artifact-id> --change "<nome>" --json\` e pule somente se o campo \`instruction\` o marcar como opcional (por exemplo, "crie apenas se..."). O \`design.md\` do spec-driven se qualifica; \`specs\` se qualifica somente pelo status \`skipped\` acima, nunca pelo seu próprio julgamento. Avise o usuário e não reconsidere
       - Dependências são facilitadoras, não portões: se um artifact necessário ainda estiver \`blocked\` apenas porque você pulou uma dependência condicional, escreva-o assim mesmo
       - Pare quando todos os artifacts do conjunto necessário estiverem \`done\` ou \`skipped\`, ou tiverem sido deliberadamente pulados
 
@@ -89,12 +119,12 @@ Após completar todos os artifacts, resuma:
 - Nome da change e localização
 - Lista de artifacts criados com breves descrições, mais qualquer artifact condicional que você pulou e por quê
 - O que está pronto: "Todos os artifacts necessários para a implementação estão prontos."
-- Prompt: "Execute \`/opsx:apply\` ou peça-me para implementar para começar a trabalhar nas tarefas."
+- Prompt: "${SKILL_APPLY_HANDOFF}"
 
 **Diretrizes de Criação de Artifacts**
 
 - Siga o campo \`instruction\` de \`openspec instructions\` para cada tipo de artifact - ele é a orientação autoritativa, mesmo para nomes de artifact familiares
-- Se o campo \`instruction\` direcionar você a usar uma skill ou comando específico para criar o artifact, invoque-o em vez de escrever o artifact diretamente
+- Se o campo \`instruction\` direcionar você a usar uma skill ou comando específico para criar o artifact, invoque-o em vez de escrever o artifact diretamente - mas somente depois de ter escolhido e checado o caminho de saída, e somente se ele puder escrever ali
 - O schema define o que cada artifact deve conter - siga-o
 - Leia artifacts de dependência para contexto antes de criar novos
 - Use \`template\` como a estrutura para seu arquivo de saída - preencha suas seções
@@ -106,7 +136,7 @@ Após completar todos os artifacts, resuma:
 - Crie todo artifact do qual a fase de apply depende transitivamente, não apenas os ids listados em \`apply.requires\`
 - Sempre leia artifacts de dependência antes de criar um novo - releia do disco, não da memória da conversa (os arquivos podem ter mudado desde a última vez que você os viu)
 - Se o contexto estiver criticamente incerto, pergunte ao usuário - mas prefira tomar decisões razoáveis para manter o momento
-- Se uma change com aquele nome já existir, pergunte se o usuário quer continuar ela ou criar uma nova
+- Se uma change com aquele nome já existir, sugira continuar aquela change em vez disso
 - Verifique se cada arquivo do artifact existe após escrever antes de prosseguir para o próximo`,
     license: 'MIT',
     compatibility: 'Requer openspec CLI.',
@@ -121,6 +151,8 @@ export function getOpsxFfCommandTemplate(): CommandTemplate {
     category: 'Workflow',
     tags: ['workflow', 'artifacts', 'experimental'],
     content: `Avance rapidamente pela criação de artifacts - gere tudo o que é necessário para iniciar a implementação.
+
+${PROJECT_ROOT_GUARD}
 
 **Entrada**: O argumento após \`/opsx:ff\` é o nome da change (kebab-case), OU uma descrição do que o usuário quer construir.
 
@@ -148,6 +180,7 @@ export function getOpsxFfCommandTemplate(): CommandTemplate {
    Analise o JSON para obter:
    - \`applyRequires\`: array de IDs de artifacts necessários antes da implementação (por exemplo, \`["tasks"]\`)
    - \`artifacts\`: lista de todos os artifacts, cada um com seu \`status\` e suas arestas \`requires\` (os IDs de artifact dos quais ele depende diretamente)
+   - \`changeRoot\`, \`artifactPaths\` e \`actionContext\`: contexto de caminho e escopo. Use-os em vez de assumir caminhos locais do repositório.
 
 4. **Crie todos os artifacts do conjunto necessário**
 
@@ -166,21 +199,26 @@ export function getOpsxFfCommandTemplate(): CommandTemplate {
         - \`template\`: A estrutura a ser usada para seu arquivo de saída
         - \`instruction\`: Orientação específica do schema para este tipo de artifact
         - \`skipped\`/\`warning\`: presentes quando a change declara skip_specs e este artifact NÃO deve ser criado - pare e escolha outro artifact
-        - \`outputPath\`: Onde escrever o artifact
+        - \`resolvedOutputPath\`: Caminho ou padrão resolvido onde escrever o artifact
         - \`dependencies\`: Artifacts concluídos para ler como contexto
       - Leia quaisquer arquivos de dependências concluídos para contexto - sempre releia-os do disco, mesmo que já os tenha visto antes na conversa (o usuário pode tê-los editado)
-      - Se o campo \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o para produzir o artifact em vez de escrever o arquivo você mesmo, depois verifique se o arquivo do artifact existe em \`outputPath\`
-      - Caso contrário, crie o arquivo do artifact usando \`template\` como a estrutura e escreva-o em \`outputPath\`; se for um glob, siga o \`instruction\` para escolher o caminho concreto do arquivo
+      - **Inspecione o projeto relevante antes de rascunhar**: Leia \`context\` e \`rules\` primeiro, depois inspecione a implementação relevante, testes próximos, configuração e documentação fora de \`openspec/\`. Mantenha a inspeção somente leitura e proporcional à change; reutilize os achados nos artifacts seguintes e inspecione mais apenas quando necessário.
+        - Identifique o projeto alvo a partir da solicitação e do contexto do projeto. Se o alvo não estiver claro, pergunte. Para changes greenfield ou que não sejam de código, inspecione a estrutura disponível e os documentos relevantes. Se o código-fonte não estiver disponível, declare a limitação e pergunte quando isso afetar materialmente o plano.
+        - Ancore escopo, abordagem e tarefas no que você encontrar. Distinga comportamento observado de suposições e de acréscimos propostos; traga à tona conflitos com specs existentes em vez de decidir silenciosamente qual está certo.
+        - Faça essa descoberta agora, em vez de deixar tarefas genéricas de "explorar a codebase" ou "fazer um plano" para a implementação. Mantenha qualquer investigação de acompanhamento específica de uma pergunta ainda não resolvida.
+      - Escolha o caminho de saída antes de criar qualquer coisa. Se \`resolvedOutputPath\` for um glob, siga \`instruction\` para escolher um caminho concreto dentro de \`changeRoot\` que case com o glob, e verifique que ele permanece dentro de \`changeRoot\` depois de resolver symlinks, tanto nos diretórios pai quanto no próprio arquivo se ele já existir; se não permanecer, pare e avise o usuário. Caso contrário, o caminho de saída é \`resolvedOutputPath\`
+      - Se o campo \`instruction\` delegar a criação a uma skill ou comando específico, invoque-o somente se ele puder escrever o artifact nesse caminho de saída; caso contrário, pare e avise o usuário. Depois verifique se o arquivo do artifact existe nesse caminho de saída
+      - Caso contrário, crie o arquivo do artifact usando \`template\` como a estrutura e escreva-o nesse caminho de saída
       - Aplique \`context\` e \`rules\` como restrições - mas NÃO copie-os para o arquivo
       - Mostre breve progresso: "✓ Criado <artifact-id>"
 
    b. **Continue até que todos os artifacts do conjunto necessário existam (não apenas o \`apply.requires\`)**
       - Após criar cada artifact, reexecute \`openspec status --change "<nome>" --json\`
       - O conjunto necessário é o \`applyRequires\` mais todo artifact alcançável a partir deles seguindo as arestas \`requires\` do \`status --json\` - percorra-as transitivamente (o spec-driven fecha sobre proposal, specs, design, tasks). Deixe artifacts fora desse conjunto em paz
-      - Um artifact com \`status: "skipped"\` já está satisfeito: a change declara \`skip_specs\` em \`.openspec.yaml\`, então seus arquivos NÃO devem existir. Nunca tente criá-lo
       - O \`status\` é apenas existência de arquivo, então um artifact de \`applyRequires\` marcado como \`done\` NÃO significa que suas dependências existam - escrever \`tasks.md\` cedo marca \`tasks\` como done sem que \`specs\` jamais tenha sido escrito. Use as arestas \`requires\` de cada artifact, não o \`status\`, para montar o conjunto necessário: um artifact \`done\` ainda lista do que depende
+      - Um artifact com \`status: "skipped"\` já está satisfeito: a change declara \`skip_specs\` em \`.openspec.yaml\`, então seus arquivos NÃO devem existir. Nunca tente criá-lo
       - Crie todo artifact do conjunto necessário que estiver faltando, depois verifique novamente - criar um pode desbloquear outros
-      - Pule um apenas quando o próprio \`instruction\` dele disser que é condicional: execute \`openspec instructions <artifact-id> --change "<nome>" --json\` e pule somente se o campo \`instruction\` o marcar como opcional (por exemplo, "crie apenas se..."). O \`design.md\` do spec-driven se qualifica; \`specs\` nunca. Avise o usuário e não reconsidere
+      - Pule um apenas quando o \`status\` já o reportar como \`skipped\`, ou quando o próprio \`instruction\` dele disser que é condicional: execute \`openspec instructions <artifact-id> --change "<nome>" --json\` e pule somente se o campo \`instruction\` o marcar como opcional (por exemplo, "crie apenas se..."). O \`design.md\` do spec-driven se qualifica; \`specs\` se qualifica somente pelo status \`skipped\` acima, nunca pelo seu próprio julgamento. Avise o usuário e não reconsidere
       - Dependências são facilitadoras, não portões: se um artifact necessário ainda estiver \`blocked\` apenas porque você pulou uma dependência condicional, escreva-o assim mesmo
       - Pare quando todos os artifacts do conjunto necessário estiverem \`done\` ou \`skipped\`, ou tiverem sido deliberadamente pulados
 
@@ -199,12 +237,12 @@ Após completar todos os artifacts, resuma:
 - Nome da change e localização
 - Lista de artifacts criados com breves descrições, mais qualquer artifact condicional que você pulou e por quê
 - O que está pronto: "Todos os artifacts necessários para a implementação estão prontos."
-- Prompt: "Execute \`/opsx:apply\` para começar a implementar."
+- Prompt: "${COMMAND_APPLY_HANDOFF}"
 
 **Diretrizes de Criação de Artifacts**
 
 - Siga o campo \`instruction\` de \`openspec instructions\` para cada tipo de artifact - ele é a orientação autoritativa, mesmo para nomes de artifact familiares
-- Se o campo \`instruction\` direcionar você a usar uma skill ou comando específico para criar o artifact, invoque-o em vez de escrever o artifact diretamente
+- Se o campo \`instruction\` direcionar você a usar uma skill ou comando específico para criar o artifact, invoque-o em vez de escrever o artifact diretamente - mas somente depois de ter escolhido e checado o caminho de saída, e somente se ele puder escrever ali
 - O schema define o que cada artifact deve conter - siga-o
 - Leia artifacts de dependência para contexto antes de criar novos
 - Use \`template\` como a estrutura para seu arquivo de saída - preencha suas seções

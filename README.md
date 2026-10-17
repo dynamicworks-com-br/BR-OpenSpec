@@ -34,11 +34,6 @@ Our philosophy:
 → scalable from personal projects to enterprises
 ```
 
-> [!TIP]
-> **New workflow now available!** We've rebuilt BR-OpenSpec with a new artifact-guided workflow.
->
-> Run `/opsx:propose "your idea"` to get started. → [Learn more here](docs/opsx.md)
-
 <p align="center">
   Follow <a href="https://x.com/0xTab">@0xTab on X</a> for updates.
 </p>
@@ -130,7 +125,7 @@ openspec init
 
 Now talk to your AI:
 
-- **Not sure what to build yet?** Start with `/opsx:explore`, a no-stakes thinking partner that reads your code, weighs options, and shapes a plan before anything is written. ([Explore guide](docs/explore.md))
+- **Not sure what to build yet?** Start with `/opsx:explore`, a no-stakes thinking partner that reads your code, weighs options, and shapes a plan before any code gets written. ([Explore guide](docs/explore.md))
 - **Already know what you want?** Go straight to `/opsx:propose <what-you-want-to-build>`.
 
 Both are in the default profile. If you want the expanded workflow (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:code-review`, `/opsx:bulk-archive`, `/opsx:onboard`), select it with `openspec config profile` and apply with `openspec update`.
@@ -140,7 +135,7 @@ Both are in the default profile. If you want the expanded workflow (`/opsx:new`,
 > [!NOTE]
 > Not sure if your tool is supported? [View the full list](docs/supported-tools.md) – we support 30+ tools and growing.
 >
-> Also works with pnpm, yarn, bun, and nix. [See installation options](docs/installation.md).
+> Also works with pnpm, yarn, bun, and Nix. [See installation options](docs/installation.md).
 
 ## Docs
 
@@ -160,8 +155,8 @@ Both are in the default profile. If you want the expanded workflow (`/opsx:new`,
 → **[Concepts](docs/concepts.md)**: how it all fits<br>
 → **[Multi-Language](docs/multi-language.md)**: multi-language support<br>
 → **[Customization](docs/customization.md)**: make it yours<br>
+→ **[Community Showcase](docs/community.md)**: projects and resources built with and for BR-OpenSpec<br>
 → **[FAQ](docs/faq.md)** · **[Troubleshooting](docs/troubleshooting.md)** · **[Glossary](docs/glossary.md)**: quick help
-
 
 ## Community schemas
 
@@ -219,25 +214,13 @@ openspec tools --remove windsurf
 
 **Context hygiene**: BR-OpenSpec benefits from a clean context window. Clear your context before starting implementation and maintain good context hygiene throughout your session.
 
-**Spec keywords stay in English**: BR-OpenSpec is PT-BR first, but the spec format is a protocol read by the tooling. Structural markers (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) and normative/scenario keywords (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — plus `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) are always written in English and UPPERCASE; only the descriptive text is in Portuguese. Translating these keywords breaks `openspec validate`. See the full list in [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
+**Spec keywords stay in English**: BR-OpenSpec is PT-BR first, but the spec format is a protocol read by the tooling. Structural markers (`## ADDED Requirements`, `### Requirement:`, `#### Scenario:`) and normative/scenario keywords (RFC 2119 — `MUST`, `SHALL`, `SHOULD`, `MAY`, … — plus `WHEN`, `THEN`, `AND`, `GIVEN`, `ELSE`) are always written in English and UPPERCASE; only the descriptive text is in Portuguese. Omitting `SHALL`/`MUST` from a requirement makes `openspec validate` emit a WARNING (an error only under `--strict`); translating the structural markers breaks spec/change parsing outright. See the full list in [AGENTS.md](AGENTS.md#reserved-english-terms-never-translate).
 
 ## Contributing
 
-**Small fixes** — Bug fixes, typo corrections, and minor improvements can be submitted directly as PRs.
+Open a discussion (for core design changes) or an issue before you open a PR, and link the issue or discussion from the PR. New features, significant refactors, and architectural changes need a BR-OpenSpec change proposal first.
 
-**Larger changes** — For new features, significant refactors, or architectural changes, please submit a BR-OpenSpec change proposal first so we can align on intent and goals before implementation begins.
-
-When writing proposals, keep the BR-OpenSpec philosophy in mind: we serve a wide variety of users across different coding agents, models, and use cases. Changes should work well for everyone.
-
-**AI-generated code is welcome** — as long as it's been tested and verified. PRs containing AI-generated code should mention the coding agent and model used (e.g., "Generated with Claude Code using claude-opus-4-5-20251101").
-
-### Development
-
-- Install dependencies: `pnpm install`
-- Build: `pnpm run build`
-- Test: `pnpm test`
-- Develop CLI locally: `pnpm run dev` or `pnpm run dev:cli`
-- Conventional commits (one-line): `type(scope): subject`
+→ **[CONTRIBUTING.md](CONTRIBUTING.md)**: the full process, from first issue to merged PR
 
 ## Other
 
@@ -248,7 +231,9 @@ BR-OpenSpec collects anonymous usage stats.
 
 We collect only command names and version to understand usage patterns. No arguments, paths, content, or PII. Automatically disabled in CI.
 
-**Opt-out:** `export OPENSPEC_TELEMETRY=0` or `export DO_NOT_TRACK=1`
+**Opt-out (any one is enough):**
+- `openspec config set telemetry.enabled false` (global config; unset means on)
+- `export OPENSPEC_TELEMETRY=0` or `export DO_NOT_TRACK=1` (env overrides config)
 
 </details>
 

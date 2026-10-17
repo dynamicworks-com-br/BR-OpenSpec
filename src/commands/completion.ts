@@ -1,4 +1,3 @@
-import ora from 'ora';
 import { CompletionFactory } from '../core/completions/factory.js';
 import { COMMAND_REGISTRY } from '../core/completions/command-registry.js';
 import { detectShell, SupportedShell } from '../utils/shell-detection.js';
@@ -126,6 +125,7 @@ export class CompletionCommand {
     const generator = CompletionFactory.createGenerator(shell);
     const installer = CompletionFactory.createInstaller(shell);
 
+    const { default: ora } = await import('ora');
     const spinner = ora(COMPLETION_MESSAGES.installingCompletion(shell)).start();
 
     try {
@@ -189,9 +189,12 @@ export class CompletionCommand {
               fish: 'exec fish',
               powershell: '. $PROFILE',
             };
-            const reloadCmd = reloadCommands[shell] || `restart your ${shell} shell`;
-
-            console.log(COMPLETION_MESSAGES.restartShell(reloadCmd));
+            const reloadCmd = reloadCommands[shell];
+            console.log(
+              reloadCmd
+                ? COMPLETION_MESSAGES.restartShell(reloadCmd)
+                : COMPLETION_MESSAGES.restartUnknownShell(shell)
+            );
           }
         }
       } else {
@@ -235,6 +238,7 @@ export class CompletionCommand {
       }
     }
 
+    const { default: ora } = await import('ora');
     const spinner = ora(COMPLETION_MESSAGES.uninstallingCompletion(shell)).start();
 
     try {

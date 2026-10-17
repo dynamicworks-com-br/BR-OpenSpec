@@ -57,6 +57,27 @@ rules:
         expect(consoleWarnSpy).not.toHaveBeenCalled();
       });
 
+      it('should preserve prototype-named rule keys as inert data', () => {
+        const configDir = path.join(tempDir, 'openspec');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(configDir, 'config.yaml'),
+          `rules:
+  __proto__:
+    - Prototype rule
+  constructor:
+    - Constructor rule
+`
+        );
+
+        const rules = readProjectConfig(tempDir)?.rules;
+
+        expect(Object.getPrototypeOf(rules)).toBeNull();
+        expect(Object.hasOwn(rules!, '__proto__')).toBe(true);
+        expect(rules?.__proto__).toEqual(['Prototype rule']);
+        expect(rules?.constructor).toEqual(['Constructor rule']);
+      });
+
       it('should parse minimal config with schema only', () => {
         const configDir = path.join(tempDir, 'openspec');
         fs.mkdirSync(configDir, { recursive: true });
@@ -158,6 +179,56 @@ operations:
         });
         expect(consoleWarnSpy).toHaveBeenCalledWith(
           expect.stringContaining("Campo 'operations' inválido")
+        );
+      });
+
+      it('should parse githubCopilot.cloudAgent', () => {
+        const configDir = path.join(tempDir, 'openspec');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(configDir, 'config.yaml'),
+          `schema: spec-driven
+githubCopilot:
+  cloudAgent: true
+`
+        );
+
+        expect(readProjectConfig(tempDir)?.githubCopilot?.cloudAgent).toBe(true);
+        expect(consoleWarnSpy).not.toHaveBeenCalled();
+      });
+
+      it('should warn on a non-boolean cloudAgent and keep the rest of the config', () => {
+        const configDir = path.join(tempDir, 'openspec');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(configDir, 'config.yaml'),
+          `schema: spec-driven
+githubCopilot:
+  cloudAgent: "yes"
+`
+        );
+
+        const config = readProjectConfig(tempDir);
+        expect(config?.schema).toBe('spec-driven');
+        expect(config?.githubCopilot).toBeUndefined();
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Campo 'githubCopilot.cloudAgent' inválido")
+        );
+      });
+
+      it('should warn on a non-object githubCopilot field', () => {
+        const configDir = path.join(tempDir, 'openspec');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(configDir, 'config.yaml'),
+          `schema: spec-driven
+githubCopilot: true
+`
+        );
+
+        expect(readProjectConfig(tempDir)?.schema).toBe('spec-driven');
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Campo 'githubCopilot' inválido")
         );
       });
 
@@ -388,6 +459,80 @@ rules:
         expect(consoleWarnSpy).toHaveBeenCalledWith(
           expect.stringContaining("Regras para 'specs' devem ser um array de strings")
         );
+        // Names the offending index and the shape YAML produced there.
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("rules.specs é uma string")
+        );
+      });
+
+      it('should name the offending index and shape for a rule that YAML reads as a mapping', () => {
+        const configDir = path.join(tempDir, 'openspec');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(configDir, 'config.yaml'),
+          `schema: spec-driven
+rules:
+  proposal:
+    - Valid rule
+    - Keep the "Why" section concrete: what breaks today without the change
+    - Another valid rule
+  specs:
+    - Requirements are declarative SHALL statements
+`
+        );
+
+        const config = readProjectConfig(tempDir);
+
+        // Unchanged behavior: the malformed artifact's whole rule set is still
+        // dropped, and its well-formed siblings are untouched.
+        expect(config).toEqual({
+          schema: 'spec-driven',
+          rules: {
+            specs: ['Requirements are declarative SHALL statements'],
+          },
+        });
+
+        const warned = consoleWarnSpy.mock.calls
+          .map((call) => call[0] as string)
+          .find((message) => message.includes("Regras para 'proposal'")) as string;
+        // Points at the exact index instead of making the reader bisect by hand.
+        expect(warned).toContain('rules.proposal[1] é um mapeamento');
+        // And says why, plus how to fix it.
+        expect(warned).toContain('": " sem aspas');
+        expect(warned).toContain('coloque o escalar inteiro entre aspas');
+        // The well-formed artifact is not implicated.
+        expect(warned).not.toContain('rules.specs');
+      });
+
+      it('should list every offending index when a rules list has more than one bad item', () => {
+        const configDir = path.join(tempDir, 'openspec');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(configDir, 'config.yaml'),
+          `schema: spec-driven
+rules:
+  proposal:
+    - First: bad mapping
+    - Valid rule
+    - Second: also a mapping
+    - 42
+    - null
+    - [nested, list]
+`
+        );
+
+        readProjectConfig(tempDir);
+
+        const warned = consoleWarnSpy.mock.calls
+          .map((call) => call[0] as string)
+          .find((message) => message.includes("Regras para 'proposal'")) as string;
+        expect(warned).toContain('rules.proposal[0] é um mapeamento');
+        expect(warned).toContain('rules.proposal[2] é um mapeamento');
+        expect(warned).toContain('rules.proposal[3] é um número');
+        expect(warned).toContain('rules.proposal[4] é null');
+        expect(warned).toContain('rules.proposal[5] é uma lista aninhada');
+        // The valid sibling between them is not reported.
+        expect(warned).not.toContain('rules.proposal[1]');
       });
 
       it('should filter out empty string rules', () => {
@@ -577,6 +722,18 @@ context: |
         expect(config?.schema).toBe('spec-driven');
         expect(config?.context).toBe('from yaml');
       });
+
+      it.each(['context: [', 'context: 123\n'])(
+        'does not fall back to .yml when .yaml has invalid content: %s',
+        (yaml) => {
+          const configDir = path.join(tempDir, 'openspec');
+          fs.mkdirSync(configDir, { recursive: true });
+          fs.writeFileSync(path.join(configDir, 'config.yaml'), yaml);
+          fs.writeFileSync(path.join(configDir, 'config.yml'), 'context: from yml\n');
+
+          expect(readProjectConfig(tempDir)?.context).toBeUndefined();
+        }
+      );
 
       it('should use .yml when .yaml does not exist', () => {
         const configDir = path.join(tempDir, 'openspec');

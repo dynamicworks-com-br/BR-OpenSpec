@@ -13,16 +13,24 @@ export function serializeConfig(config: Partial<ProjectConfig>): string {
   lines.push(`schema: ${config.schema}`);
   lines.push('');
 
-  // Context section with comments
-  lines.push('# Project context (optional)');
-  lines.push('# This is shown to AI when creating artifacts.');
-  lines.push('# Add your tech stack, conventions, style guides, domain knowledge, etc.');
-  lines.push('# Example:');
-  lines.push('#   context: |');
-  lines.push('#     Tech stack: TypeScript, React, Node.js');
-  lines.push('#     We use conventional commits');
-  lines.push('#     Domain: e-commerce platform');
-  lines.push('');
+  if (config.context !== undefined) {
+    lines.push('context: |');
+    for (const line of config.context.split('\n')) {
+      lines.push(`  ${line}`);
+    }
+    lines.push('');
+  } else {
+    // Context section with comments
+    lines.push('# Project context (optional)');
+    lines.push('# Add only constraints that should guide OpenSpec artifacts and workflows.');
+    lines.push('# Include constraints an agent cannot infer by reading the code.');
+    lines.push('# Keep general project documentation and discoverable codebase facts out.');
+    lines.push('# Example:');
+    lines.push('#   context: |');
+    lines.push('#     Designs and tasks must cover Windows, macOS, and Linux');
+    lines.push('#     Write all artifacts in Spanish');
+    lines.push('');
+  }
 
   // Rules section with comments
   lines.push('# Per-artifact rules (optional)');
@@ -31,7 +39,7 @@ export function serializeConfig(config: Partial<ProjectConfig>): string {
   lines.push('#   rules:');
   lines.push('#     proposal:');
   lines.push('#       - Keep proposals under 500 words');
-  lines.push('#       - Always include a "Non-goals" section');
+  lines.push('#       - Always state what is out of scope');
   lines.push('#     tasks:');
   lines.push('#       - Break tasks into chunks of max 2 hours');
   lines.push('');

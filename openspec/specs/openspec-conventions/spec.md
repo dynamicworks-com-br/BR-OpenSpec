@@ -47,7 +47,7 @@ openspec/
 ├── project.md              # Project-specific context
 ├── AGENTS.md               # AI assistant instructions
 ├── specs/                  # Current deployed capabilities
-│   └── [capability]/       # Single, focused capability
+│   └── <capability-path>/  # One or more directories for a focused capability
 │       ├── spec.md         # WHAT and WHY
 │       └── design.md       # HOW (optional, for established patterns)
 └── changes/                # Proposed changes
@@ -56,7 +56,7 @@ openspec/
     │   ├── tasks.md        # Implementation checklist
     │   ├── design.md       # Technical decisions (optional)
     │   └── specs/          # Complete future state
-    │       └── [capability]/
+    │       └── <capability-path>/
     │           └── spec.md # Clean markdown (no diff syntax)
     └── archive/            # Completed changes
         └── YYYY-MM-DD-[name]/
@@ -99,8 +99,8 @@ Requirement headers SHALL serve as unique identifiers for programmatic matching 
 
 - **WHEN** processing delta changes
 - **THEN** use the `### Requirement: [Name]` header as the unique identifier
-- **AND** match using normalized headers: `normalize(header) = trim(header)`
-- **AND** compare headers with case-sensitive equality after normalization
+- **AND** strip a closing run of `#` characters when a space or tab precedes it and only spaces or tabs follow it, then trim surrounding whitespace
+- **AND** compare normalized requirement names with case-sensitive equality
 
 #### Scenario: Handling requirement renames
 
@@ -224,7 +224,7 @@ The system SHALL support multiple methods for reviewing proposed changes.
 - **WHEN** reviewing proposed changes
 - **THEN** reviewers can compare using:
 - GitHub PR diff view when changes are committed
-- Command line: `diff -u specs/[capability]/spec.md changes/[name]/specs/[capability]/spec.md`
+- Command line: `diff -u "specs/<capability-path>/spec.md" "changes/<name>/specs/<capability-path>/spec.md"`
 - Any visual diff tool comparing current vs future state
 
 ### Requirement: Structured Format Adoption
@@ -278,7 +278,7 @@ openspec/
 ├── project.md              # Project-specific context
 ├── AGENTS.md               # AI assistant instructions
 ├── specs/                  # Current deployed capabilities
-│   └── [capability]/       # Single, focused capability
+│   └── <capability-path>/  # One or more directories for a focused capability
 │       ├── spec.md         # WHAT and WHY
 │       └── design.md       # HOW (optional, for established patterns)
 └── changes/                # Proposed changes
@@ -287,7 +287,7 @@ openspec/
     │   ├── tasks.md        # Implementation checklist
     │   ├── design.md       # Technical decisions (optional)
     │   └── specs/          # Complete future state
-    │       └── [capability]/
+    │       └── <capability-path>/
     │           └── spec.md # Clean markdown (no diff syntax)
     └── archive/            # Completed changes
         └── YYYY-MM-DD-[name]/
@@ -463,7 +463,7 @@ The system SHALL support multiple methods for reviewing proposed changes.
 - **WHEN** reviewing proposed changes
 - **THEN** reviewers can compare using:
 - GitHub PR diff view when changes are committed
-- Command line: `diff -u specs/[capability]/spec.md changes/[name]/specs/[capability]/spec.md`
+- Command line: `diff -u "specs/<capability-path>/spec.md" "changes/<name>/specs/<capability-path>/spec.md"`
 - Any visual diff tool comparing current vs future state
 
 The system relies on tools to generate diffs rather than storing them.

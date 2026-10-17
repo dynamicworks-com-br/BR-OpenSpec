@@ -27,7 +27,7 @@ Se você acha que algo está na fronteira, reporte e nós resolvemos juntos.
 
 ## Conteúdo do pacote publicado
 
-O pacote npm `@dynamicworks/br-openspec` publica `dist/`, `bin/`, `schemas/` e `scripts/postinstall.js`. Ferramentas de build e teste (vite, rollup, vitest, eslint e suas dependências transitivas) não são publicadas. Scanners que leem o `pnpm-lock.yaml` sem separar o escopo das dependências vão reportar advisories de pacotes que nunca chegam a uma cópia instalada do BR-OpenSpec.
+O pacote npm `@dynamicworks/br-openspec` publica `dist/`, `bin/` e `schemas/`. Ferramentas de build e teste (vite, rollup, vitest, eslint e suas dependências transitivas) não são publicadas. Scanners que leem o `pnpm-lock.yaml` sem separar o escopo das dependências vão reportar advisories de pacotes que nunca chegam a uma cópia instalada do BR-OpenSpec.
 
 Você não precisa confiar cegamente — instale o pacote e veja:
 
@@ -42,10 +42,10 @@ ls node_modules | grep -E '^(vite|rollup|vitest|eslint|js-yaml|minimatch)$'   # 
 
 | Superfície | Comportamento |
 | --- | --- |
-| Script de instalação | `scripts/postinstall.js` imprime uma linha sugerindo autocompletions do shell. Não faz requisição de rede, não escreve arquivos e não executa shell. Completions são opt-in via `openspec completion install`. |
+| Scripts de instalação | O pacote não traz script `preinstall`, `install` nem `postinstall`, então instalá-lo a partir do registry npm não executa nenhum código do BR-OpenSpec. (`prepare` continua declarado; o npm só o executa em instalações a partir de git ou de diretório local, onde ele faz o build a partir do código-fonte.) Completions do shell são opt-in via `openspec completion install`; a CLI imprime uma dica de uma linha sobre elas na sua primeira execução. |
 | Executar outros programas | Toda chamada que passa por um shell usa um literal fixo (`which gh`, `gh auth status`). Qualquer coisa que carrega entrada sua — texto de issues, caminhos de editor, o caminho passado para `openspec update` — usa um array de argumentos, nunca interpolação de string num shell. No Windows, shims `.cmd` são lançados através do `cross-spawn`, que escapa argumentos em vez de concatená-los. |
 | Instalar software | `openspec update` pode executar `npm install -g @dynamicworks/br-openspec@latest` e depois reexecutar `openspec update` com a CLI atualizada. Ele faz isso somente depois que você responde sim a um prompt, somente para o próprio pacote BR-OpenSpec, somente quando o npm é o dono da instalação, e nunca em CI ou num shell não interativo. Uma instalação global fica fora do seu projeto, então roda com as suas permissões lá e executa quaisquer lifecycle scripts que o pacote publicado traz. Em seguida, ele lê de volta a versão do binário instalado em vez de assumir que o upgrade aconteceu. Recuse e ele imprime o comando para você executar por conta própria. |
-| Telemetria | Nome do comando, versão do BR-OpenSpec e um UUID aleatório gerado localmente. Sem caminhos de arquivo, sem conteúdo de arquivos, sem ambiente, sem hostname, e a captura de IP é explicitamente desativada. Desative com `OPENSPEC_TELEMETRY=0` ou `DO_NOT_TRACK=1`; é desligada automaticamente em CI. |
+| Telemetria | Nome do comando, versão do BR-OpenSpec e um UUID aleatório gerado localmente. Sem caminhos de arquivo, sem conteúdo de arquivos, sem ambiente, sem hostname, e a captura de IP é explicitamente desativada. Desative com `OPENSPEC_TELEMETRY=0`, `DO_NOT_TRACK=1` ou `openspec config set telemetry.enabled false` (as variáveis de ambiente têm precedência sobre a configuração); é desligada automaticamente em CI. |
 | Rede | Telemetria quando habilitada, e uma requisição ao registry npm durante o `openspec update` para verificar se uma CLI mais nova foi publicada. Essa requisição não envia dados sobre você além do que qualquer requisição HTTP revela, roda uma vez por `openspec update` sem nada cacheado, e é pulada quando `CI` está definido com qualquer valor que não seja um valor de desligamento explícito, sob `NODE_ENV=test`, ou quando `OPENSPEC_NO_UPDATE_CHECK`, `DO_NOT_TRACK=1` ou `OPENSPEC_TELEMETRY=0` estão definidos. Ler, escrever e validar specs é inteiramente local. |
 
 ## Verificações automatizadas

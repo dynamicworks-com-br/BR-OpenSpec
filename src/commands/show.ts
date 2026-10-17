@@ -8,7 +8,7 @@ import { SHOW_MESSAGES } from '../messages/index.js';
 
 type ItemType = 'change' | 'spec';
 
-const CHANGE_FLAG_KEYS = new Set(['deltasOnly', 'requirementsOnly']);
+const CHANGE_FLAG_KEYS = new Set(['deltasOnly', 'requirementsOnly', 'diff']);
 const SPEC_FLAG_KEYS = new Set(['requirements', 'scenarios', 'requirement']);
 
 export class ShowCommand {

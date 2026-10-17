@@ -359,7 +359,7 @@ IA:   Lendo os artefatos de add-dark-mode...
 ```
 
 **Dicas:**
-- Ele não cria artefatos faltantes - isso é trabalho do `/opsx:continue`
+- Ele não inicia um artefato que ainda não tem arquivos. Habilite `/opsx:continue` para isso, ou use `openspec status` e `openspec instructions` se esse fluxo opcional não estiver instalado.
 - Se a mudança já foi implementada, siga com `/opsx:apply` para que o código corresponda ao plano revisado
 - Se a sua revisão muda a *intenção* da mudança, comece do zero com uma nova mudança (veja [Quando Atualizar vs. Começar do Zero](opsx.md#quando-atualizar-vs-começar-do-zero))
 
@@ -692,9 +692,9 @@ Diferentes ferramentas de IA usam sintaxes de comando ligeiramente diferentes. U
 | Arquivo de comando da sua ferramenta | Exemplo de sintaxe | Ferramentas de exemplo |
 |--------------------------------------|--------------------|------------------------|
 | `.../commands/opsx/<id>.*` | `/opsx:propose`, `/opsx:apply` | Claude Code, Gemini CLI, Crush |
-| `.../opsx-<id>.*` | `/opsx-propose`, `/opsx-apply` | Cursor, Devin Desktop, Copilot (IDE), Codex (prompts globais) |
+| `.../opsx-<id>.*` | `/opsx-propose`, `/opsx-apply` | Cursor, Devin Desktop, Copilot (IDE), Command Code |
 | `.amazonq/prompts/opsx-<id>.md` | `@opsx-propose`, `@opsx-apply` | Amazon Q Developer |
-| nenhum — somente skills | `/openspec-propose`, `/openspec-apply-change` | ForgeCode, Mistral Vibe, Trae, alvo `.agents` compartilhado |
+| nenhum — somente skills | `/openspec-propose`, `/openspec-apply-change` | ForgeCode, MiniMax Code, Mistral Vibe, Trae, Zed Agent, alvo `.agents` compartilhado |
 | nenhum — Kimi Code | `/skill:openspec-propose` | Kimi Code |
 | skills do Codex | `$openspec-propose` | Codex |
 

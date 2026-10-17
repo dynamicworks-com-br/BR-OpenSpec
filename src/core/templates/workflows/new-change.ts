@@ -5,15 +5,96 @@
  * templates file into workflow-focused modules.
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
-import { NEW_CHANGE_TEMPLATE_MESSAGES } from '../../../messages/index.js';
+import { optionalWorkflow } from '../optional-workflow.js';
+import { PROJECT_ROOT_GUARD } from './project-root.js';
+
+/**
+ * Handoffs to `continue`, which is not guaranteed to be installed alongside
+ * `new`; resolved at generation time (see optional-workflow.ts).
+ */
+const FIRST_ARTIFACT_PROMPT = optionalWorkflow(
+  'continue',
+  'Execute `/opsx:continue` ou apenas descreva do que se trata esta change e eu elaboro um rascunho.',
+  'Apenas descreva do que se trata esta change e eu elaboro um rascunho.'
+);
+
+const EXISTING_CHANGE_HINT = optionalWorkflow(
+  'continue',
+  'sugira usar `/opsx:continue` em vez disso',
+  'diga isso e pergunte se deve retomar essa change ou escolher outro nome'
+);
 
 export function getNewChangeSkillTemplate(): SkillTemplate {
   return {
     name: 'openspec-new-change',
-    description: NEW_CHANGE_TEMPLATE_MESSAGES.skillDescription,
-    instructions: NEW_CHANGE_TEMPLATE_MESSAGES.skillInstructions,
+    description: 'Inicie uma nova change do BR-OpenSpec usando o workflow experimental de artifacts. Use quando o usuário quiser criar uma nova funcionalidade, correção ou modificação com uma abordagem estruturada passo a passo. Use também quando o usuário disser "openspec new change" ou "opsx new".',
+    instructions: `Inicie uma nova change usando a abordagem experimental orientada a artifacts.
+
+${PROJECT_ROOT_GUARD}
+
+**Entrada**: A solicitação do usuário deve incluir um nome de change (kebab-case) OU uma descrição do que ele quer construir.
+
+**Passos**
+
+1. **Se nenhuma entrada clara for fornecida, pergunte o que ele quer construir**
+
+   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
+   > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
+
+   A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → \`add-user-auth\`).
+
+   **IMPORTANTE**: NÃO prossiga sem entender o que o usuário quer construir.
+
+2. **Determine o schema de workflow**
+
+   Use o schema padrão (omitir \`--schema\`) a menos que o usuário solicite explicitamente um workflow diferente.
+
+   **Use um schema diferente apenas se o usuário mencionar:**
+   - Um nome de schema específico → use \`--schema <nome>\`
+   - "mostrar workflows" ou "quais workflows" → execute \`openspec schemas --json\` e deixe-o escolher
+
+   **Caso contrário**: Omita \`--schema\` para usar o padrão.
+
+3. **Crie o diretório da change**
+   \`\`\`bash
+   openspec new change "<nome>"
+   \`\`\`
+   Adicione \`--schema <nome>\` apenas se o usuário solicitou um workflow específico.
+   Isso cria uma change com scaffold em \`openspec/changes/<nome>/\` com o schema selecionado.
+
+4. **Mostre o status dos artifacts**
+   \`\`\`bash
+   openspec status --change "<nome>" --json
+   \`\`\`
+   Use os campos retornados \`changeRoot\`, \`artifactPaths\` e \`nextSteps\` em vez de assumir caminhos locais do repositório.
+
+5. **Obtenha instruções para o primeiro artifact**
+   O primeiro artifact depende do schema (por exemplo, \`proposal\` para spec-driven).
+   Verifique a saída do status para encontrar o primeiro artifact com status "ready".
+   \`\`\`bash
+   openspec instructions <primeiro-artifact-id> --change "<nome>"
+   \`\`\`
+   Isso produz o template e contexto para criar o primeiro artifact.
+
+6. **PARE e aguarde direção do usuário**
+
+**Saída**
+
+Após completar os passos, resuma:
+- Nome da change e localização
+- Schema/workflow sendo usado e sua sequência de artifacts
+- Status atual (0/N artifacts completos)
+- O template para o primeiro artifact
+- Prompt: "Pronto para criar o primeiro artifact? Basta descrever do que se trata esta change e eu elaboro um rascunho, ou peça-me para continuar."
+
+**Guardrails**
+- NÃO crie nenhum artifact ainda - apenas mostre as instruções
+- NÃO avance além de mostrar o template do primeiro artifact
+- Se o nome for inválido (não kebab-case), peça um nome válido
+- Se uma change com aquele nome já existir, sugira continuar aquela change em vez disso
+- Passe --schema se estiver usando um workflow não padrão`,
     license: 'MIT',
-    compatibility: NEW_CHANGE_TEMPLATE_MESSAGES.skillCompatibility,
+    compatibility: 'Requer openspec CLI.',
     metadata: { author: 'openspec', version: '1.0' },
   };
 }
@@ -21,9 +102,72 @@ export function getNewChangeSkillTemplate(): SkillTemplate {
 export function getOpsxNewCommandTemplate(): CommandTemplate {
   return {
     name: 'OPSX: New',
-    description: NEW_CHANGE_TEMPLATE_MESSAGES.opsxDescription,
+    description: 'Inicie uma nova change usando o workflow experimental de artifacts (OPSX)',
     category: 'Workflow',
     tags: ['workflow', 'artifacts', 'experimental'],
-    content: NEW_CHANGE_TEMPLATE_MESSAGES.opsxContent,
+    content: `Inicie uma nova change usando a abordagem experimental orientada a artifacts.
+
+${PROJECT_ROOT_GUARD}
+
+**Entrada**: O argumento após \`/opsx:new\` é o nome da change (kebab-case), OU uma descrição do que o usuário quer construir.
+
+**Passos**
+
+1. **Se nenhuma entrada for fornecida, pergunte o que ele quer construir**
+
+   Pergunte ao usuário (de forma aberta, sem opções pré-definidas):
+   > "Em qual change você quer trabalhar? Descreva o que quer construir ou corrigir."
+
+   A partir da descrição dele, derive um nome kebab-case (por exemplo, "adicionar autenticação de usuário" → \`add-user-auth\`).
+
+   **IMPORTANTE**: NÃO prossiga sem entender o que o usuário quer construir.
+
+2. **Determine o schema de workflow**
+
+   Use o schema padrão (omitir \`--schema\`) a menos que o usuário solicite explicitamente um workflow diferente.
+
+   **Use um schema diferente apenas se o usuário mencionar:**
+   - Um nome de schema específico → use \`--schema <nome>\`
+   - "mostrar workflows" ou "quais workflows" → execute \`openspec schemas --json\` e deixe-o escolher
+
+   **Caso contrário**: Omita \`--schema\` para usar o padrão.
+
+3. **Crie o diretório da change**
+   \`\`\`bash
+   openspec new change "<nome>"
+   \`\`\`
+   Adicione \`--schema <nome>\` apenas se o usuário solicitou um workflow específico.
+   Isso cria uma change com scaffold em \`openspec/changes/<nome>/\` com o schema selecionado.
+
+4. **Mostre o status dos artifacts**
+   \`\`\`bash
+   openspec status --change "<nome>" --json
+   \`\`\`
+   Use os campos retornados \`changeRoot\`, \`artifactPaths\` e \`nextSteps\` em vez de assumir caminhos locais do repositório.
+
+5. **Obtenha instruções para o primeiro artifact**
+   O primeiro artifact depende do schema. Verifique a saída do status para encontrar o primeiro artifact com status "ready".
+   \`\`\`bash
+   openspec instructions <primeiro-artifact-id> --change "<nome>"
+   \`\`\`
+   Isso produz o template e contexto para criar o primeiro artifact.
+
+6. **PARE e aguarde direção do usuário**
+
+**Saída**
+
+Após completar os passos, resuma:
+- Nome da change e localização
+- Schema/workflow sendo usado e sua sequência de artifacts
+- Status atual (0/N artifacts completos)
+- O template para o primeiro artifact
+- Prompt: "Pronto para criar o primeiro artifact? ${FIRST_ARTIFACT_PROMPT}"
+
+**Guardrails**
+- NÃO crie nenhum artifact ainda - apenas mostre as instruções
+- NÃO avance além de mostrar o template do primeiro artifact
+- Se o nome for inválido (não kebab-case), peça um nome válido
+- Se uma change com aquele nome já existir, ${EXISTING_CHANGE_HINT}
+- Passe --schema se estiver usando um workflow não padrão`
   };
 }

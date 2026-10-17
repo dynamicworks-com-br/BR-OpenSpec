@@ -4,6 +4,7 @@ import os from 'os';
 import { FileSystemUtils } from '../../../utils/file-system.js';
 import { COMPLETION_MESSAGES } from '../../../messages/index.js';
 import { InstallationResult } from '../factory.js';
+import { shellSingleQuote } from './shell-quote.js';
 
 /**
  * Installer for Zsh completion scripts.
@@ -119,8 +120,8 @@ export class ZshInstaller {
    */
   private generateZshrcConfig(completionsDir: string): string {
     return [
-      '# BR-OpenSpec shell completions configuration',
-      `fpath=("${completionsDir}" $fpath)`,
+      COMPLETION_MESSAGES.shellCompletionsConfigHeader,
+      `fpath=(${shellSingleQuote(completionsDir)} $fpath)`,
       'autoload -Uz compinit',
       'compinit',
     ].join('\n');
@@ -160,7 +161,7 @@ export class ZshInstaller {
       return true;
     } catch (error: any) {
       // Fail gracefully - don't break installation
-      console.debug(`Unable to configure .zshrc for completions: ${error.message}`);
+      console.debug(COMPLETION_MESSAGES.unableToConfigureZshrc(error.message));
       return false;
     }
   }
@@ -220,8 +221,10 @@ export class ZshInstaller {
       // Remove lines between markers (inclusive)
       lines.splice(startIndex, endIndex - startIndex + 1);
 
-      // Remove trailing empty lines at the start if the markers were at the top
-      while (lines.length > 0 && lines[0].trim() === '') {
+      // Install puts the block at the top of the file followed by one blank
+      // separator line; drop that line too so the file reads as it did before.
+      // Everything else, including blank lines the user had at the top, is left as is.
+      if (startIndex === 0 && lines.length > 0 && lines[0].trim() === '') {
         lines.shift();
       }
 
@@ -231,7 +234,7 @@ export class ZshInstaller {
       return true;
     } catch (error: any) {
       // Fail gracefully
-      console.debug(`Unable to remove .zshrc configuration: ${error.message}`);
+      console.debug(COMPLETION_MESSAGES.unableToRemoveZshrc(error.message));
       return false;
     }
   }
@@ -267,7 +270,7 @@ export class ZshInstaller {
         isUpdate = true;
       } catch (error: any) {
         // File doesn't exist or can't be read, proceed with installation
-        console.debug(`Unable to read existing completion file at ${targetPath}: ${error.message}`);
+        console.debug(COMPLETION_MESSAGES.unableToReadCompletionFile(targetPath, error.message));
       }
 
       if (!(await FileSystemUtils.canWriteFile(targetPath))) {
@@ -377,8 +380,8 @@ export class ZshInstaller {
         '',
         COMPLETION_MESSAGES.zshAddToZshrc,
         '',
-        `  ${COMPLETION_MESSAGES.zshFpathComment}`,
-        `  fpath=(${completionsDir} $fpath)`,
+        `  # Add completions directory to fpath`,
+        `  fpath=(${shellSingleQuote(completionsDir)} $fpath)`,
         '',
         `  ${COMPLETION_MESSAGES.zshCompinitComment}`,
         '  autoload -Uz compinit',

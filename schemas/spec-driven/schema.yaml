@@ -13,12 +13,23 @@ artifacts:
       - **Why**: 1-2 frases sobre o problema ou oportunidade. Qual problema isso resolve? Por que agora?
       - **What Changes**: Lista de marcadores das mudanças. Seja específico sobre novas capabilities, modificações ou remoções. Marque mudanças incompatíveis com **BREAKING**.
       - **Capabilities**: Identifique quais specs serão criadas ou modificadas:
-        - **New Capabilities**: Liste as capabilities sendo introduzidas. Cada uma vira um novo `specs/<name>/spec.md`. Use nomes em kebab-case (ex.: `user-auth`, `data-export`).
-        - **Modified Capabilities**: Liste as capabilities existentes cujos REQUIREMENTS estão mudando. Inclua apenas se o comportamento no nível da spec mudar (não apenas detalhes de implementação). Cada uma precisa de um arquivo de spec delta. Verifique `openspec/specs/` para os nomes de spec existentes. Deixe vazio se não houver mudança de requirement.
+        - **New Capabilities**: Liste as capabilities sendo introduzidas. Cada uma vira um novo `specs/<capability-path>/spec.md`. Nomeie cada capability por um comportamento durável do sistema (por exemplo, `user-auth`), não pelo trabalho desta change (por exemplo, `add-login-endpoint`). Escolha um limite coeso que possa abrigar requirements relacionados à medida que o sistema evolui; evite capabilities genéricas que tentam cobrir tudo. Use kebab-case nos segmentos de caminho que você introduzir (ex.: `user-auth` ou `identity/user-auth`) e siga a organização de specs já existente no projeto.
+        - **Modified Capabilities**: Liste as capabilities existentes cujos REQUIREMENTS estão mudando. Inclua apenas se o comportamento no nível da spec mudar (não apenas detalhes de implementação). Cada uma precisa de um arquivo de spec delta. Use o caminho exato existente em `openspec/specs/`. Deixe vazio se não houver mudança de requirement.
       - **Impact**: Código, APIs, dependências ou sistemas afetados.
 
       IMPORTANTE: A seção Capabilities é crítica. Ela cria o contrato entre
-      as fases de proposta e specs. Pesquise as specs existentes antes de preenchê-la.
+      as fases de proposta e specs. Pesquise as specs existentes antes de preenchê-la:
+      execute `openspec list --specs` para o inventário de capabilities do projeto e, em seguida,
+      `openspec show "<spec-id>" --type spec --json --no-scenarios` para as que
+      parecerem relacionadas — isso devolve o purpose e os textos de requirement de uma capability
+      sem puxar os arquivos de spec inteiros para o contexto. Mantenha `--type spec`:
+      uma change e uma spec com o mesmo nome, sem isso, viram um erro de item ambíguo.
+      `openspec list` sem `--specs` lista changes em andamento, não
+      specs — ele nunca mostra o que o projeto já cobre. Reutilize o caminho exato de uma
+      capability existente em vez de introduzir um nome quase duplicado.
+      A leitura filtrada é só uma visão geral. Antes de decidir o que já está
+      coberto ou o que deve mudar, leia cada spec relevante por completo, incluindo
+      os cenários, com `openspec show "<spec-id>" --type spec`.
       Cada capability listada aqui precisará de um arquivo de spec correspondente.
 
       Toda change deve declarar pelo menos uma capability (nova ou
@@ -60,8 +71,21 @@ artifacts:
       visível externamente, provavelmente não pertence à spec.
 
       Crie um arquivo de spec por capability listada na seção Capabilities da proposta.
-      - Novas capabilities: use o nome exato em kebab-case da proposta (specs/<capability>/spec.md).
-      - Capabilities modificadas: use o nome da pasta de spec existente em openspec/specs/<capability>/ ao criar a spec delta em specs/<capability>/spec.md.
+      `<capability-path>` é o diretório do spec relativo a `specs/` (por exemplo,
+      `user-auth` ou `identity/user-auth`). Preserve o caminho completo:
+      - Novas capabilities: use o caminho exato da proposta em `specs/<capability-path>/spec.md`. Todo segmento de caminho introduzido pela proposta deve estar em kebab-case. Siga a organização existente do projeto; não adicione um novo nível de domínio quando o projeto usa um layout plano.
+      - Capabilities modificadas: use o caminho exato existente em `openspec/specs/<capability-path>/` ao criar o delta em `specs/<capability-path>/spec.md`. Execute `openspec list --specs` para confirmar esse caminho antes de escrever o delta — um caminho digitado errado ou inventado aponta para uma capability que não existe, em vez da que você queria. Não mova nem renomeie a capability.
+
+      Escreva os arquivos de spec um de cada vez, para que o usuário veja o progresso e uma
+      execução interrompida conserve os arquivos que já foram escritos:
+      - Antes de escrever qualquer coisa, compare as capabilities que a proposta lista
+        com os arquivos `specs/<capability-path>/spec.md` que já existem,
+        e comece pela primeira capability que não tem arquivo. Não reescreva
+        um arquivo existente a menos que o usuário peça.
+      - Antes de cada arquivo, diga em uma linha qual capability você está escrevendo.
+      - Escreva cada arquivo assim que tiver o rascunho. Não planeje todos os arquivos
+        antes de escrever o primeiro.
+      - Pare quando cada capability que a proposta lista tiver o seu arquivo.
 
       Deve haver pelo menos um arquivo de spec, a menos que o `.openspec.yaml` da change
       defina `skip_specs: true` (sem mudança de comportamento no nível de spec) - `openspec validate`
@@ -80,19 +104,20 @@ artifacts:
       - Cada cenário: `#### Scenario: <name>` no formato WHEN/THEN
       - **CRITICAL**: Os cenários MUST usar exatamente 4 cerquilhas (`####`). Usar 3 cerquilhas ou marcadores falha silenciosamente.
       - Todo requirement MUST ter pelo menos um cenário.
+      - Mantenha a descrição de cada requirement (o texto entre `### Requirement:` e o primeiro cenário) em 500 caracteres ou menos. `openspec validate` sinaliza descrições mais longas em requirements ADDED e na spec principal. Isso é um aviso: a validação normal ainda passa, mas `openspec validate --strict` falha nele. Ao escrever um requirement novo, declare um comportamento por requirement: mova exemplos e casos de borda para os cenários, e divida um requirement que cobre vários comportamentos em blocos `### Requirement:` separados, cada um com os próprios cenários. Em MODIFIED, mantenha o bloco do requirement existente inteiro; nunca divida, corte ou reescreva texto existente só para caber no limite. Divida um requirement longo existente somente quando o usuário pedir, numa change feita para isso: em MODIFIED, mantenha o cabeçalho e todos os cenários e reduza a descrição a um comportamento sem mudar o sentido, depois acrescente cada comportamento que você removeu como um requirement ADDED próprio, com os próprios cenários.
 
-      Somente capabilities novas: comece a spec delta com uma seção `## Purpose` -
+      Somente capabilities novas: a primeira seção da spec delta é `## Purpose` -
       uma ou duas frases (50+ caracteres, ou `openspec validate --strict`
       a reporta como muito breve) descrevendo para que serve a capability. O archive
       a copia para o spec principal que ele cria; sem ela, o novo spec principal
-      fica com um placeholder `A definir - criado ao arquivar alteração ...` para
+      fica com um placeholder `A definir - criado ao arquivar alteração ... Atualize o Purpose após o arquivamento.` para
       preencher à mão. NÃO adicione `## Purpose` a um delta de uma capability existente -
       esse spec já tem um e o do delta é ignorado. Para alterar o Purpose de uma
-      capability existente - incluindo um placeholder `A definir` que sobrou -
-      edite `openspec/specs/<capability>/spec.md` diretamente.
+      capability existente - incluindo um placeholder `A definir` ou `TBD` que sobrou -
+      edite `openspec/specs/<capability-path>/spec.md` diretamente.
 
       Fluxo de trabalho de requirements MODIFIED:
-      1. Localize o requirement existente em openspec/specs/<capability>/spec.md
+      1. Localize o requirement existente em openspec/specs/<capability-path>/spec.md
       2. Copie o bloco INTEIRO do requirement (de `### Requirement:` até todos os cenários)
       3. Cole sob `## MODIFIED Requirements` e edite para refletir o novo comportamento
       4. Garanta que o texto do cabeçalho corresponda exatamente (ignorando espaços em branco)
@@ -102,6 +127,8 @@ artifacts:
 
       Example (capability nova, então abre com `## Purpose`):
       ```
+      # Spec Delta
+
       ## Purpose
 
       Lets users take their data out of the product in a portable format.
@@ -172,30 +199,60 @@ artifacts:
       Se alguma delas mudaria o que será construído, resolva-a com o usuário
       primeiro - não embuta uma suposição não declarada na lista de tarefas.
 
-      **IMPORTANTE: Siga o template abaixo exatamente.** A fase de apply faz o parse
-      do formato de checkbox para acompanhar o progresso. Tarefas que não usam `- [ ]` não serão rastreadas.
+      **IMPORTANTE: Siga o template abaixo para as tarefas rastreadas.** A fase de apply faz o parse
+      do formato de checkbox para acompanhar o progresso. Uma caixa que contém apenas `x` conta como concluída,
+      em maiúscula ou minúscula e com qualquer espaçamento, então `- [ x]` também está concluída. Qualquer
+      outro marcador, incluindo `- [~]`, `- [-]` e um `- []` vazio, lê-se como
+      não concluído. Uma linha sem checkbox não é rastreada.
 
       Diretrizes:
-      - Agrupe tarefas relacionadas sob cabeçalhos numerados ##
-      - Cada tarefa MUST ser um checkbox: `- [ ] X.Y Descrição da tarefa`
+      - Agrupe tarefas rastreadas relacionadas sob cabeçalhos numerados ##
+      - Cada tarefa rastreada MUST ser um checkbox: `- [ ] X.Y Descrição da tarefa`
       - As tarefas devem ser pequenas o suficiente para serem concluídas em uma sessão
       - Ordene as tarefas por dependência (o que precisa ser feito primeiro?)
+      - Rastreie trabalho de implementação e verificação que pode ser concluído antes do
+        archive. Se o workflow pedido incluir archive ou trabalho que exige
+        que esta change já esteja arquivada, preserve esses passos como bullets simples em uma
+        seção opcional `## Workflow follow-up` no final de tasks.md. Esses
+        bullets são informação de referência, fora do progresso das tarefas rastreadas.
+      - Cada tarefa MUST indicar como verificar sua conclusão (um teste, comando,
+        comportamento observável ou artifact entregue). Coloque a verificação na
+        descrição do checkbox da própria tarefa. Use uma tarefa de verificação
+        separada apenas quando ela checar integração mais ampla ou comportamento
+        do sistema que atravessa múltiplas tarefas de implementação.
+      - Cada grupo de tarefas MUST entregar os testes e a documentação que o próprio
+        trabalho pede. NÃO junte teste ou documentação num grupo final —
+        quando um grupo tardio exercita pela primeira vez o trabalho de um grupo anterior, as falhas
+        voltam em cascata por todos os grupos do meio e forçam retrabalho. Um grupo
+        cujo trabalho não pede nenhum dos dois, como scaffolding ou instalação de dependências,
+        não carrega nenhum dos dois. Um grupo final serve só para checagens de integração, não para
+        os testes e a documentação que um grupo anterior devia.
 
       Example:
       ```
+      # Tasks
+
       ## 1. Setup
 
-      - [ ] 1.1 Create new module structure
-      - [ ] 1.2 Add dependencies to package.json
+      - [ ] 1.1 Create new module structure and verify expected files are present
+      - [ ] 1.2 Add dependencies to package.json and verify package installation succeeds
 
       ## 2. Core Implementation
 
-      - [ ] 2.1 Implement data export function
-      - [ ] 2.2 Add CSV formatting utilities
+      - [ ] 2.1 Implement data export function and verify the export test passes
+      - [ ] 2.2 Add CSV formatting utilities and verify unit tests cover quoting and delimiters
+      - [ ] 2.3 Document the export API in docs/export.md and verify the documented command runs as written
+      ```
+
+      Quando couber, acrescente o acompanhamento do workflow como bullets simples, por exemplo:
+      ```
+      ## Workflow follow-up
+
+      - Archive the change after the project's review requirements are satisfied.
+      - Verify the archived result.
       ```
 
       Referencie as specs para o que precisa ser construído e o design para como construir.
-      Cada tarefa deve ser verificável - você sabe quando ela está concluída.
     requires:
       - specs
       - design

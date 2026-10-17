@@ -116,6 +116,46 @@ describe('ChangeCommand.show/validate', () => {
       await expect(cmd.show(traversal, { json: false })).rejects.not.toThrow(/ainda não tem proposal\.md/);
     });
 
+    it.skipIf(process.platform === 'win32')(
+      'does not read a proposal symlink outside changes/',
+      async () => {
+        const outsideProposal = path.join(tempRoot, 'outside-proposal.md');
+        const linkedProposal = path.join(
+          tempRoot,
+          'openspec',
+          'changes',
+          'linked-proposal',
+          'proposal.md'
+        );
+        await fs.writeFile(outsideProposal, '# Outside sentinel', 'utf-8');
+        await fs.mkdir(path.dirname(linkedProposal), { recursive: true });
+        await fs.symlink(outsideProposal, linkedProposal);
+
+        await expect(cmd.show('linked-proposal', { json: false })).rejects.toThrow(
+          /fora do diretório permitido/u
+        );
+      }
+    );
+
+    it.skipIf(process.platform === 'win32')(
+      'allows a linked change directory as its own trust root',
+      async () => {
+        const sharedChange = path.join(tempRoot, 'shared-change');
+        await fs.mkdir(sharedChange);
+        await fs.writeFile(
+          path.join(sharedChange, 'proposal.md'),
+          '# Change: Shared safely\n\n## Why\n\nReuse a shared plan.\n\n## What Changes\n\n- Shared.\n',
+          'utf-8'
+        );
+        await fs.symlink(
+          sharedChange,
+          path.join(tempRoot, 'openspec', 'changes', 'shared-change')
+        );
+
+        await expect(cmd.show('shared-change', { json: false })).resolves.toBeUndefined();
+      }
+    );
+
     it('does not treat a nested name as a change', async () => {
       const nested = path.join('sample-change', 'specs');
       await fs.mkdir(path.join(tempRoot, 'openspec', 'changes', 'sample-change', 'specs'), { recursive: true });
@@ -143,5 +183,67 @@ describe('ChangeCommand.show/validate', () => {
     } finally {
       console.log = origLog;
     }
+  });
+
+  it('validate rejects a traversing change name', async () => {
+    await expect(cmd.validate(path.join('..', '..', 'outside'))).rejects.toThrow(/não encontrada em/u);
+  });
+});
+
+describe('ChangeCommand title from the packaged proposal template (#1138)', () => {
+  // The spec-driven template opens every proposal with the same `# Proposal`
+  // heading. That names the document, not the change, so it must not become
+  // the title of every change.
+  let cmd: ChangeCommand;
+  let tempRoot: string;
+  let originalCwd: string;
+
+  beforeAll(async () => {
+    cmd = new ChangeCommand();
+    originalCwd = process.cwd();
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-change-template-title-'));
+    const proposals: Record<string, string> = {
+      'templated-change': '# Proposal\n\n## Why\nTemplate shape.\n\n## What Changes\n- **auth:** Add requirement\n',
+      'named-change': '# Proposal: Named Change\n\n## Why\nNamed.\n\n## What Changes\n- **auth:** Add requirement\n',
+    };
+    for (const [name, proposal] of Object.entries(proposals)) {
+      const dir = path.join(tempRoot, 'openspec', 'changes', name);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, 'proposal.md'), proposal, 'utf-8');
+    }
+    process.chdir(tempRoot);
+  });
+
+  afterAll(async () => {
+    process.chdir(originalCwd);
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  async function captureLog(fn: () => Promise<void>): Promise<string> {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (msg?: any, ...args: any[]) => {
+      logs.push([msg, ...args].filter(Boolean).join(' '));
+    };
+    try {
+      await fn();
+    } finally {
+      console.log = origLog;
+    }
+    return logs.join('\n');
+  }
+
+  it('show --json falls back to the change id for a bare `# Proposal` title', async () => {
+    const parsed = JSON.parse(await captureLog(() => cmd.show('templated-change', { json: true })));
+    expect(parsed.title).toBe('templated-change');
+  });
+
+  it('list --json falls back to the change id and keeps authored titles', async () => {
+    const parsed = JSON.parse(await captureLog(() => cmd.list({ json: true })));
+    const titles = Object.fromEntries(parsed.map((c: { id: string; title: string }) => [c.id, c.title]));
+    expect(titles).toEqual({
+      'named-change': 'Proposal: Named Change',
+      'templated-change': 'templated-change',
+    });
   });
 });

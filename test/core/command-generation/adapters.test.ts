@@ -1,22 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import os from 'os';
 import path from 'path';
 import { amazonQAdapter } from '../../../src/core/command-generation/adapters/amazon-q.js';
 import { antigravityAdapter } from '../../../src/core/command-generation/adapters/antigravity.js';
+import { atomcodeAdapter } from '../../../src/core/command-generation/adapters/atomcode.js';
 import { auggieAdapter } from '../../../src/core/command-generation/adapters/auggie.js';
 import { bobAdapter } from '../../../src/core/command-generation/adapters/bob.js';
 import { claudeAdapter } from '../../../src/core/command-generation/adapters/claude.js';
 import { clineAdapter } from '../../../src/core/command-generation/adapters/cline.js';
-import { codexAdapter } from '../../../src/core/command-generation/adapters/codex.js';
+import { commandCodeAdapter } from '../../../src/core/command-generation/adapters/command-code.js';
 import { codebuddyAdapter } from '../../../src/core/command-generation/adapters/codebuddy.js';
+import { codeStudioAdapter } from '../../../src/core/command-generation/adapters/codestudio.js';
 import { continueAdapter } from '../../../src/core/command-generation/adapters/continue.js';
 import { costrictAdapter } from '../../../src/core/command-generation/adapters/costrict.js';
 import { crushAdapter } from '../../../src/core/command-generation/adapters/crush.js';
 import { cursorAdapter } from '../../../src/core/command-generation/adapters/cursor.js';
 import { devinAdapter } from '../../../src/core/command-generation/adapters/devin.js';
+import { easycodeAdapter } from '../../../src/core/command-generation/adapters/easycode.js';
 import { factoryAdapter } from '../../../src/core/command-generation/adapters/factory.js';
 import { geminiAdapter } from '../../../src/core/command-generation/adapters/gemini.js';
 import { githubCopilotAdapter } from '../../../src/core/command-generation/adapters/github-copilot.js';
+import { gigacodeAdapter } from '../../../src/core/command-generation/adapters/gigacode.js';
 import { iflowAdapter } from '../../../src/core/command-generation/adapters/iflow.js';
 import { kilocodeAdapter } from '../../../src/core/command-generation/adapters/kilocode.js';
 import { opencodeAdapter } from '../../../src/core/command-generation/adapters/opencode.js';
@@ -24,12 +27,16 @@ import { piAdapter } from '../../../src/core/command-generation/adapters/pi.js';
 import { qoderAdapter } from '../../../src/core/command-generation/adapters/qoder.js';
 import { qwenAdapter } from '../../../src/core/command-generation/adapters/qwen.js';
 import { roocodeAdapter } from '../../../src/core/command-generation/adapters/roocode.js';
+import { codeassistantAdapter } from '../../../src/core/command-generation/adapters/codeassistant.js';
+import { kiroAdapter } from '../../../src/core/command-generation/adapters/kiro.js';
+import { lingmaAdapter } from '../../../src/core/command-generation/adapters/lingma.js';
 import type {
   CommandContent,
   ToolCommandAdapter,
 } from '../../../src/core/command-generation/types.js';
 import { CommandAdapterRegistry } from '../../../src/core/command-generation/registry.js';
 import { generateCommand } from '../../../src/core/command-generation/generator.js';
+import { getCommandContents } from '../../../src/core/shared/skill-generation.js';
 import { parse as parseYaml } from 'yaml';
 import { parse as parseToml } from 'smol-toml';
 
@@ -113,6 +120,69 @@ describe('command-generation/adapters', () => {
     });
   });
 
+  describe('commandCodeAdapter', () => {
+    it('should have correct toolId', () => {
+      expect(commandCodeAdapter.toolId).toBe('command-code');
+    });
+
+    it('should generate correct file path with opsx- prefix', () => {
+      const filePath = commandCodeAdapter.getFilePath('explore');
+      expect(filePath).toBe(path.join('.commandcode', 'commands', 'opsx-explore.md'));
+    });
+
+    it('should format the documented plain Markdown command body', () => {
+      const output = commandCodeAdapter.formatFile(sampleContent);
+      expect(output).toBe(`${sampleContent.body}\n`);
+      expect(output).not.toContain('description:');
+    });
+
+    it('should pass invocation arguments into the OpenSpec input contract', () => {
+      const output = commandCodeAdapter.formatFile({
+        ...sampleContent,
+        body: '# Comando BR-OpenSpec\n\n**Entrada**: Um nome de change ou descrição.\n\nExecute o fluxo de trabalho.',
+      });
+      expect(output).toContain(
+        '**Entrada**: Um nome de change ou descrição.\n**Argumentos fornecidos**: $ARGUMENTS'
+      );
+    });
+
+    it.each(['$ARGUMENTS', '$@', '${ARGUMENTS}', '${@}'])(
+      'should not duplicate an existing %s placeholder',
+      (placeholder) => {
+        const output = commandCodeAdapter.formatFile({
+          ...sampleContent,
+          body: `**Entrada**: Um nome de change.\n**Argumentos fornecidos**: ${placeholder}`,
+        });
+        expect(output.match(/\*\*Argumentos fornecidos\*\*:/g)).toHaveLength(1);
+      }
+    );
+
+    it('should preserve invocation arguments for every workflow that accepts them', () => {
+      const commandsWithoutArguments = getCommandContents()
+        .filter((content) => {
+          const output = generateCommand(content, commandCodeAdapter).fileContent;
+          return !output.includes('**Argumentos fornecidos**: $ARGUMENTS');
+        })
+        .map((content) => content.id);
+
+      // Onboarding is deliberately interactive and has no invocation input.
+      // This list is a tripwire for a new workflow that accidentally drops args.
+      expect(commandsWithoutArguments).toEqual(['onboard']);
+    });
+
+    it('is generated by generateCommand with hyphen command references', () => {
+      const contentWithCommands: CommandContent = {
+        ...sampleContent,
+        body: 'Use /opsx:new to start, then /opsx:apply to implement.',
+      };
+      const output = generateCommand(contentWithCommands, commandCodeAdapter).fileContent;
+      expect(output).toContain('/opsx-new');
+      expect(output).toContain('/opsx-apply');
+      expect(output).not.toContain('/opsx:new');
+      expect(output).not.toContain('/opsx:apply');
+    });
+  });
+
   describe('devinAdapter', () => {
     it('should have correct toolId', () => {
       expect(devinAdapter.toolId).toBe('devin');
@@ -176,7 +246,7 @@ describe('command-generation/adapters', () => {
 
     it('should generate correct file path', () => {
       const filePath = antigravityAdapter.getFilePath('explore');
-      expect(filePath).toBe(path.join('.agent', 'workflows', 'opsx-explore.md'));
+      expect(filePath).toBe(path.join('.agents', 'workflows', 'opsx-explore.md'));
     });
 
     it('should format file with description frontmatter', () => {
@@ -185,6 +255,94 @@ describe('command-generation/adapters', () => {
       expect(output).toContain('description: "Enter explore mode for thinking"');
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.');
+    });
+  });
+
+  describe('atomcodeAdapter', () => {
+    it('should have correct toolId', () => {
+      expect(atomcodeAdapter.toolId).toBe('atomcode');
+    });
+
+    it('should generate correct file path', () => {
+      const filePath = atomcodeAdapter.getFilePath('explore');
+      expect(filePath).toBe(path.join('.atomcode', 'commands', 'opsx-explore.md'));
+    });
+
+    it('should generate correct file paths for different commands', () => {
+      expect(atomcodeAdapter.getFilePath('new')).toBe(path.join('.atomcode', 'commands', 'opsx-new.md'));
+      expect(atomcodeAdapter.getFilePath('bulk-archive')).toBe(path.join('.atomcode', 'commands', 'opsx-bulk-archive.md'));
+    });
+
+    it.each(getCommandContents())('should register $id with its invocation name and declared arguments', (content) => {
+      const output = atomcodeAdapter.formatFile(content);
+      const frontmatter = parseYaml(output.match(/^---\n([\s\S]*?)\n---/)![1]);
+      const acceptsInput = /^\*\*(?:Input|Entrada)\*\*:/m.test(content.body);
+
+      expect(frontmatter).toEqual({
+        name: `opsx-${content.id}`,
+        description: content.description,
+        args: acceptsInput ? 'optional' : 'none',
+      });
+      // AtomCode's custom-command loader reads these two values literally: it
+      // scans for `key:` and takes the rest of the line verbatim, with no YAML
+      // unquoting. `args` is then matched against the exact strings "required"
+      // and "optional", so a quoted `args: "optional"` falls through to
+      // ArgsRequirement::None and silently drops every argument. `name` and
+      // `args` must therefore stay unquoted -- do not route them through the
+      // shared escapeYamlValue helper, which always double-quotes.
+      expect(output).toContain(`\nname: opsx-${content.id}\n`);
+      expect(output).toContain(`\nargs: ${acceptsInput ? 'optional' : 'none'}\n`);
+      expect(output).toContain(content.body);
+      // $ARGUMENTS is only worth shipping where the workflow reads it.
+      expect(output.includes('**Argumentos fornecidos**: $ARGUMENTS')).toBe(acceptsInput);
+    });
+
+    it('should preserve invocation arguments for every workflow that accepts them', () => {
+      const commandsWithoutArguments = getCommandContents()
+        .filter((content) => {
+          const output = generateCommand(content, atomcodeAdapter).fileContent;
+          return !output.includes('**Argumentos fornecidos**: $ARGUMENTS');
+        })
+        .map((content) => content.id);
+
+      // Onboarding is deliberately interactive and has no invocation input, so
+      // it ships `args: none` and AtomCode runs it straight from the slash menu.
+      // This list is a tripwire for a new workflow that accidentally drops args.
+      expect(commandsWithoutArguments).toEqual(['onboard']);
+    });
+
+    it('should keep name and args literal when the description needs quoting', () => {
+      // A description containing ": " cannot be a YAML plain scalar, so it gets
+      // quoted. That must not leak into name/args, which AtomCode reads literally.
+      const content: CommandContent = {
+        ...sampleContent,
+        description: 'Create a change: proposal, specs, and tasks',
+        body: '**Input**: A change name.\n\nDo the work.',
+      };
+
+      const output = atomcodeAdapter.formatFile(content);
+
+      expect(output).toContain(`\nname: opsx-${content.id}\n`);
+      expect(output).toContain('\nargs: optional\n');
+      // Still valid YAML for frontmatter consumers, and round-trips exactly.
+      expect(parseYaml(output.match(/^---\n([\s\S]*?)\n---/)![1])).toEqual({
+        name: `opsx-${content.id}`,
+        description: content.description,
+        args: 'optional',
+      });
+    });
+
+    it('should leave command reference rewriting to the shared generator', () => {
+      const content: CommandContent = {
+        ...sampleContent,
+        body: 'Run /opsx:apply to implement. Then /opsx:archive when done.',
+      };
+
+      expect(atomcodeAdapter.formatFile(content)).toContain(content.body);
+      const generated = generateCommand(content, atomcodeAdapter);
+      expect(generated.fileContent).toContain('/opsx-apply');
+      expect(generated.fileContent).toContain('/opsx-archive');
+      expect(generated.fileContent).not.toContain('/opsx:');
     });
   });
 
@@ -292,60 +450,6 @@ describe('command-generation/adapters', () => {
     });
   });
 
-  describe('codexAdapter', () => {
-    it('should have correct toolId', () => {
-      expect(codexAdapter.toolId).toBe('codex');
-    });
-
-    it('should return an absolute path', () => {
-      const filePath = codexAdapter.getFilePath('explore');
-      expect(path.isAbsolute(filePath)).toBe(true);
-    });
-
-    it('should generate path ending with correct structure', () => {
-      const filePath = codexAdapter.getFilePath('explore');
-      expect(filePath).toMatch(/prompts[/\\]opsx-explore\.md$/);
-    });
-
-    it('should default to homedir/.codex', () => {
-      const original = process.env.CODEX_HOME;
-      delete process.env.CODEX_HOME;
-      try {
-        const filePath = codexAdapter.getFilePath('explore');
-        const expected = path.join(os.homedir(), '.codex', 'prompts', 'opsx-explore.md');
-        expect(filePath).toBe(expected);
-      } finally {
-        if (original !== undefined) {
-          process.env.CODEX_HOME = original;
-        }
-      }
-    });
-
-    it('should respect CODEX_HOME env var', () => {
-      const original = process.env.CODEX_HOME;
-      process.env.CODEX_HOME = '/custom/codex-home';
-      try {
-        const filePath = codexAdapter.getFilePath('explore');
-        expect(filePath).toBe(path.join(path.resolve('/custom/codex-home'), 'prompts', 'opsx-explore.md'));
-      } finally {
-        if (original !== undefined) {
-          process.env.CODEX_HOME = original;
-        } else {
-          delete process.env.CODEX_HOME;
-        }
-      }
-    });
-
-    it('should format file with description and argument-hint', () => {
-      const output = codexAdapter.formatFile(sampleContent);
-      expect(output).toContain('---\n');
-      expect(output).toContain('description: "Enter explore mode for thinking"');
-      expect(output).toContain('argument-hint: command arguments');
-      expect(output).toContain('---\n\n');
-      expect(output).toContain('This is the command body.');
-    });
-  });
-
   describe('codebuddyAdapter', () => {
     it('should have correct toolId', () => {
       expect(codebuddyAdapter.toolId).toBe('codebuddy');
@@ -367,6 +471,27 @@ describe('command-generation/adapters', () => {
     });
   });
 
+  describe('codeStudioAdapter', () => {
+    it('should have correct toolId', () => {
+      expect(codeStudioAdapter.toolId).toBe('codestudio');
+    });
+
+    it('should generate a project prompt path', () => {
+      expect(codeStudioAdapter.getFilePath('explore')).toBe(
+        path.join('.codestudio', 'prompts', 'opsx-explore.prompt.md')
+      );
+    });
+
+    it('should format a prompt with description frontmatter', () => {
+      const output = codeStudioAdapter.formatFile(sampleContent);
+      const frontmatter = output.match(/^---\n([\s\S]*?)\n---\n\n/);
+
+      expect(frontmatter).not.toBeNull();
+      expect(parseYaml(frontmatter![1])).toEqual({ description: sampleContent.description });
+      expect(output.slice(frontmatter![0].length)).toBe(`${sampleContent.body}\n`);
+    });
+  });
+
   describe('continueAdapter', () => {
     it('should have correct toolId', () => {
       expect(continueAdapter.toolId).toBe('continue');
@@ -383,6 +508,9 @@ describe('command-generation/adapters', () => {
       expect(output).toContain('name: "opsx-explore"');
       expect(output).toContain('description: "Enter explore mode for thinking"');
       expect(output).toContain('invokable: true');
+      expect(output).toContain(
+        '---\n\nEste prompt de fluxo de trabalho já está ativo. Siga as instruções dele diretamente. Não chame uma ferramenta com o nome deste fluxo de trabalho.\n\nThis is the command body.'
+      );
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.');
     });
@@ -450,18 +578,14 @@ describe('command-generation/adapters', () => {
     });
   });
 
-  describe('geminiAdapter', () => {
-    it('should have correct toolId', () => {
-      expect(geminiAdapter.toolId).toBe('gemini');
-    });
-
+  describe.each([geminiAdapter, easycodeAdapter])('$toolId TOML adapter', (adapter) => {
     it('should generate correct file path with .toml extension', () => {
-      const filePath = geminiAdapter.getFilePath('explore');
-      expect(filePath).toBe(path.join('.gemini', 'commands', 'opsx', 'explore.toml'));
+      const filePath = adapter.getFilePath('explore');
+      expect(filePath).toBe(path.join(`.${adapter.toolId}`, 'commands', 'opsx', 'explore.toml'));
     });
 
     it('should format file in TOML format', () => {
-      const output = geminiAdapter.formatFile(sampleContent);
+      const output = adapter.formatFile(sampleContent);
       expect(output).toContain('description = "Enter explore mode for thinking"');
       expect(output).toContain('prompt = """');
       expect(output).toContain('This is the command body.');
@@ -469,7 +593,7 @@ describe('command-generation/adapters', () => {
     });
 
     it('escapes TOML-active characters in the description', () => {
-      const output = geminiAdapter.formatFile({
+      const output = adapter.formatFile({
         ...sampleContent,
         description: 'Say "hi" to C:\\Users and\nmore',
       });
@@ -483,7 +607,7 @@ describe('command-generation/adapters', () => {
 
     it('keeps the prompt a single multiline string when the body carries fences and backslashes', () => {
       const body = 'Windows path C:\\temp and a quote run: """ done';
-      const output = geminiAdapter.formatFile({ ...sampleContent, body });
+      const output = adapter.formatFile({ ...sampleContent, body });
       // Backslashes must be escaped and no unescaped quote-triple may remain,
       // or the """ delimiter ends the prompt early.
       expect(output).toContain('C:\\\\temp');
@@ -497,6 +621,9 @@ describe('command-generation/adapters', () => {
     // must yield a file smol-toml accepts, and the parsed prompt must
     // round-trip to the original (modulo CRLF normalization).
     const HOSTILE_BODIES: Array<[string, string, string]> = [
+      ['empty content', '', ''],
+      ['leading newlines', '\n\nbody', '\n\nbody'],
+      ['literal triple quotes', "literal ''' body", "literal ''' body"],
       ['control characters', 'null:\u0000 vt:\u000b ff:\u000c end', 'null:\u0000 vt:\u000b ff:\u000c end'],
       // A lone CR is illegal raw in a multiline basic string (only LF and
       // CRLF may appear); Python tomllib rejects it — so must never be
@@ -510,12 +637,43 @@ describe('command-generation/adapters', () => {
 
     for (const [label, body, expected] of HOSTILE_BODIES) {
       it(`emits parseable TOML for a body with ${label}`, () => {
-        const output = geminiAdapter.formatFile({ ...sampleContent, body });
+        const output = adapter.formatFile({ ...sampleContent, body });
         const parsed = parseToml(output) as { description: string; prompt: string };
         expect(parsed.prompt).toBe(`${expected}\n`);
         expect(parsed.description).toBe(sampleContent.description);
       });
     }
+
+    it('round-trips all C0 controls and DEL in descriptions and prompts', () => {
+      const controls = Array.from({ length: 32 }, (_, i) => String.fromCharCode(i)).join('') + '\u007f';
+      const parsed = parseToml(adapter.formatFile({
+        ...sampleContent,
+        description: controls,
+        body: controls,
+      }));
+      expect(parsed.description).toBe(controls);
+      expect(parsed.prompt).toBe(`${controls}\n`);
+    });
+
+    it('round-trips quote runs beside backslashes and string boundaries', () => {
+      for (let length = 1; length <= 12; length++) {
+        const quotes = '"'.repeat(length);
+        const body = `${quotes}\\${quotes}\n${quotes}`;
+        const parsed = parseToml(adapter.formatFile({ ...sampleContent, description: body, body }));
+        expect(parsed.description).toBe(body);
+        expect(parsed.prompt).toBe(`${body}\n`);
+      }
+    });
+
+    it('generates parseable commands for every workflow', () => {
+      for (const content of getCommandContents()) {
+        const generated = generateCommand(content, adapter);
+        expect(generated.path).toBe(adapter.getFilePath(content.id));
+        const parsed = parseToml(generated.fileContent);
+        expect(parsed.description).toBe(content.description);
+        expect(parsed.prompt).toBe(`${content.body.replace(/\r\n/g, '\n')}\n`);
+      }
+    });
   });
 
   describe('githubCopilotAdapter', () => {
@@ -566,7 +724,7 @@ describe('command-generation/adapters', () => {
 
     it('should generate correct file path', () => {
       const filePath = kilocodeAdapter.getFilePath('explore');
-      expect(filePath).toBe(path.join('.kilocode', 'workflows', 'opsx-explore.md'));
+      expect(filePath).toBe(path.join('.kilo', 'command', 'opsx-explore.md'));
     });
 
     it('should format file without frontmatter', () => {
@@ -592,6 +750,91 @@ describe('command-generation/adapters', () => {
       expect(output).toContain('description: "Enter explore mode for thinking"');
       expect(output).toContain('---\n\n');
       expect(output).toContain('This is the command body.');
+    });
+
+    it('should pass invocation arguments into the OpenSpec input contract', () => {
+      const output = opencodeAdapter.formatFile({
+        ...sampleContent,
+        body: '# Comando BR-OpenSpec\n\n**Entrada**: Um nome de change ou descrição.\n\nExecute o workflow.',
+      });
+      expect(output).toContain(
+        '**Entrada**: Um nome de change ou descrição.\n**Argumentos fornecidos**: $ARGUMENTS'
+      );
+    });
+
+    it('should not duplicate an existing $ARGUMENTS placeholder', () => {
+      const output = opencodeAdapter.formatFile({
+        ...sampleContent,
+        body: '**Entrada**: Um nome de change.\nEntrada existente: $ARGUMENTS',
+      });
+      expect(output.match(/\$ARGUMENTS/g)).toHaveLength(1);
+    });
+
+    it('should not duplicate documented positional argument placeholders', () => {
+      const output = opencodeAdapter.formatFile({
+        ...sampleContent,
+        body: '**Entrada**: Dois valores.\nPrimeiro: $1\nSegundo: $2',
+      });
+      expect(output).not.toContain('**Argumentos fornecidos**: $ARGUMENTS');
+      expect(output).toContain('Primeiro: $1\nSegundo: $2');
+    });
+
+    it('should keep multi-line input guidance together before provided arguments', () => {
+      const output = opencodeAdapter.formatFile({
+        ...sampleContent,
+        body: '**Entrada**: Um tema, como:\n- uma ideia\n- um problema\n\n**Passos**\n1. Explore.',
+      });
+      expect(output).toContain(
+        '**Entrada**: Um tema, como:\n- uma ideia\n- um problema\n**Argumentos fornecidos**: $ARGUMENTS'
+      );
+    });
+
+    it('should preserve CRLF while keeping multi-line input guidance together', () => {
+      const output = opencodeAdapter.formatFile({
+        ...sampleContent,
+        body: '**Entrada**: Um tema, como:\r\n- uma ideia\r\n- um problema\r\n\r\nExecute.',
+      });
+      expect(output).toContain(
+        '**Entrada**: Um tema, como:\r\n- uma ideia\r\n- um problema\r\n**Argumentos fornecidos**: $ARGUMENTS\r\n\r\nExecute.'
+      );
+    });
+
+    it('should not add invocation arguments to an explicitly input-free workflow', () => {
+      const output = opencodeAdapter.formatFile({
+        ...sampleContent,
+        body: '**Entrada**: Nenhuma necessária (solicita seleção)\n\nSolicite ao usuário.',
+      });
+      expect(output).not.toContain('$ARGUMENTS');
+    });
+
+    it('should preserve exactly one argument placeholder for each workflow that accepts input', () => {
+      const withArguments: string[] = [];
+      const withoutArguments: string[] = [];
+
+      for (const content of getCommandContents()) {
+        const output = generateCommand(content, opencodeAdapter).fileContent;
+        const acceptsInput = /^\*\*Entrada\*\*:(?!\s*Nenhuma necessária\b)/im.test(content.body);
+        expect(output.match(/\$ARGUMENTS/g) ?? [], content.id).toHaveLength(acceptsInput ? 1 : 0);
+        (acceptsInput ? withArguments : withoutArguments).push(content.id);
+      }
+
+      // Tripwire: o marcador `acceptsInput` acima usa o mesmo texto do adapter,
+      // então um regex errado nos dois passaria com 0 == 0. As listas explícitas
+      // quebram nesse caso e também quando um workflow novo perde os argumentos.
+      expect(withArguments.sort()).toEqual([
+        'apply',
+        'archive',
+        'code-review',
+        'continue',
+        'explore',
+        'ff',
+        'new',
+        'propose',
+        'sync',
+        'update',
+        'verify',
+      ]);
+      expect(withoutArguments.sort()).toEqual(['bulk-archive', 'onboard']);
     });
 
     it('is generated by generateCommand with hyphen command references', () => {
@@ -676,6 +919,46 @@ describe('command-generation/adapters', () => {
     });
   });
 
+  describe('gigacodeAdapter', () => {
+    it('should have correct toolId', () => {
+      expect(gigacodeAdapter.toolId).toBe('gigacode');
+    });
+
+    it('should generate correct file path with .md extension', () => {
+      const filePath = gigacodeAdapter.getFilePath('explore');
+      expect(filePath).toBe(path.join('.gigacode', 'commands', 'opsx-explore.md'));
+    });
+
+    it('should format file with description frontmatter', () => {
+      const output = gigacodeAdapter.formatFile(sampleContent);
+      expect(output).toContain('---\n');
+      expect(output).toContain('description: "Enter explore mode for thinking"');
+      expect(output).toContain('---\n\n');
+      expect(output).toContain('This is the command body.');
+    });
+
+    it('should escape special YAML characters in description', () => {
+      const output = gigacodeAdapter.formatFile({
+        ...sampleContent,
+        description: 'Review: plan & apply "changes"',
+      });
+      expect(output).toContain('description: "Review: plan & apply \\"changes\\""');
+    });
+
+    it('is generated by generateCommand with hyphen command references', () => {
+      // GigaCode commands are invoked by filename (/opsx-<id>), like Qwen Code.
+      const contentWithRefs: CommandContent = {
+        ...sampleContent,
+        body: 'Run /opsx:apply to implement. Then use /opsx:archive.',
+      };
+      const output = generateCommand(contentWithRefs, gigacodeAdapter).fileContent;
+      expect(output).toContain('/opsx-apply');
+      expect(output).toContain('/opsx-archive');
+      expect(output).not.toContain('/opsx:apply');
+      expect(output).not.toContain('/opsx:archive');
+    });
+  });
+
   describe('piAdapter', () => {
     it('should have correct toolId', () => {
       expect(piAdapter.toolId).toBe('pi');
@@ -714,11 +997,37 @@ describe('command-generation/adapters', () => {
     it('should inject template arguments into the input section', () => {
       const contentWithInput: CommandContent = {
         ...sampleContent,
-        body: '**Input**: The argument after `/opsx:explore` is the topic.\n\n**Steps**\n1. Think.',
+        body: '**Entrada**: O argumento após `/opsx:explore` é o tema.\n\n**Passos**\n1. Pense.',
       };
 
       const output = piAdapter.formatFile(contentWithInput);
-      expect(output).toContain('**Provided arguments**: $@');
+      expect(output).toContain('**Argumentos fornecidos**: $@');
+    });
+
+    it.each(['$@', '$ARGUMENTS'])(
+      'should not duplicate an existing %s placeholder',
+      (placeholder) => {
+        const output = piAdapter.formatFile({
+          ...sampleContent,
+          body: `**Entrada**: Um nome de change.\n**Argumentos fornecidos**: ${placeholder}`,
+        });
+        expect(output.match(/\*\*Argumentos fornecidos\*\*:/g)).toHaveLength(1);
+      }
+    );
+
+    it('should preserve invocation arguments for every workflow that accepts them', () => {
+      // Tripwire com os templates reais (PT-BR): o marcador `**Entrada**` do
+      // adapter tem de casar de verdade — um regex em inglês devolveria os 13
+      // ids aqui em vez de apenas `onboard`.
+      const commandsWithoutArguments = getCommandContents()
+        .filter((content) => {
+          const output = generateCommand(content, piAdapter).fileContent;
+          return !output.includes('**Argumentos fornecidos**: $@');
+        })
+        .map((content) => content.id);
+
+      // Onboarding é deliberadamente interativo e não declara contrato de entrada.
+      expect(commandsWithoutArguments).toEqual(['onboard']);
     });
 
     it('should escape YAML special characters in description', () => {
@@ -780,11 +1089,11 @@ describe('command-generation/adapters', () => {
     it('All adapters use path.join for paths', () => {
       // Verify all adapters produce valid paths
       const adapters = [
-        amazonQAdapter, antigravityAdapter, auggieAdapter, bobAdapter, clineAdapter,
-        codexAdapter, codebuddyAdapter, continueAdapter, costrictAdapter,
-        crushAdapter, factoryAdapter, geminiAdapter, githubCopilotAdapter,
-        iflowAdapter, kilocodeAdapter, opencodeAdapter, piAdapter, qoderAdapter,
-        qwenAdapter, roocodeAdapter
+        amazonQAdapter, antigravityAdapter, atomcodeAdapter, auggieAdapter, bobAdapter, clineAdapter,
+        codebuddyAdapter, codeassistantAdapter, codeStudioAdapter, continueAdapter, costrictAdapter,
+        crushAdapter, easycodeAdapter, factoryAdapter, geminiAdapter, githubCopilotAdapter, gigacodeAdapter,
+        iflowAdapter, kilocodeAdapter, kiroAdapter, lingmaAdapter,
+        opencodeAdapter, piAdapter, qoderAdapter, qwenAdapter, roocodeAdapter,
       ];
       for (const adapter of adapters) {
         const filePath = adapter.getFilePath('test');
@@ -794,12 +1103,53 @@ describe('command-generation/adapters', () => {
     });
   });
 
+  describe('codeassistantAdapter', () => {
+    it('should have correct toolId', () => {
+      expect(codeassistantAdapter.toolId).toBe('codeassistant');
+    });
+
+    it('should generate correct file path', () => {
+      const filePath = codeassistantAdapter.getFilePath('explore');
+      expect(filePath).toBe(path.join('.codeassistant', 'commands', 'opsx-explore.md'));
+    });
+
+    it('should generate correct file path for different command IDs', () => {
+      expect(codeassistantAdapter.getFilePath('new')).toBe(path.join('.codeassistant', 'commands', 'opsx-new.md'));
+      expect(codeassistantAdapter.getFilePath('bulk-archive')).toBe(path.join('.codeassistant', 'commands', 'opsx-bulk-archive.md'));
+    });
+
+    it('should format file with correct YAML frontmatter', () => {
+      const output = codeassistantAdapter.formatFile(sampleContent);
+
+      const frontmatter = output.match(/^---\n([\s\S]*?)\n---\n\n/);
+      expect(frontmatter).not.toBeNull();
+      expect(parseYaml(frontmatter![1])).toEqual({ description: sampleContent.description });
+      expect(output.slice(frontmatter![0].length)).toBe(`${sampleContent.body}\n`);
+    });
+
+    it('generates registered commands with hyphenated workflow references', () => {
+      const content: CommandContent = {
+        ...sampleContent,
+        body: 'Use /opsx:propose, /opsx:update, and /opsx:bulk-archive. Keep /opsx:unknown.',
+      };
+      const adapter = CommandAdapterRegistry.get('codeassistant');
+      expect(adapter).toBe(codeassistantAdapter);
+      const generated = generateCommand(content, adapter!);
+
+      expect(generated.path).toBe(path.join('.codeassistant', 'commands', 'opsx-explore.md'));
+      expect(generated.fileContent).toContain(
+        'Use /opsx-propose, /opsx-update, and /opsx-bulk-archive. Keep /opsx:unknown.'
+      );
+      expect(content.body).toContain('/opsx:propose');
+    });
+  });
+
   describe('YAML frontmatter escaping across adapters', () => {
     // Derived from the registry, not hand-listed: a newly registered adapter
     // must be covered by default. Adding one that emits no YAML frontmatter is
-    // then a deliberate act of adding it here. The fork's qwen adapter writes
-    // TOML, so it sits beside gemini on the non-YAML list.
-    const NON_YAML_ADAPTERS = ['cline', 'gemini', 'kilocode', 'qwen', 'roocode'];
+    // then a deliberate act of adding it here. Qwen and EasyCode write TOML,
+    // so they sit beside gemini on the non-YAML list.
+    const NON_YAML_ADAPTERS = ['cline', 'command-code', 'gemini', 'kilocode', 'qwen', 'roocode', 'easycode'];
     const yamlAdapters = CommandAdapterRegistry.getAll().filter(
       (adapter) => !NON_YAML_ADAPTERS.includes(adapter.toolId)
     );

@@ -76,6 +76,7 @@ A segunda importa mais do que parece. O BR-OpenSpec tem duas metades: uma ferram
 | [Personalização](customization.md) | Configuração do projeto, schemas personalizados, contexto compartilhado |
 | [Multi-Idioma](multi-language.md) | Gere artefatos em idiomas diferentes do inglês |
 | [Ferramentas Suportadas](supported-tools.md) | As 30+ ferramentas de IA com que o BR-OpenSpec se integra, e onde os arquivos vão parar |
+| [Vitrine da Comunidade](community.md) | Projetos e recursos feitos com e para o BR-OpenSpec |
 
 ### Quando precisar de ajuda
 

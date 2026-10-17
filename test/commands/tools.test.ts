@@ -87,6 +87,10 @@ describe('tools command', () => {
     testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-tools-cmd-test-'));
     configTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openspec-config-tools-'));
     process.env.XDG_CONFIG_HOME = configTempDir;
+    // O alvo de skills do MiniMax Code sai do home do usuário: isolar para o
+    // picker/`getCurrentToolIds` não enxergarem o `~/.minimax` real.
+    vi.stubEnv('HOME', path.join(testDir, 'home'));
+    vi.stubEnv('USERPROFILE', path.join(testDir, 'home'));
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -94,6 +98,7 @@ describe('tools command', () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await fs.rm(testDir, { recursive: true, force: true });
     await fs.rm(configTempDir, { recursive: true, force: true });
     vi.restoreAllMocks();
@@ -203,6 +208,37 @@ describe('tools command', () => {
     it('is safe when the tool was never configured (no-op)', async () => {
       const result = await runToolsCommand(['--remove', 'claude', testDir], testDir);
       expect(result.exitCode).toBe(0);
+    });
+
+    it('does not delete the shared .agents tree owned by another tool', async () => {
+      // `codex` e `agents` compartilham `.agents/skills`: remover a ferramenta
+      // que não é dona da árvore apagaria as skills da outra.
+      await runToolsCommand(['--add', 'agents', testDir], testDir);
+
+      const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      const marker = path.join(testDir, '.agents', 'skills', '.openspec-target');
+      expect(await fileExists(skillFile)).toBe(true);
+
+      const result = await runToolsCommand(['--remove', 'codex', testDir], testDir);
+      expect(result.exitCode).toBe(0);
+
+      expect(await fileExists(skillFile)).toBe(true);
+      expect(await fs.readFile(marker, 'utf-8')).toBe('agents\n');
+    });
+
+    it('drops the shared root marker when its owner is removed', async () => {
+      await runToolsCommand(['--add', 'codex', testDir], testDir);
+
+      const skillFile = path.join(testDir, '.agents', 'skills', 'openspec-explore', 'SKILL.md');
+      const marker = path.join(testDir, '.agents', 'skills', '.openspec-target');
+      expect(await fileExists(skillFile)).toBe(true);
+      expect(await fileExists(marker)).toBe(true);
+
+      const result = await runToolsCommand(['--remove', 'codex', testDir], testDir);
+      expect(result.exitCode).toBe(0);
+
+      expect(await fileExists(skillFile)).toBe(false);
+      expect(await fileExists(marker)).toBe(false);
     });
   });
 

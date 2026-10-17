@@ -1,6 +1,6 @@
 ---
 name: openspec-code-review
-description: Realiza code review genérico e consciente do projeto. Use quando o usuário quiser revisar um diff, branch, PR, working tree ou conjunto de arquivos antes de mesclar ou continuar.
+description: Realiza code review genérico e consciente do projeto. Use quando o usuário quiser revisar um diff, branch, PR, working tree ou conjunto de arquivos antes de mesclar ou continuar. Para projetos que usam o BR-OpenSpec. Use também quando o usuário disser "openspec code-review" ou "opsx code-review".
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(openspec:*), AskUserQuestion, Task
 license: MIT
 compatibility: Requer acesso aos arquivos do projeto. Git é recomendado para revisar diffs e branches.
@@ -8,6 +8,15 @@ metadata:
   author: openspec
   version: "1.0"
 ---
+
+**Verificação do projeto:** Estes passos esperam um projeto que já usa o BR-OpenSpec. Antes do primeiro passo que escreve qualquer coisa (`new change`, `archive`, `sync specs` ou a autoria de um arquivo de artifact), confirme que o projeto tem uma raiz: execute `openspec list --json` e leia `root`. Um objeto root significa que o projeto está configurado. `"root": null` significa que não está — não há diretório `openspec/` aqui, e uma escrita como `openspec new change` criaria um como efeito colateral. O comando também sai com código diferente de zero, e isso é essa resposta, não um CLI quebrado: leia o JSON em vez de tentar de novo ou contornar.
+
+Sem raiz, o que acontece em seguida depende de como este workflow foi alcançado:
+
+- **Selecionado automaticamente**: você escolheu este workflow sozinho, sem o usuário nomear o BR-OpenSpec, nomear esta skill ou executar o slash command dela. Pare de usar o BR-OpenSpec e responda à solicitação normalmente, como faria sem o BR-OpenSpec instalado. Não peça para configurar nada e não mencione a configuração do BR-OpenSpec.
+- **Solicitação explícita do BR-OpenSpec**: o usuário nomeou o BR-OpenSpec, nomeou esta skill ou executou o slash command dela. Pare antes de escrever e pergunte como prosseguir: configurar este projeto (`openspec init`) ou continuar sem o BR-OpenSpec nesta solicitação. Aguarde a resposta.
+
+Nos dois ramos, nunca crie a raiz como efeito colateral: não execute `openspec init` até o usuário pedir, não crie arquivos `openspec/` à mão e não deixe um comando criá-la.
 
 Realize um code review rigoroso, genérico e consciente do projeto. Seu objetivo é encontrar problemas reais antes do merge — não validar superficialmente, não comentar estilo, não elogiar.
 

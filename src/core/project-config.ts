@@ -35,14 +35,14 @@ export const ProjectConfigSchema = z.object({
   schema: z
     .string()
     .min(1)
-    .describe('The workflow schema to use (e.g., "spec-driven")'),
+    .describe(PROJECT_CONFIG_MESSAGES.schemaFieldDescribe),
 
   // Optional: project context (injected into all artifact instructions)
   // Max size: 50KB (enforced during parsing)
   context: z
     .string()
     .optional()
-    .describe('Project context injected into all artifact instructions'),
+    .describe(PROJECT_CONFIG_MESSAGES.contextFieldDescribe),
 
   // Optional: per-artifact rules (additive to schema's built-in guidance)
   rules: z
@@ -51,7 +51,7 @@ export const ProjectConfigSchema = z.object({
       z.array(z.string()) // list of rules
     )
     .optional()
-    .describe('Per-artifact rules, keyed by artifact ID'),
+    .describe(PROJECT_CONFIG_MESSAGES.rulesFieldDescribe),
 
   // Optional: per-operation advisory guidance, kept separate from artifact rules.
   operations: z
@@ -60,7 +60,17 @@ export const ProjectConfigSchema = z.object({
       archive: OperationConfigSchema.optional(),
     })
     .optional()
-    .describe('Per-operation advisory guidance'),
+      .describe(PROJECT_CONFIG_MESSAGES.operationsFieldDescribe),
+
+  // Optional: GitHub Copilot integration preferences. `cloudAgent` is the
+  // opt-in for generating the Copilot cloud coding-agent files (a GitHub
+  // Actions workflow + agent file); absent means "not yet decided".
+  githubCopilot: z
+    .object({
+      cloudAgent: z.boolean().optional(),
+    })
+    .optional()
+    .describe(PROJECT_CONFIG_MESSAGES.githubCopilotFieldDescribe),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
@@ -153,7 +163,55 @@ function parseOperations(raw: unknown): OperationsConfig | undefined {
   return Object.keys(operations).length > 0 ? operations : undefined;
 }
 
-const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
+export const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
+
+/**
+ * Build the warning for an artifact whose `rules:` list is not an array of
+ * strings. Names the offending index and what YAML actually produced there, so
+ * a config that silently loses an entire rule set can be fixed without
+ * bisecting the list by hand. A bare `-` item containing an unquoted ": " is the
+ * common cause: YAML reads it as a mapping, so the hint points at quoting.
+ */
+function describeRulesShapeError(artifactId: string, rules: unknown): string {
+  const base = PROJECT_CONFIG_MESSAGES.rulesMustBeArrayOfStrings(artifactId);
+
+  if (!Array.isArray(rules)) {
+    return `${base}. ${PROJECT_CONFIG_MESSAGES.rulesFieldIs(artifactId, describeYamlType(rules))}`;
+  }
+
+  const bad = rules
+    .map((rule, index) => ({ rule, index }))
+    .filter(({ rule }) => typeof rule !== 'string');
+
+  if (bad.length === 0) {
+    return base;
+  }
+
+  // Name every offending index with its own shape, so a mixed list does not
+  // have to be re-bisected one item at a time.
+  const details = bad
+    .map(({ rule, index }) => PROJECT_CONFIG_MESSAGES.rulesItemIs(artifactId, index, describeYamlType(rule)))
+    .join('; ');
+
+  // A bare `-` item with an unquoted ": " is the common cause: YAML reads it as
+  // a mapping. Say so rather than leaving the reader to work out the quoting.
+  const hasMapping = bad.some(({ rule }) => rule !== null && typeof rule === 'object' && !Array.isArray(rule));
+  const hint = hasMapping ? PROJECT_CONFIG_MESSAGES.rulesUnquotedColonHint : '';
+
+  return `${base}. ${details}${hint}`;
+}
+
+/** Name a YAML value's shape in a warning, e.g. "a mapping" or "a number". */
+function describeYamlType(value: unknown): string {
+  if (value === null) return PROJECT_CONFIG_MESSAGES.yamlNull;
+  if (Array.isArray(value)) return PROJECT_CONFIG_MESSAGES.yamlNestedList;
+  const type = typeof value;
+  if (type === 'object') return PROJECT_CONFIG_MESSAGES.yamlMapping;
+  if (type === 'number') return PROJECT_CONFIG_MESSAGES.yamlNumber;
+  if (type === 'boolean') return PROJECT_CONFIG_MESSAGES.yamlBoolean;
+  if (type === 'string') return PROJECT_CONFIG_MESSAGES.yamlString;
+  return PROJECT_CONFIG_MESSAGES.yamlOther(type);
+}
 
 /**
  * Read and parse openspec/config.yaml from project root.
@@ -175,13 +233,9 @@ const MAX_CONTEXT_SIZE = 50 * 1024; // 50KB hard limit
  * @returns Parsed config or null if file doesn't exist
  */
 export function readProjectConfig(projectRoot: string): ProjectConfig | null {
-  // Try both .yaml and .yml, prefer .yaml
-  let configPath = path.join(projectRoot, 'openspec', 'config.yaml');
-  if (!existsSync(configPath)) {
-    configPath = path.join(projectRoot, 'openspec', 'config.yml');
-    if (!existsSync(configPath)) {
-      return null; // No config is OK
-    }
+  const configPath = resolveConfigFilePath(projectRoot);
+  if (configPath === null) {
+    return null; // No config is OK
   }
 
   try {
@@ -230,7 +284,11 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
 
       // First check if it's an object structure (guard against null since typeof null === 'object')
       if (typeof raw.rules === 'object' && raw.rules !== null && !Array.isArray(raw.rules)) {
-        const parsedRules: Record<string, string[]> = {};
+        // IDs de artefato não são restritos à convenção de nomes embutida,
+        // então chaves como "constructor" continuam válidas para schemas
+        // customizados. Um mapa sem protótipo preserva essas chaves como
+        // dados sem deixar "__proto__" alterar o protótipo do objeto de lookup.
+        const parsedRules: Record<string, string[]> = Object.create(null);
         let hasValidRules = false;
 
         for (const [artifactId, rules] of Object.entries(raw.rules)) {
@@ -249,9 +307,7 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
               );
             }
           } else {
-            console.warn(
-              PROJECT_CONFIG_MESSAGES.rulesMustBeArrayOfStrings(artifactId)
-            );
+            console.warn(describeRulesShapeError(artifactId, rules));
           }
         }
 
@@ -269,12 +325,44 @@ export function readProjectConfig(projectRoot: string): ProjectConfig | null {
       config.operations = operations;
     }
 
+    // Parse githubCopilot preferences (only cloudAgent is recognized today).
+    if (raw.githubCopilot !== undefined) {
+      if (
+        typeof raw.githubCopilot === 'object' &&
+        raw.githubCopilot !== null &&
+        !Array.isArray(raw.githubCopilot)
+      ) {
+        const cloudAgent = (raw.githubCopilot as Record<string, unknown>).cloudAgent;
+        if (typeof cloudAgent === 'boolean') {
+          config.githubCopilot = { cloudAgent };
+        } else if (cloudAgent !== undefined) {
+          console.warn(PROJECT_CONFIG_MESSAGES.invalidGithubCopilotCloudAgentField);
+        }
+      } else {
+        console.warn(PROJECT_CONFIG_MESSAGES.invalidGithubCopilotField);
+      }
+    }
+
     // Return partial config even if some fields failed
     return Object.keys(config).length > 0 ? (config as ProjectConfig) : null;
   } catch (error) {
     console.warn(PROJECT_CONFIG_SUGGEST_MESSAGES.configFailedToParse, error);
     return null;
   }
+}
+
+/**
+ * Shared .yaml/.yml probe: the single source of truth for which config file a
+ * project actually uses (`.yaml` wins over `.yml`). Used by readProjectConfig
+ * and by any writer that must edit the very file the reader consumed.
+ */
+export function resolveConfigFilePath(projectRoot: string): string | null {
+  const yamlPath = path.join(projectRoot, 'openspec', 'config.yaml');
+  if (existsSync(yamlPath)) {
+    return yamlPath;
+  }
+  const ymlPath = path.join(projectRoot, 'openspec', 'config.yml');
+  return existsSync(ymlPath) ? ymlPath : null;
 }
 
 /**

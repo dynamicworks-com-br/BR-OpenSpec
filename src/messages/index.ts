@@ -22,7 +22,9 @@
  *
  * Regra geral: qualquer palavra em CAIXA ALTA que represente uma regra, uma
  * operação de delta (ADD/REMOVE/RENAME) ou uma cláusula de cenário fica em
- * inglês. Traduzir esses termos quebra o parsing/validação dos specs.
+ * inglês. Omitir SHALL/MUST em um requisito gera WARNING no `openspec
+ * validate` (erro só com `--strict`); traduzir os marcadores estruturais
+ * quebra o parsing de specs e changes.
  * Ver também AGENTS.md ("Termos reservados em inglês").
  * ─────────────────────────────────────────────────────────────────────────
  */
@@ -65,9 +67,18 @@ export const CLI_DESCRIPTIONS = {
   noColor: 'Desativa cores na saída',
   tools: (availableToolIds: string, toolAliasNote: string) => `Configura ferramentas de IA não interativamente. Use "all", "none" ou uma lista separada por vírgula: ${availableToolIds}. Também aceito: ${toolAliasNote}`,
   toolAlias: (retired: string, current: string) => `${retired} (agora ${current})`,
+  // Idioma dos artefatos gerados (`openspec init --language`). Usada tanto no
+  // help do commander quanto no registry de completions, como no upstream.
+  language: 'Escreve os novos artefatos do BR-OpenSpec neste idioma',
   force: 'Limpa arquivos legados automaticamente sem perguntar',
   profile: 'Sobrescreve o perfil da configuração global (core ou custom)',
   noAnimation: 'Exibe uma tela de boas-vindas estática em vez da animada',
+  copilotCloud: 'Configura os arquivos do Copilot coding agent (nuvem) do GitHub sem perguntar',
+  noCopilotCloud: 'Ignora os arquivos do Copilot coding agent (nuvem) do GitHub sem perguntar',
+  // Variantes usadas no registry de completions (texto mais descritivo que o
+  // help do commander, como no upstream).
+  copilotCloudCompletion: 'Gera os arquivos do Copilot coding agent (nuvem) do GitHub (opt-in; padrão: perguntar)',
+  noCopilotCloudCompletion: 'Não gera os arquivos do Copilot coding agent (nuvem) do GitHub',
 
   // Opções — init / experimental
   experimentalTool: 'Ferramenta de IA alvo (mapeia para --tools)',
@@ -80,13 +91,19 @@ export const CLI_DESCRIPTIONS = {
   // Opções — list
   listSpecs: 'Lista especificações em vez de alterações',
   listChanges: 'Lista alterações explicitamente (padrão)',
+  listArchived: 'Mostra apenas alterações arquivadas',
+  listAllChanges: 'Mostra alterações ativas e arquivadas',
   listSort: 'Ordem de classificação: "recent" (padrão) ou "name"',
   listJson: 'Saída como JSON (para uso programático)',
+  version: 'Informa a versão instalada do BR-OpenSpec e a disponibilidade de atualização',
+  versionCheck: 'Consulta o registro por uma versão mais recente',
+  validateReport: 'Seleciona o conteúdo do relatório em lote',
 
   // Opções — change show
   changeShowJson: 'Saída como JSON',
   changeShowDeltasOnly: 'Exibe apenas deltas (somente JSON)',
   changeShowRequirementsOnly: 'Alias para --deltas-only (descontinuado)',
+  changeShowDiff: 'Exibe diffs por requisito dos specs de delta',
   changeShowNoInteractive: 'Desativa prompts interativos',
 
   // Opções — change validate
@@ -110,6 +127,8 @@ export const CLI_DESCRIPTIONS = {
   validateAll: 'Valida todas as alterações e especificações',
   validateChanges: 'Valida todas as alterações',
   validateSpecs: 'Valida todas as especificações',
+  validateArchived:
+    'Valida que as alterações arquivadas tenham todas as tarefas concluídas (para lint em pre-commit)',
   validateType: 'Especifica o tipo do item quando ambíguo: change|spec',
   validateStrict: 'Ativa modo de validação estrita',
   validateJson: 'Saída dos resultados de validação como JSON',
@@ -121,6 +140,7 @@ export const CLI_DESCRIPTIONS = {
   showType: 'Especifica o tipo do item quando ambíguo: change|spec',
   showDeltasOnly: 'Exibe apenas deltas (somente JSON, alteração)',
   showRequirementsOnly: 'Alias para --deltas-only (descontinuado, alteração)',
+  showDiff: 'Exibe diffs por requisito dos specs de delta (alteração)',
   showRequirements: 'Somente JSON: Exibe apenas requisitos (exclui cenários)',
   showNoScenarios: 'Somente JSON: Exclui conteúdo de cenários',
   showRequirement: 'Somente JSON: Exibe requisito específico pelo ID (base 1)',
@@ -134,6 +154,7 @@ export const CLI_DESCRIPTIONS = {
 
   // Opções — status
   statusChange: 'Nome da alteração para exibir o status',
+  statusAll: 'Exibe o status de todas as alterações ativas',
   statusSchema: 'Sobrescreve o esquema (auto-detectado do config.yaml)',
   statusJson: 'Saída como JSON',
 
@@ -214,6 +235,31 @@ export const CHANGE_MESSAGES = {
   noProposalYet: '(ainda sem proposal.md)',
   tasks: (completed: number, total: number) => `[tarefas ${completed}/${total}]`,
   deltas: (count: number) => `[deltas ${count}]`,
+  // show --diff (ADDED/REMOVED/RENAMED/MODIFIED são termos reservados do
+  // protocolo de deltas e não se traduzem)
+  specDiffsHeading: 'Especificações alteradas (diffs)',
+  noDeltaSpecsToDiff: (name: string) => `Nenhum spec de delta para comparar na alteração "${name}".`,
+  noTextualChanges: '(sem alterações textuais)',
+  diffHeaderNearMiss: (mainName: string) =>
+    `O cabeçalho difere de "${mainName}" no spec principal apenas em caixa ou espaços; ` +
+    `o archive casa nomes exatamente, então alinhe-os antes de arquivar`,
+  diffNoMatchingRequirement: (name: string, capability: string) =>
+    `Nenhum requisito correspondente encontrado para "${name}" no spec principal ${capability}`,
+  diffNoMainSpec: (capability: string, name: string) =>
+    `Não há spec principal em openspec/specs/${capability}/spec.md, ` +
+    `então o requisito MODIFIED "${name}" não tem contra o que ser comparado`,
+  diffLabelAdded: (name: string) => `  ADDED: ${name}`,
+  diffLabelRemoved: (name: string) => `  REMOVED: ${name}`,
+  diffLabelRenamed: (from: string, to: string) => `  RENAMED: ${from} → ${to}`,
+  diffLabelModified: (name: string) => `  MODIFIED: ${name}`,
+  // Marcador estável que `validate` reconhece dentro da mensagem renderizada.
+  nestedChangeIssueMarker: 'não é uma alteração: é uma pasta envolvendo',
+  describeNestedChange: (name: string, list: string, example: string) =>
+    `"${name}" não é uma alteração: é uma pasta envolvendo ${list}. ` +
+    'Uma alteração precisa ser um diretório diretamente sob openspec/changes/, então esses ' +
+    'diretórios aninhados ficam invisíveis para o BR-OpenSpec enquanto a pasta ao redor é ' +
+    'reportada como uma alteração. Caminhos aninhados são suportados apenas sob openspec/specs/. ' +
+    `Renomeie cada alteração aninhada para um nome plano (por exemplo "${example}").`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -303,6 +349,12 @@ export const VALIDATE_MESSAGES = {
   totals: (passed: number, failed: number, total: number) => `Totais: ${passed} aprovado(s), ${failed} reprovado(s) (${total} itens)`,
   passed: 'aprovado',
   failed: 'reprovado',
+  // validate --archived
+  validatingArchived: 'Validando alterações arquivadas...',
+  noArchivedChangesFound: 'Nenhuma alteração arquivada encontrada.',
+  couldNotReadTaskFile: 'não foi possível ler o arquivo de tarefas',
+  incompleteTasks: (incomplete: number, completed: number, total: number) =>
+    `${incomplete} tarefa(s) incompleta(s) (${completed}/${total} concluída(s))`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -312,9 +364,15 @@ export const VALIDATE_MESSAGES = {
 export const LIST_MESSAGES = {
   noChangesDir: "Diretório de alterações do BR-OpenSpec não encontrado. Execute 'openspec init' primeiro.",
   noActiveChanges: 'Nenhuma alteração ativa encontrada.',
+  noArchivedChanges: 'Nenhuma alteração arquivada encontrada.',
+  noChangesFound: 'Nenhuma alteração encontrada.',
   noSpecsFound: 'Nenhuma especificação encontrada.',
   changesHeader: 'Alterações:',
+  archivedChangesHeader: 'Alterações arquivadas:',
   specsHeader: 'Especificações:',
+  archiveOptionsOnlyForChanges: '--archived e --all só podem ser usados ao listar alterações.',
+  notAChange: 'não é uma alteração',
+  nestedChangeWarning: (message: string) => `Aviso: ${message}`,
   relativeTime: {
     justNow: 'agora mesmo',
     minutesAgo: (m: number) => `${m}min atrás`,
@@ -349,6 +407,9 @@ export const VIEW_MESSAGES = {
   requirementLabel: (count: number) => count === 1 ? 'requisito' : 'requisitos',
   listHint: (cmd: string) => `Use ${cmd} para visualizações detalhadas`,
   listHintCommands: (cmd1: string, cmd2: string) => `Use ${cmd1} ou ${cmd2} para visualizações detalhadas`,
+  couldNotLoadWorkflowStatus: (name: string, detail: string) =>
+    `Não foi possível carregar o status do fluxo de trabalho para "${name}": ${detail}`,
+  skippedArtifact: (id: string) => `${id} (ignorado)`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -396,6 +457,99 @@ export const ARCHIVE_MESSAGES = {
     `Atualizar ${count} especificação(ões) requer confirmação, e não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
   blockedChangeNameRequired: (rerun: string) =>
     `Um nome de alteração é obrigatório: não foi possível ler uma resposta do stdin.\nCorreção: ${rerun}`,
+  // Seletor de alteração sem terminal (stdin ou stdout não-TTY, #1526): recusa
+  // antes de renderizar o menu do @inquirer, que escreveria escapes ANSI num
+  // pipe ou arquivo.
+  blockedChangeNameRequiredNoTerminal: (rerun: string) =>
+    `Um nome de alteração é obrigatório: não há terminal disponível para escolher uma da lista.\nCorreção: ${rerun}`,
+  // Limites de caminho (raízes gerenciadas e fallback copy-then-remove)
+  unsupportedFilesystemEntry: (srcPath: string) => `Não é possível arquivar uma entrada de sistema de arquivos não suportada: ${srcPath}`,
+  pathOutsideRoot: (managedDir: string) => `Recusando arquivar por um caminho fora da raiz do BR-OpenSpec: ${managedDir}`,
+  // Aposentadoria de capabilities (#1302, #1696) e transação de arquivamento
+  // (claim do destino, fingerprints, snapshots e rollback).
+  changeIsSymlink: (name: string) =>
+    `A alteração '${name}' é um link simbólico. Substitua-o por um diretório real antes de arquivar.`,
+  archiveBeingCreated: (archiveName: string, claimPath: string) =>
+    `O arquivamento '${archiveName}' já está sendo criado. Se nenhum processo de arquivamento estiver em execução, remova a reivindicação obsoleta em ${claimPath} e execute novamente.`,
+  expectedDirectoryWhileVerifying: (dir: string) => `Esperava um diretório ao verificar ${dir}.`,
+  pathChangedWhileReading: (filePath: string) => `O caminho ${filePath} mudou enquanto o arquivamento o lia.`,
+  directoryChangedWhileReading: (dir: string) => `O diretório ${dir} mudou enquanto o arquivamento o lia.`,
+  changeContentsChangedDuringFallbackCopy: (src: string, dest: string) =>
+    `O conteúdo do diretório da alteração mudou durante a cópia de fallback de ${src} para ${dest}.`,
+  couldNotStageBeforeFallback: (src: string, error: string) =>
+    `Não foi possível preparar ${src} com segurança antes da cópia de fallback do arquivamento (${error}). Nenhuma cópia de fallback foi tentada.`,
+  couldNotRestoreStagedSource: (original: string, staged: string, error: string) =>
+    `${original} Não foi possível restaurar a origem preparada em ${staged} (${error}).`,
+  copiedButStagedSourceRetained: (src: string, dest: string, staged: string, error: string) =>
+    `${src} foi copiado para ${dest}, mas não foi possível remover completamente a origem preparada em ${staged} (${error}). O destino completo foi mantido para recuperação.`,
+  retirementAuthorizationChangedBeforeComplete: (file: string) =>
+    `A autorização de aposentadoria em ${file} mudou antes que o arquivamento pudesse ser concluído.`,
+  specUpdatesResolveToSameTarget: (a: string, b: string, identity: string) =>
+    `As atualizações de especificação de '${a}' e '${b}' resolvem para o mesmo alvo ${identity}. Substitua o alias da capability ou combine os deltas antes de arquivar.`,
+  rollbackWouldOverwriteConcurrent: (target: string) =>
+    `O rollback do arquivamento sobrescreveria uma alteração concorrente em ${target}.`,
+  rollbackWouldOverwriteConcurrentRetained: (target: string, displaced: string) =>
+    `O rollback do arquivamento sobrescreveria uma alteração concorrente em ${target}. A especificação deslocada foi mantida em ${displaced}.`,
+  displacedSpecChangedAfterVerification: 'a especificação deslocada mudou após a verificação da aposentadoria',
+  couldNotRemoveRetirementBackup: (backupPath: string, error: string) =>
+    `Não foi possível remover o backup de aposentadoria confirmado em ${backupPath} (${error}).`,
+  changeRemainsArchivedBackupsRetained: (errors: string) =>
+    `${errors} A alteração permanece arquivada e cada backup listado foi mantido para recuperação.`,
+  specInputsChangedWhilePreparing: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram enquanto o arquivamento preparava a prévia.`,
+  retirementAuthorizationChangedAtPrompt: (file: string) =>
+    `A autorização de aposentadoria em ${file} mudou enquanto o arquivamento aguardava confirmação.`,
+  changeSpecsChangedAtPrompt: 'As especificações da alteração mudaram enquanto o arquivamento aguardava confirmação.',
+  deltaChangedAtPrompt: (id: string) => `O delta de '${id}' mudou enquanto o arquivamento aguardava confirmação.`,
+  specInputsChangedAtPrompt: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram enquanto o arquivamento aguardava confirmação. Nenhum arquivo foi alterado; revise o novo conteúdo e execute novamente.`,
+  mainSpecChangedAtPrompt: (id: string) =>
+    `A especificação principal '${id}' mudou enquanto o arquivamento aguardava confirmação. Nenhum arquivo foi alterado; revise o novo conteúdo e execute novamente.`,
+  // Dica impressa quando só o marcador retire_capabilities está faltando.
+  retirementHint: (specName: string, metadataFile: string) =>
+    `Esta alteração remove o último requisito que '${specName}' possui. Para aposentar a capability e excluir sua especificação, adicione \`retire_capabilities: true\` ao ${metadataFile} da alteração (ao lado do \`schema:\`, que esse arquivo exige) e execute novamente.`,
+  // Sufixo (com espaço inicial) anexado às dicas quando o marcador presente não pode ser honrado.
+  retirementMarkerCannotBeHonored: (reason: string) => ` O marcador presente agora não pode ser honrado (${reason}).`,
+  // #1696: marcador ausente E conteúdo que a mesclagem não consegue contabilizar.
+  retirementBlockedByContent: (specName: string, lines: string) =>
+    `Esta alteração remove o último requisito que '${specName}' possui, então a especificação reconstruída fica sem nenhum e não pode ser escrita. Em vez disso, o arquivamento aposenta a capability, mas isso é recusado enquanto a especificação contiver conteúdo que a mesclagem não consegue contabilizar com segurança e que a exclusão do arquivo levaria junto: ${lines}. Mova esse conteúdo para \`## Purpose\` ou para um requisito canônico, ou exclua a especificação manualmente, e execute novamente.`,
+  // Marcador declarado, mas a aposentadoria foi recusada por conteúdo não contabilizado.
+  retirementRefused: (specName: string, lines: string) =>
+    `'${specName}' declara retire_capabilities, mas a especificação contém conteúdo que a mesclagem não consegue contabilizar com segurança e que a exclusão do arquivo levaria junto: ${lines}. Mova esse conteúdo para \`## Purpose\` ou para um requisito canônico, ou exclua a especificação manualmente.`,
+  // Sufixo (com vírgula inicial) da lista de linhas bloqueantes quando há mais de 3.
+  unaccountedMoreLines: (count: number) => `, e mais ${count} linha(s)`,
+  specInputsChangedBeforeApply: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram antes que o arquivamento pudesse aplicá-las. Nenhum arquivo foi alterado; revise o novo conteúdo e execute novamente.`,
+  specInputsChangedBeforeWrite: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram antes que o arquivamento pudesse escrevê-las.`,
+  retirementAuthorizationUnavailable: (file: string) => `A autorização de aposentadoria em ${file} não está disponível.`,
+  specInputsChangedBeforeRetire: (id: string) =>
+    `As entradas de especificação de '${id}' mudaram antes que o arquivamento pudesse aposentá-las.`,
+  mainSpecChangedWhileSecuring: (id: string) =>
+    `A especificação principal '${id}' mudou enquanto o arquivamento a protegia para a aposentadoria.`,
+  couldNotTrackDisplacedSpec: (id: string) =>
+    `Não foi possível rastrear a especificação principal deslocada de '${id}' durante a aposentadoria.`,
+  // Linha de recuperação impressa logo após "Aposentando <caminho>".
+  retirementRecoveryCommand: (pasteablePath: string) =>
+    `Se o arquivo estava commitado, restaure-o com: git checkout HEAD -- ${pasteablePath}`,
+  retirementRecoveryGuidance: (deletedPath: string) =>
+    `O arquivo foi excluído de ${deletedPath}; se estava commitado, restaure-o a partir do histórico desse checkout.`,
+  deltaChangedBeforeArchive: (id: string) => `O delta de '${id}' mudou antes que a alteração pudesse ser arquivada.`,
+  archivedDeltaChangedDuringMove: (id: string) => `O delta arquivado de '${id}' mudou durante a movimentação final.`,
+  activeDeltaChangedDuringFallbackCopy: (id: string) => `O delta ativo de '${id}' mudou durante a cópia de fallback.`,
+  rollbackAlsoFailed: (original: string, errors: string) => `${original} O rollback também falhou: ${errors}`,
+  contentChangedAfterVerify: (target: string, destination: string) =>
+    `${target} mudou depois de verificado, então a cópia em ${destination} não contém o conteúdo atual.`,
+  retirementCleanupIncomplete: (errors: string) =>
+    `${errors} A alteração foi arquivada, mas a limpeza da aposentadoria não foi concluída. Inspecione todos os caminhos de recuperação informados antes de recuperar ou limpar.`,
+  retirementCleanupFix:
+    'Inspecione a alteração arquivada e todos os caminhos de recuperação deste diagnóstico; preserve qualquer conteúdo necessário antes da limpeza.',
+  capabilityRetiredNote: (id: string, deletedPath: string, sections: string, recovery: string) =>
+    `${id} - capability aposentada; a especificação principal foi excluída (todos os requisitos removidos, declarado por retire_capabilities) em ${deletedPath}. As seções foram junto: ${sections}. ${recovery}`,
+  cannotArchiveNestedChange: (name: string, detail: string) =>
+    `Não é possível arquivar '${name}': ${detail}`,
+  renameNestedChangeBeforeArchive: (id: string) =>
+    `Renomeie openspec/changes/${id}/ para um diretório de alteração plano e então arquive.`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -413,6 +567,7 @@ export const INIT_MESSAGES = {
   insufficientPermissions: (path: string) => `Permissões insuficientes para escrever em ${path}`,
   invalidProfile: (profile: string) => `Perfil inválido "${profile}". Perfis disponíveis: core, custom`,
   upgradeLegacyPrompt: 'Atualizar e limpar arquivos legados?',
+  preservedDeferredGlobalPrompts: 'Prompts globais adiados preservados por falta de skills substitutas:',
   initializationCancelled: 'Inicialização cancelada.',
   skipPromptHint: 'Execute com --force para pular esta pergunta, ou remova manualmente os arquivos legados.',
   cleaningLegacy: 'Limpando arquivos legados...',
@@ -420,6 +575,11 @@ export const INIT_MESSAGES = {
   noToolsDetected: (tools: string) => `Nenhuma ferramenta detectada e nenhuma flag --tools fornecida. Ferramentas válidas:\n  ${tools}\n\nUse --tools all, --tools none, ou --tools claude,cursor,...`,
   noToolsAvailable: 'Nenhuma ferramenta disponível para geração de skills.',
   selectToolsPrompt: (count: number) => `Selecione as ferramentas para configurar (${count} disponíveis)`,
+  // Dica do seletor quando a busca não encontra nada (#653): aponta o alvo
+  // neutro, cujo nome é o diretório e não o que alguém sem ferramenta listada
+  // digitaria.
+  toolNotListedHint: (name: string) =>
+    `Ferramenta não listada? Limpe a busca e escolha "${name}".`,
   selectAtLeastOneTool: 'Selecione pelo menos uma ferramenta',
   atLeastOneToolRequired: 'Pelo menos uma ferramenta deve ser selecionada',
   toolsOptionRequired: 'A opção --tools requer um valor. Use "all", "none", ou uma lista de IDs separada por vírgula.',
@@ -433,21 +593,70 @@ export const INIT_MESSAGES = {
   settingUp: (name: string) => `Configurando ${name}...`,
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   setupFailed: (name: string) => `Falha na configuração de ${name}`,
+  // Aviso (dim) quando duas ou mais ferramentas selecionadas compartilham a
+  // mesma árvore física de skills (`antigravity`, `codex`, `zed` e `agents` em
+  // `.agents/skills`): só o dono (`owner`, um id de ferramenta) escreve, com
+  // referências que servem a todos os consumidores; as demais continuam
+  // escrevendo a própria superfície de comandos.
+  sharedSkillsRootOneTree: (names: string, root: string, owner: string) =>
+    `${names} compartilham ${root}/skills; escrevendo uma única árvore para ${owner}.`,
   setupCompleteTitle: 'Configuração do BR-OpenSpec Concluída',
+  setupIncompleteTitle: 'Configuração do BR-OpenSpec Incompleta',
+  // Lançado após o resumo quando alguma ferramenta falhou (exit ≠ 0 para automação).
+  setupFailedFor: (names: string) => `A configuração do BR-OpenSpec falhou para: ${names}`,
   created: (names: string) => `Criados: ${names}`,
   refreshed: (names: string) => `Atualizados: ${names}`,
   failed: (errors: string) => `Falhas: ${errors}`,
   commandsSkipped: (tools: string) => `Comandos ignorados para: ${tools} (sem adaptador)`,
+  // Ferramentas skills-invocable (Codex): a superfície de comandos é a própria skill.
+  commandsSkippedUsesSkills: (tools: string) => `Comandos ignorados para: ${tools} (usa skills)`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
   removedSkills: (count: number) => `Removidos: ${count} diretórios de skill (entrega: commands)`,
+  // Copilot coding agent (nuvem) — opt-in dos arquivos gerados em .github/.
+  copilotCloudFlagIgnored:
+    '--copilot-cloud/--no-copilot-cloud foi ignorado porque a ferramenta github-copilot não foi selecionada.',
+  copilotCloudPrompt:
+    'Configurar os arquivos do Copilot coding agent (nuvem) do GitHub? Isso é para o Copilot coding agent ' +
+    'hospedado no GitHub (github.com), não para o Copilot no seu editor. Serão escritos dois arquivos: ' +
+    '.github/workflows/copilot-setup-steps.yml e .github/agents/openspec.agent.md.',
+  copilotCloudFiles: (files: string) => `Arquivos do Copilot coding agent (nuvem): ${files}`,
+  removedCopilotCloudOptOut: (count: number) =>
+    `Removidos: ${count} arquivo(s) do Copilot coding agent (nuvem) (opt-out dos arquivos de nuvem)`,
+  copilotCloudSkipped:
+    "Arquivos do Copilot coding agent (nuvem) ignorados (opt-in). Ative com 'openspec init --copilot-cloud'.",
   skillsAndCommandsCount: (skills: number, commands: number, dirs: string) => `${skills} skills e ${commands} commands em ${dirs}/`,
   skillsCount: (skills: number, dirs: string) => `${skills} skills em ${dirs}/`,
   commandsCount: (commands: number, dirs: string) => `${commands} commands em ${dirs}/`,
+  // Variantes para alvos de skills globais (fora do projeto): `dirs` já são caminhos
+  // absolutos completos, então não recebem a barra final das chaves acima.
+  skillsInDirs: (skills: number, dirs: string) => `${skills} skills em ${dirs}`,
+  commandsInDirs: (commands: number, dirs: string) => `${commands} commands em ${dirs}`,
   configCreated: (schema: string) => `Config: openspec/config.yaml (schema: ${schema})`,
   configExists: (name: string) => `Config: openspec/${name} (existe)`,
   configSkipped: 'Config: ignorado (modo não interativo)',
+  // Idioma dos artefatos (`init --language`). O bloco gravado no config.yaml
+  // fica em inglês (é lido pelos agentes); só os erros são traduzidos.
+  languageRequiresValue: 'A opção --language requer um valor não vazio.',
+  languageMustBeSingleLine:
+    'A opção --language deve ser uma única linha, sem caracteres de controle ou de formatação invisíveis.',
+  languageTooLong: (limitKb: string) =>
+    `O valor de --language é longo demais para o limite de ${limitKb}KB do contexto de projeto do BR-OpenSpec.`,
+  // `reason` já chega prefixado com ": " (ou vazio), como no upstream.
+  languageCannotCreateConfig: (reason: string) =>
+    `Não é possível criar openspec/config.yaml para --language${reason}`,
+  languageConfigNotWritable:
+    'Não é possível criar openspec/config.yaml para --language: o destino não tem permissão de escrita.',
+  languageDoesNotOverwriteConfig:
+    '--language não sobrescreve uma configuração existente do BR-OpenSpec. ' +
+    'Em vez disso, adicione a instrução de idioma ao campo context dela.',
+  languageConfigWriteFailed: (reason: string) =>
+    `Falha ao criar openspec/config.yaml para --language${reason}`,
   gettingStarted: 'Início rápido:',
   startFirstChange: (cmd: string) => `Inicie sua primeira alteração: ${cmd}`,
+  // Ferramentas sem superfície de slash (Rovo Dev): a dica vira instrução,
+  // já que não há comando a digitar.
+  startFirstChangeAskTool: (toolName: string, skillRef: string) =>
+    `Inicie sua primeira alteração: peça ao ${toolName} para usar ${skillRef} com "sua ideia"`,
   startFirstChangeWithSkill: (skillRef: string) => `Inicie sua primeira alteração com ${skillRef}`,
   noSkillsOrCommandsGenerated: (names: string, singular: boolean) =>
     `Nenhuma skill nem comando foi gerado para ${names}: a entrega está definida como 'commands', mas ${singular ? 'ela suporta' : 'elas suportam'} apenas skills. ` +
@@ -482,6 +691,14 @@ export const TOOLS_MESSAGES = {
   failedToRemove: (name: string) => `Falha ao remover ${name}`,
   removedList: (names: string) => `Removidos: ${names}`,
   removedCounts: (skills: number, commands: number) => `  ${skills} diretório(s) de skill e ${commands} arquivo(s) de comando removidos`,
+  // Ferramentas com alvo de skills global (fora do projeto): as skills são
+  // compartilhadas entre projetos e não são removidas a partir de um deles.
+  globalSkillsKept: (name: string, dir: string) =>
+    `  Skills globais de ${name} mantidas em ${dir} (compartilhadas entre projetos); remova-as manualmente se não usar em outros projetos.`,
+  // Raiz de skills compartilhada por mais de uma ferramenta (ex.: `.agents/skills`,
+  // usada por Codex e agents): só a ferramenta dona da árvore pode removê-la.
+  sharedSkillsKept: (name: string, dir: string, owner: string) =>
+    `  Skills mantidas em ${dir}: essa raiz é compartilhada e pertence a ${owner}, não a ${name}.`,
   currentlyConfigured: (names: string) => `Configurados atualmente: ${names}`,
   noToolsConfigured: 'Nenhuma ferramenta configurada atualmente.',
   selectToolsToConfigure: (count: number) => `Selecione as ferramentas para configurar (${count} disponíveis)`,
@@ -523,6 +740,8 @@ export const CONFIG_MESSAGES = {
   useConfigList: 'Use "openspec config list" para ver as chaves disponíveis.',
   passAllowUnknown: 'Passe --allow-unknown para ignorar esta verificação.',
   configKeySegmentNotAllowed: (segment: string) => `O segmento de chave "${segment}" não é permitido`,
+  telemetryRequiresNestedKey: 'Defina chaves aninhadas sob telemetry (ex.: telemetry.enabled)',
+  unknownTelemetryKey: (key: string) => `Chave de telemetria desconhecida "${key}" (permitidas: enabled)`,
   invalidConfiguration: (error: string) => `Configuração inválida - ${error}`,
   setKeyValue: (key: string, value: string) => `Definido ${key} = ${value}`,
   unsetKey: (key: string) => `Removido ${key} (revertido para o padrão)`,
@@ -608,6 +827,22 @@ export const CONFIG_MESSAGES = {
   workflowCodeReviewDesc: 'Revisa diffs, branches ou arquivos com contexto do projeto',
   workflowOnboardName: 'Onboarding',
   workflowOnboardDesc: 'Fluxo de onboarding guiado para o BR-OpenSpec',
+  editorCouldNotStart: (editor: string, message: string) =>
+    `Erro: Não foi possível iniciar o editor "${editor}": ${message}`,
+  editorTerminatedBySignal: (editor: string, signal: string) =>
+    `Erro: O editor "${editor}" foi encerrado por ${signal}`,
+  editorExitedWithCode: (editor: string, code: number | string | null) =>
+    `Erro: O editor "${editor}" saiu com código ${code}`,
+  editorSetInstalledExample:
+    'Defina EDITOR ou VISUAL para um comando de editor instalado, por exemplo: export EDITOR="code --wait"',
+  editorUnterminatedQuote: 'o valor tem aspas não fechadas',
+  editorValueBlank: 'o valor está em branco',
+  configUnreadableLeftUnchanged: (configPath: string) =>
+    `Erro: ${configPath} não pôde ser analisado, então foi deixado sem alterações.`,
+  configUnreadableFix: 'Corrija com "openspec config edit", ou restaure com "openspec config reset --all".',
+  explicitSource: '(explícito)',
+  defaultSource: '(padrão)',
+  configUpdatedOtherProjects: 'Execute `openspec update` nos seus outros projetos para aplicar.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -688,6 +923,64 @@ export const SCHEMA_MESSAGES = {
   validatingSchemaStructure: '  Validando estrutura do esquema...',
   checkingTemplateFiles: '  Verificando arquivos de template...',
   dependencyGraphPassed: '  Validação do grafo de dependências passou (via parseSchema)',
+  // Limites de caminho (schema validate / schema fork)
+  templateOutsideTemplatesDir: (template: string) => `Arquivo de template '${template}' aponta para fora do diretório de templates do esquema`,
+  cannotForkLinkedEntry: (entryPath: string, detail?: string) =>
+    `Não é possível copiar o esquema com uma entrada vinculada (link) ou não suportada: ${entryPath}${detail ? `: ${detail}` : ''}`,
+  cannotForkLinkedCycle: (entryPath: string) => `Não é possível copiar o esquema com um ciclo de diretórios vinculados (links): ${entryPath}`,
+  // schema fork — cópia transacional (upstream 8127c7b7)
+  cannotForkOntoItself: (source: string) =>
+    `Não é possível copiar o esquema '${source}' sobre ele mesmo; escolha um nome de destino diferente`,
+  stagedForkInvalid: (source: string, dest: string) =>
+    `A cópia preparada de '${source}' não é um esquema válido (a origem pode ter mudado durante a cópia); ` +
+    `operação abortada, '${dest}' não foi modificado.`,
+  replacingExistingSchema: (dest: string) => `Substituindo esquema existente '${dest}'...`,
+  forkDestinationChangedOnDisk: (dest: string, dir: string) =>
+    `O esquema '${dest}' em ${dir} mudou em disco enquanto a cópia era preparada. ` +
+    `Operação abortada para preservar essas alterações concorrentes; nada foi sobrescrito. ` +
+    `Execute a cópia novamente para sobrescrever o conteúdo atual.`,
+  forkInstallRestoreFailed: (
+    dest: string,
+    backupDir: string,
+    destinationDir: string,
+    restoreMessage: string
+  ) =>
+    `Falha ao instalar o esquema copiado e não foi possível restaurar o '${dest}' anterior. ` +
+    `Seu esquema anterior está preservado em ${backupDir}; mova-o de volta para ${destinationDir} para restaurar. ` +
+    `Erro na restauração: ${restoreMessage}`,
+  forkBackupKept: (dest: string, backupDir: string) =>
+    `Aviso: o '${dest}' anterior mudou durante a cópia e NÃO foi apagado; ` +
+    `sua cópia anterior à operação está preservada em ${backupDir}.`,
+  // schema init --default — atualização transacional do config (upstream 2fa679f1)
+  defaultConfigIsSymlink: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} deve ser um arquivo regular, não um link simbólico`,
+  defaultConfigNotRegularFile: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} deve ser um arquivo regular`,
+  defaultConfigNotWritable: (pathOrFile: string) =>
+    `Não é possível definir o esquema padrão: ${pathOrFile} não tem permissão de escrita`,
+  defaultConfigInvalidYaml: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} contém YAML inválido`,
+  defaultConfigNotObject: (file: string) =>
+    `Não é possível definir o esquema padrão: ${file} deve conter um objeto YAML`,
+  generatedSchemaInvalid: (issues: string) => `O esquema gerado falhou na validação: ${issues}`,
+  initSchemaChangedOnDisk: (name: string) =>
+    `O esquema '${name}' mudou em disco enquanto a inicialização era preparada. ` +
+    `Operação abortada para preservar essas alterações concorrentes.`,
+  initConfigChangedOnDisk: (file: string) =>
+    `${file} mudou em disco enquanto a inicialização era preparada. ` +
+    `Operação abortada para preservar essas alterações concorrentes.`,
+  initRollbackIncomplete: (errors: string, schemaDir: string, configPath: string | null) =>
+    `A inicialização do esquema falhou e a reversão ficou incompleta (${errors}). ` +
+    `Backups de recuperação podem ter permanecido ao lado de ${schemaDir} e ` +
+    `${configPath ?? 'do arquivo de configuração'}.`,
+  initBackupCleanupFailed: (backup: string, message: string) =>
+    `Aviso: a inicialização foi concluída, mas o backup em ${backup} não pôde ser removido: ${message}`,
+  artifactProposalDesc: 'Descrição de alto nível da alteração, sua motivação e escopo',
+  artifactSpecsDesc: 'Especificações detalhadas com requisitos e cenários',
+  artifactDesignDesc: 'Decisões de design técnico e abordagem de implementação',
+  artifactTasksDesc: 'Checklist de implementação com tarefas rastreáveis',
+  rollbackConfigFailed: (message: string) => `configuração: ${message}`,
+  rollbackSchemaFailed: (message: string) => `esquema: ${message}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -707,6 +1000,7 @@ export const COMPLETION_MESSAGES = {
   backupCreated: (path: string) => `  Backup criado: ${path}`,
   configFileConfigured: (path: string) => `  ${path} configurado automaticamente`,
   restartShell: (cmd: string) => `Reinicie o shell ou execute: ${cmd}`,
+  restartUnknownShell: (shell: string) => `Reinicie o shell ${shell}.`,
   installFailed: (message: string) => `✗ ${message}`,
   failedToInstall: (error: string) => `✗ Falha ao instalar script de autocomplete: ${error}`,
   uninstallCancelled: 'Desinstalação cancelada.',
@@ -805,6 +1099,26 @@ export const COMPLETION_MESSAGES = {
 
   // Zsh installer (missing)
   zshNotInstalled: 'Script de autocomplete não está instalado',
+  shellCompletionsConfigHeader: '# Configuração de autocomplete do shell do BR-OpenSpec',
+  unableToConfigureBashrc: (error: string) =>
+    `Não foi possível configurar o .bashrc para o autocomplete: ${error}`,
+  unableToRemoveBashrc: (error: string) =>
+    `Não foi possível remover a configuração do .bashrc: ${error}`,
+  unableToReadCompletionFile: (filePath: string, error: string) =>
+    `Não foi possível ler o arquivo de autocomplete existente em ${filePath}: ${error}`,
+  unableToConfigureZshrc: (error: string) =>
+    `Não foi possível configurar o .zshrc para o autocomplete: ${error}`,
+  unableToRemoveZshrc: (error: string) =>
+    `Não foi possível remover a configuração do .zshrc: ${error}`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Dica de autocomplete — primeira execução (src/core/completion-tip.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const COMPLETION_TIP_MESSAGES = {
+  firstRunTip:
+    "Dica: execute 'openspec completion install' para habilitar o autocomplete do shell",
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -826,6 +1140,8 @@ export const FEEDBACK_MESSAGES = {
   issueUrl: (url: string) => `URL da Issue: ${url}\n`,
   labelNotApplied: 'Nota: issue criada sem o rótulo \'feedback\' porque o repositório não o define.\n',
   feedbackTitle: (message: string) => `Feedback: ${message}`,
+  bodySummaryHeading: '## Resumo',
+  bodyDetailsHeading: '## Detalhes',
   submittedVia: 'Enviado via BR-OpenSpec CLI',
   versionLabel: (version: string) => `- Versão: ${version}`,
   platformLabel: (platform: string) => `- Plataforma: ${platform}`,
@@ -870,10 +1186,25 @@ export const ONBOARDING_MESSAGES = {
   // Forma neutra que nomeia a skill quando não há uma invocação de comando
   // utilizável (ou quando as ferramentas divergem na sintaxe).
   skillReference: (skillName: string) => `a skill ${skillName}`,
+  // Referência dupla gravada dentro dos SKILL.md do Codex: a mesma árvore
+  // `.agents/skills` serve ao Codex (`$nome`) e a agentes genéricos (`/nome`).
+  // ATENÇÃO: manter em sincronia com a regex de `toLegacyCodexReferences` em
+  // src/core/shared/skill-content-equivalence.ts.
+  codexDualSkillReference: (skillName: string) =>
+    `$${skillName} (Codex) ou /${skillName} (outros agentes)`,
+  optionalWorkflowsAvailable: (count: number, list: string) =>
+    count === 1
+      ? `Nota: mais 1 fluxo de trabalho disponível (${list}).`
+      : `Nota: mais ${count} fluxos de trabalho disponíveis (${list}).`,
+  addWithConfigProfile: (singular: boolean) =>
+    singular
+      ? 'Adicione-o com `openspec config profile`.'
+      : 'Adicione-os com `openspec config profile`.',
 };
 
 // ═══════════════════════════════════════════════════════════
 // Prompts — Seleção múltipla com busca (src/prompts/searchable-multi-select.ts)
+// e dica de teclas dos prompts do inquirer (src/prompts/keys-help-tip.ts)
 // ═══════════════════════════════════════════════════════════
 
 export const PROMPT_MESSAGES = {
@@ -892,6 +1223,13 @@ export const PROMPT_MESSAGES = {
   detected: '(detectado)',
   refresh: '(atualizar)',
   selectedLabel: '(selecionado)',
+  // Rótulos da dica de teclas do @inquirer/{checkbox,select} v5
+  // (theme.style.keysHelpTip). As ações `navigate`/`select`/`submit`
+  // reaproveitam `navigate`, `toggle` e `confirm` acima — a tecla espaço
+  // alterna a marcação, como já indicava a dica anterior do checkbox.
+  keySpace: 'espaço',
+  keyActionAll: 'todos',
+  keyActionInvert: 'inverter',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -929,6 +1267,10 @@ export const UPDATE_MESSAGES = {
   failedToUpdate: (name: string) => `Falha ao atualizar ${name}`,
   updated: (tools: string, version: string) => `✓ Atualizados: ${tools} (v${version})`,
   failed: (errors: string) => `✗ Falhas: ${errors}`,
+  // Ferramentas skills-invocable (Codex): a superfície de comandos é a própria skill.
+  commandsSkippedUsesSkills: (tools: string) => `Comandos ignorados para: ${tools} (usa skills)`,
+  // Lançado após o resumo quando alguma ferramenta falhou (exit ≠ 0 para automação).
+  updateFailedFor: (names: string) => `A atualização do BR-OpenSpec falhou para: ${names}`,
   removedCommands: (count: number) => `Removidos: ${count} arquivos de comando (entrega: skills)`,
   removedSkills: (count: number) => `Removidos: ${count} diretórios de skill (entrega: commands)`,
   noSkillsOrCommandsRemain: (names: string, singular: boolean) =>
@@ -936,6 +1278,16 @@ export const UPDATE_MESSAGES = {
     `Execute 'openspec config set delivery both' para gerar skills.`,
   removedDeselectedCommands: (count: number) => `Removidos: ${count} arquivos de comando (fluxos de trabalho desselecionados)`,
   removedDeselectedSkills: (count: number) => `Removidos: ${count} diretórios de skill (fluxos de trabalho desselecionados)`,
+  // Copilot coding agent (nuvem) — `openspec update` nunca pergunta: só honra a
+  // decisão persistida (ou os arquivos gerenciados já presentes).
+  removedCopilotCloudOptOut: (count: number) =>
+    `Removidos: ${count} arquivo(s) do Copilot coding agent (nuvem) (opt-out dos arquivos de nuvem)`,
+  removedCopilotCloudNotConfigured: (count: number) =>
+    `Removidos: ${count} arquivo(s) do Copilot coding agent (nuvem) (github-copilot não configurado)`,
+  copilotCloudAvailableHint:
+    "Os arquivos do Copilot coding agent (nuvem) do GitHub estão disponíveis (opt-in). Ative com 'openspec init --copilot-cloud'.",
+  copilotCloudSyncFailed: (message: string) =>
+    `Aviso: falha ao sincronizar os arquivos do Copilot coding agent (nuvem): ${message}`,
   gettingStarted: 'Início rápido:',
   learnMore: (url: string) => `Saiba mais: ${url}`,
   restartIDE: 'Reinicie sua IDE para que as alterações tenham efeito.',
@@ -957,6 +1309,8 @@ export const UPDATE_MESSAGES = {
   forceLegacyHint: '⚠ Execute com --force para limpar automaticamente arquivos legados, ou execute de forma interativa.',
   upgradeLegacyPrompt: 'Atualizar e limpar arquivos legados?',
   skippingLegacyCleanup: 'Ignorando limpeza de legados. Continuando com a atualização de skills...',
+  preservedDeferredGlobalPrompts: 'Prompts globais adiados preservados por falta de skills substitutas:',
+  noAdditionalRefreshAfterLegacy: 'Nenhuma atualização adicional necessária após a migração de legados.',
   toolsDetectedFromLegacy: 'Ferramentas detectadas de artefatos legados:',
   setupSkillsFor: (tools: string) => `Configurando skills para: ${tools}`,
   selectToolsNewSkillSystem: 'Selecione as ferramentas para configurar com o novo sistema de skills:',
@@ -964,6 +1318,20 @@ export const UPDATE_MESSAGES = {
   settingUp: (name: string) => `Configurando ${name}...`,
   setupComplete: (name: string) => `Configuração concluída para ${name}`,
   failedToSetup: (name: string) => `Falha ao configurar ${name}`,
+  // Upgrade legado: a raiz de skills compartilhada (ex.: `.agents`) já pertence
+  // a outra ferramenta, então nada é gerado para a ferramenta inferida dos
+  // artefatos legados. Os nomes vêm de AI_TOOLS[].name (rótulos de ferramenta,
+  // não traduzidos).
+  skippedSharedSkillRoot: (name: string, skillsDir: string, owner: string) =>
+    `${name} ignorado: ${skillsDir}/skills já é gerenciado por outra ferramenta (${owner}).`,
+  skillFilesDiffer: (toolId: string) => `${toolId} (os arquivos de skill diferem do conteúdo gerado)`,
+  configSync: (toolId: string) => `${toolId} (sincronização de configuração)`,
+  unknownVersion: 'desconhecida',
+  setupRequiredFor: (name: string, note: string) => `Configuração necessária para ${name}: ${note}`,
+  restartIdeToRefresh: (surface: 'commands' | 'skills') =>
+    surface === 'commands'
+      ? 'Reinicie sua IDE para que os novos comandos tenham efeito.'
+      : 'Reinicie sua IDE para que as novas skills tenham efeito.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -987,6 +1355,12 @@ export const VERSION_CHECK_MESSAGES = {
   upgradedTo: (version: string) => `✓ Atualizado para v${version}.`,
   filesNotRegenerated: 'Os arquivos de instrução não foram regenerados.',
   runUpdateToRegenerate: '  Execute "openspec update" para aplicar os novos fluxos de trabalho.',
+  versionReport: (version: string, details: string) =>
+    details ? `BR-OpenSpec ${version} (${details})` : `BR-OpenSpec ${version}`,
+  updateAvailable: (latest: string) => `Atualização disponível: ${latest}`,
+  upToDate: 'O BR-OpenSpec está atualizado.',
+  updateCheckDisabled: 'Verificação de atualização desativada.',
+  couldNotCheckUpdates: 'Não foi possível verificar atualizações.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1013,38 +1387,62 @@ export const FILE_SYSTEM_MESSAGES = {
   unableToDetermineWritePermissions: (filePath: string, error: string) => `Não foi possível determinar permissões de escrita para ${filePath}: ${error}`,
   insufficientPermissions: (dirPath: string, error: string) => `Permissões insuficientes para escrever em ${dirPath}: ${error}`,
   couldNotCleanUpTestFile: (filePath: string, error: string) => `Não foi possível limpar arquivo de teste ${filePath}: ${error}`,
+  // Guarda de limites de caminho (assertPathWithin & cia.): um alvo que sai do
+  // diretório permitido — lexicalmente ou via link simbólico — é recusado.
+  pathOutsideAllowedDirectory: (targetPath: string) => `O caminho está fora do diretório permitido: ${targetPath}`,
+  refusingArtifactOutsideProject: (artifactPath: string) => `Recusando gerenciar um artefato fora do projeto: ${artifactPath}`,
+  danglingSymbolicLink: (existingPath: string) => `Não foi possível verificar um link simbólico pendente (dangling): ${existingPath}`,
+  noExistingParent: (targetPath: string) => `Não foi possível resolver um diretório pai existente para ${targetPath}`,
 };
 
 // ═══════════════════════════════════════════════════════════
 // Core — Validação (src/core/validation/validator.ts)
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Sufixo anexado à orientação (WARNING) de requisito sem SHALL/MUST no corpo.
+ * O upstream diz "best practice for English specs"; no fork as palavras-chave
+ * normativas continuam em inglês mesmo em specs em português (termos
+ * reservados), então o sufixo reforça a recomendação em vez de dispensá-la.
+ */
+const MISSING_SHALL_OR_MUST_GUIDANCE_SUFFIX =
+  ' (boa prática RFC 2119; use as palavras-chave normativas em inglês)';
+
+/**
+ * Mensagem para um bloco de requisito cujo corpo não contém SHALL/MUST.
+ *
+ * `keywordInHeader`: a palavra-chave aparece só no cabeçalho
+ * "### Requirement: ..." — aponta a correção exata (#1156/#1280).
+ * `guidanceOnly`: um corpo não vazio sem a palavra-chave é orientação
+ * (WARNING), não erro (#243) — verbo "deveria" + sufixo RFC 2119. Um corpo
+ * ausente continua sendo ERROR ("deve conter"). A frase acionável (tudo após o
+ * prefixo) é byte-idêntica entre o caminho de spec principal e o de delta.
+ */
+const missingShallOrMust = (prefix: string, keywordInHeader: boolean, guidanceOnly: boolean): string => {
+  const base = `${prefix} ${guidanceOnly ? 'deveria' : 'deve'} conter SHALL ou MUST`;
+  const suffix = guidanceOnly ? MISSING_SHALL_OR_MUST_GUIDANCE_SUFFIX : '';
+  return keywordInHeader
+    ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".${suffix}`
+    : `${base}${suffix}`;
+};
+
 export const VALIDATOR_MESSAGES = {
   unknownError: 'Erro desconhecido',
   duplicateRequirementAdded: (name: string) => `Requisito duplicado em ADDED: "${name}"`,
   missingRequirementTextAdded: (name: string) => `ADDED "${name}" está sem texto de requisito`,
-  missingShallOrMustAdded: (name: string, keywordInHeader = false) => {
-    const base = `ADDED "${name}" deve conter SHALL ou MUST`;
-    return keywordInHeader
-      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
-      : base;
-  },
+  missingShallOrMustAdded: (name: string, keywordInHeader = false, guidanceOnly = false) =>
+    missingShallOrMust(`ADDED "${name}"`, keywordInHeader, guidanceOnly),
   missingScenarioAdded: (name: string) => `ADDED "${name}" deve incluir pelo menos um cenário`,
+  archiveMergeCheckFailed: (detail: string) =>
+    `Não foi possível verificar conflitos de mesclagem do archive: ${detail}`,
+  archiveWouldRefuseDelta: (detail: string) => `O archive recusaria este delta: ${detail}`,
   duplicateRequirementModified: (name: string) => `Requisito duplicado em MODIFIED: "${name}"`,
   missingRequirementTextModified: (name: string) => `MODIFIED "${name}" está sem texto de requisito`,
-  missingShallOrMustModified: (name: string, keywordInHeader = false) => {
-    const base = `MODIFIED "${name}" deve conter SHALL ou MUST`;
-    return keywordInHeader
-      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
-      : base;
-  },
+  missingShallOrMustModified: (name: string, keywordInHeader = false, guidanceOnly = false) =>
+    missingShallOrMust(`MODIFIED "${name}"`, keywordInHeader, guidanceOnly),
   missingScenarioModified: (name: string) => `MODIFIED "${name}" deve incluir pelo menos um cenário`,
-  missingShallOrMustRequirement: (name: string, keywordInHeader = false) => {
-    const base = `Requirement "${name}" deve conter SHALL ou MUST`;
-    return keywordInHeader
-      ? `${base} no corpo do requisito, não apenas no cabeçalho. Mova a declaração SHALL/MUST para a linha imediatamente após o cabeçalho "### Requirement: ...".`
-      : base;
-  },
+  missingShallOrMustRequirement: (name: string, keywordInHeader = false, guidanceOnly = false) =>
+    missingShallOrMust(`Requirement "${name}"`, keywordInHeader, guidanceOnly),
   skippedHeaderNameless: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} está sem nome de requisito e é ignorado pela validação. Adicione um nome, ex.: "### Requirement: <nome>".`,
   skippedHeaderNotRequirement: (header: string, section: string) => `Cabeçalho "### ${header}" em ${section} não é um cabeçalho "### Requirement:" e é ignorado pela validação. Use "### Requirement: ${header}" se ele deve ser validado como um requisito.`,
   duplicateRequirementRemoved: (name: string) => `Requisito duplicado em REMOVED: "${name}"`,
@@ -1060,11 +1458,38 @@ export const VALIDATOR_MESSAGES = {
     (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
   deltaSectionsEmpty: (sections: string) => `Seções de delta ${sections} foram encontradas, mas nenhuma entrada de requisito foi analisada. Certifique-se de que cada seção inclua pelo menos um bloco "### Requirement:" (REMOVED pode usar sintaxe de lista com marcadores).`,
   noDeltaSectionsFound: 'Nenhuma seção de delta encontrada. Adicione cabeçalhos como "## ADDED Requirements" ou mova notas que não sejam deltas para fora de specs/.',
-  rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar em uma pasta de capability (ex.: specs/<capability>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
+  rootLevelDeltaSpec: 'Spec de delta encontrado em specs/spec.md. Specs de delta devem ficar sob um caminho de capability (ex.: specs/<capability-path>/spec.md) — um arquivo na raiz de specs/ é ignorado quando a alteração é aplicada ou arquivada.',
   modifiedOmitsCurrentScenarios: (reqName: string, scenarioNames: string) =>
     `MODIFIED "${reqName}" omite cenário(s) que o spec atual ainda tem: ${scenarioNames}. Copie-os para o bloco MODIFIED (um requisito MODIFIED substitui o bloco inteiro, então o archive se recusa a descartá-los).`,
   couldNotReadMainSpec: (specPath: string, code: string) =>
     `Não foi possível ler ${specPath} para verificar os requisitos MODIFIED contra ele (${code}). O archive lê o mesmo arquivo, então corrija o arquivo antes de arquivar.`,
+  renamedUnpaired: (side: string, name: string, missing: string) =>
+    `RENAMED ${side}: "${name}" não tem a linha ${missing}: correspondente. Escreva cada rename como uma linha FROM: seguida imediatamente pela linha TO:.`,
+  aboveFirstSection: 'acima da primeira seção "## "',
+  underSection: (section: string) => `sob "## ${section}"`,
+  orphanRequirementIgnored: (name: string, where: string) =>
+    `O requisito "${name}" está ${where}, que não é uma seção de delta, então é ignorado. Mova-o para "## ADDED Requirements", "## MODIFIED Requirements", "## REMOVED Requirements" ou "## RENAMED Requirements".`,
+  unappliedNotCarried: (description: string) =>
+    `${description} não é levado para o spec principal pelo archive. Mova-o para um requisito, ou para proposal.md ou design.md.`,
+  unreadDeltaSpec: (filePath: string, expected: string) =>
+    `Spec de delta encontrado em specs/${filePath}. Specs de delta precisam ser um spec.md dentro de uma pasta de capability — este arquivo é ignorado quando a alteração é aplicada ou arquivada. Mova os requisitos para specs/${expected}.`,
+  modifiedOmitsCurrentScenariosWithBalance: (reqName: string, scenarioNames: string, balance: string) =>
+    `MODIFIED "${reqName}" omite cenário(s) que o spec atual ainda tem: ${scenarioNames}. ${balance} Copie os cenários omitidos para o bloco MODIFIED (um requisito MODIFIED substitui o bloco inteiro, então o archive se recusa a descartá-los).`,
+  emptyScenarioHint:
+    ' (um cabeçalho de cenário sem corpo não conta; adicione os passos, por exemplo "- **WHEN** ..." e "- **THEN** ...")',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Validação de numeração de tarefas (src/core/validation/task-numbering.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const TASK_NUMBERING_MESSAGES = {
+  taskGroupMismatch: (id: string, currentGroup: string, taskGroup: string) =>
+    `Tarefa "${id}" está sob o grupo ${currentGroup}, mas seu número inicial aponta para o grupo ${taskGroup}. Mova-a para o grupo ${taskGroup} ou renumere-a.`,
+  duplicateTaskId: (id: string, firstDeclaration: string) =>
+    `ID de tarefa "${id}" está duplicado; foi declarado pela primeira vez ${firstDeclaration}.`,
+  firstDeclaredOnLine: (line: number) => `na linha ${line}`,
+  firstDeclaredInFileOnLine: (filePath: string, line: number) => `em ${filePath} na linha ${line}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1085,17 +1510,33 @@ export const WORKFLOW_MESSAGES = {
   writeTo: (filePath: string) => `Escreva em: ${filePath}`,
   unlocksArtifacts: (artifacts: string) => `Completar este artefato habilita: ${artifacts}`,
   generatingApplyInstructions: 'Gerando instruções de aplicação...',
-  cannotApplyMissingArtifacts: (artifacts: string) => `Não é possível aplicar esta alteração ainda. Artefatos ausentes: ${artifacts}.\nUse a skill openspec-continue-change para criar os artefatos ausentes primeiro.`,
-  missingTrackingFile: (filename: string) => `O arquivo ${filename} está ausente e deve ser criado.\nUse openspec-continue-change para gerar o arquivo de rastreamento.`,
-  trackingFileNoTasks: (filename: string) => `O arquivo ${filename} existe mas não contém tarefas a executar.\nAdicione tarefas a ${filename} ou regenere-o com openspec-continue-change.`,
+  cannotApplyMissingArtifacts: (artifacts: string) => `Não é possível aplicar esta alteração ainda. Artefatos ausentes: ${artifacts}.`,
+  notCreatedYetInBuildOrder: (artifacts: string) =>
+    `Ainda não criados, na ordem de construção: ${artifacts}. Construa os que esta alteração precisa antes de aplicar — o esquema diz quais são condicionais.`,
+  createArtifactWith: (target: string, changeName: string) =>
+    `Crie-o com \`openspec instructions ${target} --change ${changeName}\` (\`openspec status --change ${changeName}\` mostra o que falta).`,
+  createEachArtifactWith: (target: string, changeName: string) =>
+    `Crie cada um com \`openspec instructions ${target} --change ${changeName}\` (\`openspec status --change ${changeName}\` mostra o que falta).`,
+  missingTrackingFile: (filename: string, remedy: string) =>
+    `O arquivo ${filename} está ausente e deve ser criado.\n${remedy}`,
+  trackingFileNoTasks: (filename: string, remedy: string) =>
+    `O arquivo ${filename} existe mas não contém tarefas a executar.\nAdicione tarefas a ${filename}, ou reconstrua-o: ${remedy}`,
   allTasksComplete: 'Todas as tarefas estão concluídas! Esta alteração está pronta para ser arquivada.\nConsidere executar testes e revisar as alterações antes de arquivar.',
+  noReadableTaskDescriptions: 'Nenhuma descrição de tarefa legível está disponível.',
+  taskCompletionNotVerified: (details: string) =>
+    `A conclusão das tarefas não está verificada porque a evidência de rastreamento estava indisponível:\n${details}`,
+  applyWarningsTitle: '### ⚠️ Avisos',
+  unreadDeltaApplyWarning: (changeName: string, filePath: string, expected: string) =>
+    `specs/${filePath} não é o spec.md de uma capability, então \`openspec validate ${changeName}\` o rejeita e o archive nunca o mescla. Mova os requisitos para specs/${expected}.`,
+  noDeltaSpecsApplyWarning: (changeName: string, specTarget: string, metadataPath: string) =>
+    `Esta alteração não tem deltas de especificação e não declara \`skip_specs: true\`, então \`openspec validate ${changeName}\` falha. Escreva os deltas antes de implementar (\`openspec instructions ${specTarget} --change ${changeName}\`), ou adicione \`skip_specs: true\` a ${metadataPath} se esta alteração realmente não muda comportamento especificado.`,
   allArtifactsCompleteProceed: 'Todos os artefatos necessários estão completos. Prossiga com a implementação.',
   readContextAndWorkTasks: 'Leia os arquivos de contexto, trabalhe nas tarefas pendentes, marque como concluído conforme avança.\nPare se encontrar bloqueios ou precisar de esclarecimentos.',
   applyTitle: (changeName: string) => `## Aplicar: ${changeName}`,
   schemaLabel: (schemaName: string) => `Esquema: ${schemaName}`,
   blockedTitle: '### ⚠️ Bloqueado',
   missingArtifactsLabel: (artifacts: string) => `Artefatos ausentes: ${artifacts}`,
-  createMissingFirst: 'Use a skill openspec-continue-change para criá-los primeiro.',
+  createMissingFirst: 'Crie os artefatos ausentes com `openspec instructions <artifact> --change <nome>` antes de aplicar.',
   contextFilesTitle: '### Arquivos de Contexto',
   progressTitle: '### Progresso',
   progressComplete: (complete: number, total: number) => `${complete}/${total} concluído`,
@@ -1136,16 +1577,26 @@ export const WORKFLOW_MESSAGES = {
   loadingChangeStatus: 'Carregando status da alteração...',
   noActiveChanges: 'Nenhuma alteração ativa. Crie uma com: openspec new change <nome>',
   changeLabel: (name: string) => `Alteração: ${name}`,
+  nextInstruction: (artifactId: string, changeName: string) =>
+    `Próximo: openspec instructions ${artifactId} --change "${changeName}" --json`,
   schemaLabel2: (name: string) => `Esquema: ${name}`,
   progressArtifacts: (done: number, total: number) => `Progresso: ${done}/${total} artefatos concluídos`,
   progressArtifactsSkipped: (done: number, total: number, skipped: number) => `Progresso: ${done}/${total} artefatos concluídos (${skipped} ignorado(s))`,
   allArtifactsComplete: 'Todos os artefatos concluídos!',
+  allPlanningArtifactsComplete: 'Todos os artefatos de planejamento concluídos!',
   blockedBy: (deps: string) => ` (bloqueado por: ${deps})`,
   skippedDeclaresSkipSpecs: ' (ignorado: a alteração declara skip_specs)',
+  // status.ts — status --all
+  allAndChangeMutuallyExclusive: 'As opções --all e --change não podem ser usadas juntas.',
+  missingChangeOrAllOption: (available: string) =>
+    `Opção obrigatória --change ausente (ou --all para todas as alterações ativas). Alterações disponíveis:\n  ${available}`,
+  statusAllChangeFailed: (changeName: string, message: string) => `✗ ${changeName}: ${message}`,
   // templates.ts
   loadingTemplates: 'Carregando templates...',
   schemaLabel3: (name: string) => `Esquema: ${name}`,
   sourceLabel: (source: string) => `Fonte: ${source}`,
+  templateOutsideTemplatesDir: (template: string, artifactId: string) =>
+    `Template '${template}' do artefato '${artifactId}' aponta para fora do diretório de templates do esquema`,
 };
 
 
@@ -1171,6 +1622,14 @@ export const MIGRATION_MESSAGES = {
     `O Windsurf agora é Devin Desktop, e seu diretório de configuração mudou de ${from}/ para ${to}/. ` +
     `O Devin Desktop lê ${from}/ apenas como fallback, e o Devin Local não o lê.`,
   legacyMigrationNoticeGeneric: (from: string, to: string) => `${from}/ é o local anterior desta ferramenta; ${to}/ é o atual.`,
+  // Avisos (console.warn) quando um caminho legado resolve para fora do projeto
+  // (por link simbólico): nada é movido nem apagado.
+  skippingLegacyRootOutsideProject: (root: string) =>
+    `Ignorando a migração do diretório legado ${root}/ porque ele resolve para fora deste projeto.`,
+  skippingLegacySkillOutsideProject: (legacyRoot: string, dirName: string) =>
+    `Ignorando a migração da skill legada ${legacyRoot}/skills/${dirName} porque ela resolve para fora deste projeto.`,
+  skippingLegacyCommandOutsideProject: (legacyPath: string) =>
+    `Ignorando a migração do arquivo legado ${legacyPath} porque ele resolve para fora deste projeto.`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1184,6 +1643,11 @@ export const LEGACY_CLEANUP_MESSAGES = {
   failedToDeleteOpenspecAgents: (error: string) => `Falha ao excluir openspec/AGENTS.md: ${error}`,
   cleanedUpHeader: 'Arquivos legados limpos:',
   removedFile: (file: string) => `  ✓ Removido ${file}`,
+  removedFileReplacedBy: (file: string, replacement: string) =>
+    `  ✓ Removido ${file} (substituído por ${replacement})`,
+  // Rótulo da superfície que substitui os prompts globais gerenciados do Codex.
+  codexSkillsReplacementLabel: 'skills do Codex',
+  skippedUnmanagedGlobalPrompt: (file: string) => `Prompt global não gerenciado ignorado: ${file}`,
   removedDir: (dir: string) => `  ✓ Removido ${dir}/ (substituído por skills e comandos do BR-OpenSpec)`,
   removedMarkers: (file: string) => `  ✓ Marcadores BR-OpenSpec removidos de ${file}`,
   errorsHeader: 'Erros durante a limpeza:',
@@ -1196,6 +1660,12 @@ export const LEGACY_CLEANUP_MESSAGES = {
   upgradeLine1: 'O BR-OpenSpec agora usa agent skills, o padrão emergente entre agentes de codificação',
   upgradeLine2: 'Isso simplifica sua configuração enquanto mantém tudo funcionando',
   upgradeLine3: 'como antes.',
+  // Prompts globais (fora da árvore do projeto) cuja remoção é adiada até que as
+  // skills substitutas existam.
+  deferredGlobalPromptsHeader: 'Limpeza adiada de prompts globais',
+  deferredGlobalPromptsSubheader:
+    'Estes prompts globais só serão removidos depois que as skills substitutas correspondentes forem instaladas.',
+  deferredGlobalPromptItem: (toolLabel: string, promptPath: string) => `  • ${toolLabel}${promptPath}`,
   filesToRemoveHeader: 'Arquivos a remover',
   filesToRemoveSubheader: 'Nenhum conteúdo do usuário a preservar:',
   filesToUpdateHeader: 'Arquivos a atualizar',
@@ -1208,6 +1678,17 @@ export const LEGACY_CLEANUP_MESSAGES = {
   projectMdContextLine3: '    confiavelmente que a abordagem antiga do project.md.',
   projectMdReviewLine1: '    Revise o project.md, mova qualquer conteúdo útil para a seção context',
   projectMdReviewLine2: '    do config.yaml, depois exclua o arquivo quando estiver pronto.',
+  filesToRemoveWillBeDeleted:
+    'Estes arquivos serão excluídos por completo. Faça backup de qualquer conteúdo personalizado antes de continuar:',
+  keptNotCreatedBy: (entry: string) => `  • Mantido ${entry} (não foi criado pelo BR-OpenSpec)`,
+  projectMdAskAssistant: '    Peça ao seu assistente de IA:',
+  projectMdMigrateLine1: '    Revise openspec/project.md e migre o conteúdo útil para',
+  projectMdMigrateLine2: '    openspec/config.yaml. Mantenha o contexto conciso: inclua apenas fatos',
+  projectMdMigrateLine3: '    do projeto necessários durante a criação de artefatos, apply e archive. Mova',
+  projectMdMigrateLine4: '    a orientação específica de artefato para as regras dos artefatos correspondentes.',
+  projectMdMigrateLine5: '    Mova a orientação de apply ou archive para a entrada de operations correspondente.',
+  projectMdMigrateLine6: '    Deixe de fora material genérico, desatualizado ou verboso. Não exclua o project.md.',
+  projectMdMigrateLine7: '    Revise o config.yaml e então exclua o project.md quando estiver pronto.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1228,6 +1709,176 @@ export const PROJECT_CONFIG_MESSAGES = {
   unknownOperationFields: (operationId: string, fields: string) => `Campo(s) desconhecido(s) em 'operations.${operationId}': ${fields}. Campos suportados: guidance`,
   operationGuidanceMustBeArray: (operationId: string) => `A orientação da operação '${operationId}' deve ser um array de strings, ignorando a orientação desta operação`,
   emptyGuidanceForOperation: (operationId: string) => `Algumas orientações da operação '${operationId}' são strings vazias, ignorando-as`,
+  invalidGithubCopilotCloudAgentField: "Campo 'githubCopilot.cloudAgent' inválido na configuração (deve ser booleano)",
+  invalidGithubCopilotField: "Campo 'githubCopilot' inválido na configuração (deve ser um objeto)",
+  schemaFieldDescribe: 'Esquema de fluxo de trabalho a usar (ex.: "spec-driven")',
+  contextFieldDescribe: 'Contexto do projeto injetado em todas as instruções de artefato',
+  rulesFieldDescribe: 'Regras por artefato, indexadas pelo ID do artefato',
+  operationsFieldDescribe: 'Orientação consultiva por operação',
+  githubCopilotFieldDescribe: 'Preferências de integração do GitHub Copilot',
+  rulesFieldIs: (artifactId: string, yamlType: string) => `rules.${artifactId} é ${yamlType}`,
+  rulesItemIs: (artifactId: string, index: number, yamlType: string) =>
+    `rules.${artifactId}[${index}] é ${yamlType}`,
+  rulesUnquotedColonHint:
+    ' — um ": " sem aspas faz o YAML ler o item como um par chave/valor; coloque o escalar inteiro entre aspas para mantê-lo como string.',
+  yamlNull: 'null',
+  yamlNestedList: 'uma lista aninhada',
+  yamlMapping: 'um mapeamento',
+  yamlNumber: 'um número',
+  yamlBoolean: 'um booleano',
+  yamlString: 'uma string',
+  yamlOther: (type: string) => `um ${type}`,
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// Core — Copilot coding agent (nuvem) (src/core/github-copilot/cloud-agent.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const COPILOT_CLOUD_AGENT_MESSAGES = {
+  cannotBuildContent: (label: string) =>
+    `Não foi possível montar o conteúdo do arquivo do Copilot coding agent: falta ${label}`,
+  parentNotDirectory: (candidate: string) => `O caminho pai não é um diretório: ${candidate}`,
+  cannotResolveAncestor: (filePath: string) =>
+    `Não foi possível resolver um diretório ancestral para: ${filePath}`,
+  managedPathNotRegularFile: (filePath: string) =>
+    `O caminho gerenciado do Copilot não é um arquivo regular: ${filePath}`,
+  conflictingAgentProfiles: (alternatePath: string, agentPath: string) =>
+    `Perfis de agente do Copilot em conflito: preserve ${alternatePath} ou ${agentPath}`,
+  // Compartilhada por init e update: o arquivo do usuário nunca é sobrescrito,
+  // mas ele precisa saber que o passo de instalação não foi adicionado sozinho.
+  leftUntouched: (files: string[]) =>
+    `Mantido(s) sem alteração: ${files.join(' e ')} (já existia). Adicione manualmente o passo de ` +
+    `instalação do BR-OpenSpec para que o Copilot coding agent consiga executar openspec.`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Templates — Copilot coding agent (nuvem)
+// (src/core/github-copilot/cloud-agent.ts — conteúdo dos arquivos gerados)
+//
+// ATENÇÃO (regra de manutenção): o reconhecimento de arquivo gerenciado compara
+// o conteúdo INTEIRO por igualdade (com CRLF normalizado). Sempre que estes
+// textos mudarem, o corpo anterior precisa entrar na lista de legados em
+// `getLegacyCopilotCloudFileContents`, senão arquivos gerados por versões
+// anteriores do fork passam a ser tratados como "customizados" e nunca mais são
+// atualizados nem removidos.
+// ═══════════════════════════════════════════════════════════
+
+export const COPILOT_CLOUD_AGENT_TEMPLATE_MESSAGES = {
+  managedMarker: 'Gerado pelo BR-OpenSpec para suporte ao Copilot coding agent do GitHub.',
+
+  // Workflow do GitHub Actions. Chaves YAML, nome do job, `actions/checkout@v4`
+  // e o nome do workflow ("Copilot Setup Steps", convenção documentada pelo
+  // GitHub) ficam como no upstream; só os comentários e os `name:` dos steps
+  // são PT-BR.
+  setupStepsBody: `name: "Copilot Setup Steps"
+
+# Executa automaticamente quando alterado (para validação) e pode ser disparado manualmente.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # O job DEVE se chamar \`copilot-setup-steps\` para que o Copilot coding agent o reconheça.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Fazer checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar a CLI do BR-OpenSpec
+        run: npm install -g @dynamicworks/br-openspec
+
+      - name: Verificar a CLI do BR-OpenSpec
+        run: openspec --version
+`,
+
+  // Definição do agente customizado lida pelo Copilot coding agent do GitHub.
+  // `managedMarkerBlock` é '' ou o comentário HTML do marcador seguido de duas
+  // quebras de linha (o módulo monta as duas variantes).
+  agentFileBody: (managedMarkerBlock: string) => `---
+name: BR-OpenSpec
+description: "Gerencia changes, specs e workflows do BR-OpenSpec usando a CLI openspec. Use este agente para propor changes, explorar ideias, validar artifacts, verificar status e arquivar trabalho concluído."
+tools:
+  - "execute"
+  - "read"
+  - "search"
+  - "edit"
+---
+
+${managedMarkerBlock}# Agente BR-OpenSpec
+
+Você é um agente especializado em gerenciar workflows do BR-OpenSpec. Antes de usar a CLI \`openspec\`, execute \`openspec --version\`. Se ela não estiver disponível, instale com \`npm install -g @dynamicworks/br-openspec\`.
+
+## O que é o BR-OpenSpec?
+
+O BR-OpenSpec é um sistema estruturado de gestão de mudanças para bases de código. Ele organiza o trabalho em **changes** com artifacts de planejamento (proposals, specs, designs, tarefas) que orientam a implementação.
+
+## Comandos disponíveis
+
+### Comandos de CLI compatíveis com agentes (prefira \`--json\` para saída estruturada)
+
+| Command | Finalidade |
+|---------|------------|
+| \`openspec list [--json]\` | Lista todas as changes e specs |
+| \`openspec show <item> [--json]\` | Exibe uma change ou spec específica |
+| \`openspec validate [--all] [--json]\` | Valida changes e specs em busca de problemas |
+| \`openspec status [--change <name>] [--json]\` | Mostra o progresso dos artifacts de uma change |
+| \`openspec instructions [artifact] [--change <name>] [--json]\` | Obtém as instruções do próximo passo de uma change |
+| \`openspec templates [--json]\` | Lista os templates disponíveis |
+| \`openspec schemas [--json]\` | Lista os schemas de workflow disponíveis |
+| \`openspec archive <change> --json [--yes]\` | Arquiva uma change concluída; use \`--yes\` só depois de confirmar que todas as tarefas estão completas |
+
+### Comandos de CLI interativos (use quando o usuário pedir)
+
+| Command | Finalidade |
+|---------|------------|
+| \`openspec init\` | Inicializa o BR-OpenSpec no projeto |
+| \`openspec update\` | Atualiza a configuração e os artifacts do BR-OpenSpec |
+| \`openspec view\` | Painel interativo |
+| \`openspec config\` | Exibe ou altera configurações |
+
+## Workflow
+
+Quando for solicitado a trabalhar com o BR-OpenSpec, siga este padrão:
+
+1. **Encontre a change**: execute \`openspec list --json\` para ver as changes ativas.
+2. **Verifique o progresso**: execute \`openspec status --change <name> --json\` para a change selecionada.
+3. **Siga as instruções**: execute \`openspec instructions [artifact] --change <name> --json\` para o próximo artifact.
+4. **Valide antes de concluir**: execute \`openspec validate <name> --json\`.
+
+## Criando novas changes
+
+Quando o usuário quiser propor uma nova change:
+
+1. Execute \`openspec new change <name>\`.
+2. Execute \`openspec status --change <name> --json\` para ver a sequência de artifacts.
+3. Use \`openspec instructions [artifact] --change <name> --json\` antes de criar cada artifact.
+4. Execute \`openspec validate <name> --json\` quando os artifacts estiverem completos.
+
+## Diretórios principais
+
+- \`openspec/\` — Diretório raiz do BR-OpenSpec
+- \`openspec/changes/\` — Changes ativas com seus artifacts
+- \`openspec/config.yaml\` — Configuração do projeto
+
+## Boas práticas
+
+- Sempre use a flag \`--json\` quando precisar interpretar a saída programaticamente
+- Execute \`openspec validate\` após criar ou modificar artifacts
+- Verifique \`openspec status\` antes de começar o trabalho para entender o estado atual
+- Ao arquivar, garanta que todas as tarefas foram concluídas e validadas primeiro
+`,
 };
 
 
@@ -1577,6 +2228,11 @@ Vou elaborar uma com base na nossa tarefa.
 
 **FAÇA:** Elabore o conteúdo da proposal (ainda não salve):
 
+\`<capability-path>\` é o diretório do spec relativo a \`specs/\` (por exemplo,
+\`user-auth\` ou \`identity/user-auth\`). Use o caminho exato existente para capabilities
+modificadas. Para capabilities novas, siga a organização de specs já estabelecida no
+projeto.
+
 \`\`\`
 Aqui está um rascunho de proposal:
 
@@ -1593,10 +2249,11 @@ Aqui está um rascunho de proposal:
 ## Capabilities
 
 ### Novas Capabilities
-- \`<nome-capability>\`: [breve descrição]
+- \`<capability-path>\`: [breve descrição]
 
 ### Capabilities Modificadas
 <!-- Se modificar comportamento existente -->
+- \`<existing-capability-path>\`: [breve descrição]
 
 ## Impacto
 
@@ -1638,9 +2295,9 @@ Para uma tarefa pequena como esta, talvez precisemos apenas de um arquivo spec.
 **FAÇA:** Crie o arquivo spec:
 \`\`\`bash
 # Unix/macOS
-mkdir -p openspec/changes/<nome>/specs/<nome-capability>
+mkdir -p openspec/changes/<nome>/specs/<capability-path>
 # Windows (PowerShell)
-# New-Item -ItemType Directory -Force -Path "openspec/changes/<nome>/specs/<nome-capability>"
+# New-Item -ItemType Directory -Force -Path "openspec/changes/<nome>/specs/<capability-path>"
 \`\`\`
 
 Elabore o conteúdo do spec:
@@ -1667,7 +2324,7 @@ O sistema SHALL <descrição do que o sistema deve fazer>
 Este formato - WHEN/THEN/AND - torna os requisitos testáveis. Você pode literalmente lê-los como casos de teste. Os marcadores estruturais (ADDED Requirements, Requirement, Scenario) e as palavras-chave (WHEN/THEN/AND, SHALL/MUST) ficam SEMPRE em inglês — é o protocolo que o parser e o validador reconhecem. Apenas o conteúdo descritivo é escrito em português.
 \`\`\`
 
-Salve em \`openspec/changes/<nome>/specs/<capability>/spec.md\`.
+Salve em \`openspec/changes/<nome>/specs/<capability-path>/spec.md\`.
 
 ---
 
@@ -1736,12 +2393,12 @@ Aqui estão as tarefas de implementação:
 
 ## 1. [Categoria ou arquivo]
 
-- [ ] 1.1 [Tarefa específica]
-- [ ] 1.2 [Tarefa específica]
+- [ ] 1.1 [Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]
+- [ ] 1.2 [Tarefa específica] — verificar: [teste, comando, comportamento observável ou artifact entregue]
 
-## 2. Verificar
+## 2. Verificação de Integração
 
-- [ ] 2.1 [Etapa de verificação]
+- [ ] 2.1 Verificar [integração mais ampla ou comportamento do sistema] com [teste de ponta a ponta ou resultado observável]
 
 ---
 
@@ -2398,7 +3055,7 @@ Se não houver findings, diga claramente que nenhum problema foi encontrado e ai
 // ═══════════════════════════════════════════════════════════
 
 export const TELEMETRY_MESSAGES = {
-  firstRunNotice: 'Aviso: o BR-OpenSpec coleta estatísticas de uso anônimas. Para optar por não participar, defina OPENSPEC_TELEMETRY=0',
+  firstRunNotice: "Aviso: o BR-OpenSpec coleta estatísticas de uso anônimas. Para optar por não participar, defina OPENSPEC_TELEMETRY=0 ou execute 'openspec config set telemetry.enabled false'",
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2415,8 +3072,39 @@ export const CHANGE_PARSER_MESSAGES = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// Core — Parsers (src/core/parsers/spec-structure.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const SPEC_STRUCTURE_MESSAGES = {
+  deltaHeader: (header: string) =>
+    `O spec principal contém o cabeçalho de delta "${header}". ` +
+    'Cabeçalhos de delta só são válidos dentro de openspec/changes/<name>/specs/<capability-path>/spec.md ' +
+    'e truncam a seção ## Requirements analisada.',
+  requirementOutsideRequirements: (header: string) =>
+    `O cabeçalho de requisito "${header}" aparece fora da seção principal ## Requirements. ` +
+    'Specs principais só analisam requisitos dentro dessa seção, então este requisito está atualmente invisível para validate, list e archive.',
+  duplicateRequirement: (header: string, previousLine: number) =>
+    `O cabeçalho de requisito "${header}" duplica o requisito declarado na linha ${previousLine}. ` +
+    'Nomes de requisito devem ser únicos para que atualizações de spec não descartem um bloco ao atualizar outro.',
+};
+
+// ═══════════════════════════════════════════════════════════
 // Core — Specs Apply (src/core/specs-apply.ts)
 // ═══════════════════════════════════════════════════════════
+
+/**
+ * Metades do Purpose placeholder que o `openspec archive` grava no spec
+ * principal que cria quando o delta introduziu a capability sem um
+ * `## Purpose` utilizável. O nome da alteração vai entre as duas. Mantidas aqui
+ * (única definição) e re-exportadas por `src/core/validation/constants.ts`,
+ * para que o validador reconheça o placeholder pela mesma definição que o
+ * produz: uma segunda grafia copiada à mão deixaria de casar no dia em que o
+ * texto mudasse, e um check que não casa nada parece um check que não achou
+ * nada. Alterar este texto exige atualizar o marcador de abertura em
+ * `src/core/validation/purpose-placeholder.ts` (`A definir`).
+ */
+const SKELETON_PURPOSE_PREFIX = 'A definir - criado ao arquivar alteração ';
+const SKELETON_PURPOSE_SUFFIX = '. Atualize o Purpose após o arquivamento.';
 
 export const SPECS_APPLY_MESSAGES = {
   duplicateInSection: (specName: string, section: string, reqName: string) =>
@@ -2456,7 +3144,10 @@ export const SPECS_APPLY_MESSAGES = {
   countModified: (n: number) => `  ~ ${n} modificado(s)`,
   countRemoved: (n: number) => `  - ${n} removido(s)`,
   countRenamed: (n: number) => `  → ${n} renomeado(s)`,
-  skeletonPurpose: (changeName: string) => `A definir - criado ao arquivar alteração ${changeName}. Atualize o Purpose após o arquivamento.`,
+  skeletonPurposePrefix: SKELETON_PURPOSE_PREFIX,
+  skeletonPurposeSuffix: SKELETON_PURPOSE_SUFFIX,
+  skeletonPurpose: (changeName: string) =>
+    `${SKELETON_PURPOSE_PREFIX}${changeName}${SKELETON_PURPOSE_SUFFIX}`,
   warning: (message: string) => `⚠️  Aviso: ${message}`,
   deltaPurposeIgnoredExisting: (specName: string, targetPath: string) =>
     `${specName} - Purpose do delta ignorado; ${specName} já possui um. Edite ${targetPath} diretamente para alterá-lo.`,
@@ -2475,6 +3166,44 @@ export const SPECS_APPLY_MESSAGES = {
   renamedRemovedConflict: (specName: string, fromName: string, removedSpelling?: string) =>
     `${specName} validação falhou - requisito presente em múltiplas seções (RENAMED e REMOVED) para cabeçalho "### Requirement: ${fromName}"` +
     (removedSpelling !== undefined ? ` (REMOVED o escreve como "${removedSpelling}")` : ''),
+  // Aposentadoria de capability (retireSpec, #1302): exclusão do spec.md
+  // principal quando o delta removeu o último requisito.
+  deferredRetirementRequiresVerification: 'A aposentadoria adiada requer verificação do arquivo deslocado.',
+  retireCouldNotVerifyBeforeDeletion: (id: string, target: string, error: string) =>
+    `Não foi possível aposentar a capability '${id}': não foi possível verificar ${target} antes da exclusão (${error}).`,
+  retireCouldNotVerifyInside: (id: string, target: string, dir: string, error: string) =>
+    `Não foi possível aposentar a capability '${id}': não foi possível verificar que ${target} está dentro de ${dir} (${error}).`,
+  retireResolvesOutside: (id: string, target: string, dir: string) =>
+    `Não foi possível aposentar a capability '${id}': ${target} resolve fora de ${dir}. Remova o arquivo externo manualmente, ou substitua o link simbólico e execute novamente.`,
+  concurrentFileAppearedWhileRetiring: (target: string) =>
+    `Um arquivo concorrente apareceu em ${target} enquanto o arquivamento o aposentava.`,
+  concurrentFileOccupiesTargetRetained: (error: string, target: string, displaced: string) =>
+    `${error} Um arquivo concorrente agora ocupa ${target}; o spec deslocado foi mantido em ${displaced}.`,
+  retireFailedToDelete: (id: string, target: string, error: string) =>
+    `Não foi possível aposentar a capability '${id}': falha ao excluir ${target} (${error}). Remova-o manualmente e execute o arquivamento novamente.`,
+  retiringSpec: (nominalPath: string) => `Aposentando ${nominalPath}: todos os requisitos removidos.`,
+  renamedUnpaired: (specName: string, line: number, missing: string, name: string) =>
+    `${specName} validação falhou - entrada RENAMED na linha ${line} não tem ${missing}: correspondente para o cabeçalho "### Requirement: ${name}". Escreva cada rename como uma linha FROM: seguida imediatamente pela linha TO:.`,
+  orphanRequirementNotApplied: (specName: string, name: string, line: number, where: string) =>
+    `${specName} - o requisito "${name}" (linha ${line}) está ${where}, que não é uma seção de delta, então não foi aplicado. Mova-o para ADDED/MODIFIED/REMOVED/RENAMED Requirements.`,
+  unappliedNotCarried: (specName: string, description: string, line: number) =>
+    `${specName} - ${description} (linha ${line}) não é levado para o spec principal.`,
+  structureIssueLine: (line: number, message: string) => `linha ${line}: ${message}`,
+  renamedFailedTargetNearMiss: (specName: string, toName: string, existingName: string) =>
+    `${specName} RENAMED falhou para o cabeçalho "### Requirement: ${toName}" - "### Requirement: ${existingName}" já existe e difere apenas em caixa ou espaços; escolha um nome distinto`,
+  modifiedFailedMissingScenariosWithBalance: (
+    specName: string,
+    reqName: string,
+    scenarioNames: string,
+    balance: string
+  ) =>
+    `${specName} MODIFIED falhou para o cabeçalho "### Requirement: ${reqName}" - o spec atual contém cenário(s) ausentes no bloco modificado: ${scenarioNames}. ${balance} Atualize o spec da alteração antes de arquivar para evitar perder cenários.`,
+  addedFailedNearMiss: (specName: string, reqName: string, existingName: string) =>
+    `${specName} ADDED falhou para o cabeçalho "### Requirement: ${reqName}" - "### Requirement: ${existingName}" já existe e difere apenas em caixa ou espaços; use MODIFIED com esse cabeçalho exato para alterá-lo, ou escolha um nome distinto`,
+  specTargetChangedBeforeWrite: (id: string, target: string) =>
+    `O alvo do spec de '${id}' mudou antes de poder ser escrito: ${target}`,
+  capabilityLinksOutside: (capability: string, destination: string) =>
+    `A capability '${capability}' aponta para fora do projeto; gravando em ${destination}`,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2497,6 +3226,14 @@ export const PROJECT_CONFIG_SUGGEST_MESSAGES = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// Core — Shared / skill-paths (src/core/shared/skill-paths.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const SKILL_PATHS_MESSAGES = {
+  toolDoesNotSupportSkills: (toolValue: string) => `A ferramenta '${toolValue}' não suporta geração de skills.`,
+};
+
+// ═══════════════════════════════════════════════════════════
 // Core — Tools Manager (src/core/tools-manager.ts)
 // ═══════════════════════════════════════════════════════════
 
@@ -2516,6 +3253,17 @@ export const ARTIFACT_GRAPH_MESSAGES = {
   cyclicDependency: (cycle: string) => `Dependência cíclica detectada: ${cycle}`,
   templateNotFound: (path: string) => `Template não encontrado: ${path}`,
   failedToReadTemplate: (error: string) => `Falha ao ler template: ${error}`,
+  linkedDirectoryCycle: (currentDir: string) =>
+    `Não é possível resolver as saídas do artefato por um ciclo de diretórios vinculados (links): ${currentDir}`,
+  braceNestingTooDeep: (limit: number, shown: string) =>
+    `O padrão de saída do artefato aninha chaves em mais de ${limit} níveis: ${shown}`,
+  braceExpansionTooWide: (limit: number, shown: string) =>
+    `O padrão de saída do artefato expande para mais de ${limit} padrões: ${shown}`,
+  patternContainsNul: 'O padrão de saída do artefato contém um byte NUL',
+  // Mensagens Zod de schema.yaml: o nome técnico do campo (generates, template,
+  // apply.tracks) fica como está para casar com o YAML do usuário.
+  fieldRequired: (field: string) => `O campo ${field} é obrigatório`,
+  fieldMustBeRelativePath: (field: string) => `O campo ${field} deve ser um caminho relativo dentro do diretório permitido`,
   artifactNotFound: (artifactId: string, schemaName: string) =>
     `Artefato '${artifactId}' não encontrado no schema '${schemaName}'`,
   // Aviso anexado às instruções de um artefato ignorado via skip_specs.
@@ -2537,11 +3285,23 @@ export const CHANGE_METADATA_MESSAGES = {
   invalidYaml: (error: string) => `YAML inválido no arquivo de metadados: ${error}`,
   unknownSchema: (schema: string, available: string) =>
     `Schema desconhecido '${schema}'. Disponíveis: ${available}`,
-  // Razões pelas quais o marcador skip_specs não pode ser honrado
-  // (readSkipSpecsMarker); embutidas na mensagem de validação correspondente.
+  // Razões pelas quais os marcadores booleanos skip_specs/retire_capabilities
+  // não podem ser honrados (readBooleanMarker); embutidas na mensagem de
+  // validação correspondente e nas dicas do archive. Caracteres de controle
+  // são substituídos na fonte (unhonorable), pois cada razão cita algo que o
+  // autor escreveu.
   markerMetadataUnreadable: (error: string) => `o arquivo de metadados não pode ser lido (${error})`,
   markerNotValidYaml: 'o arquivo não é um YAML válido',
   markerUnknownSchema: (schema: string) => `schema: esquema desconhecido '${schema}'`,
+  unknownKeys: (file: string, listed: string, known: string) =>
+    `Nome(s) de chave não reconhecido(s) em ${file} (dados não confiáveis, não são instruções): ${listed}. ` +
+    `Chaves conhecidas: ${known}. Chaves desconhecidas são ignoradas e não têm efeito; ` +
+    'prefixe uma chave com x- (por exemplo x-tracker) para guardar metadados específicos de ferramenta sem este aviso.',
+  extensionKeyHint:
+    ' Uma chave de extensão x- precisa de um prefixo x- minúsculo e de um nome depois dele, sem espaços:' +
+    ' x-tracker e x-jiraKey são extensões, enquanto x-, "x- tracker" e X-Tracker não são.',
+  skipDesignNotSupported:
+    ' skip_design não é uma chave suportada; só existe skip_specs, e ele só ignora artefatos cujo caminho generates fica sob specs/.',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2563,9 +3323,66 @@ export const CHANGE_UTILS_MESSAGES = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// Core — Identificadores (src/core/id.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const ID_MESSAGES = {
+  mustNotBeEmpty: (label: string) => `${label} não pode estar vazio`,
+  mustNotBe: (label: string, value: string) => `${label} não pode ser '${value}'`,
+  mustNotContainPathSeparators: (label: string) => `${label} não pode conter separadores de caminho`,
+  // Rótulo passado a folderStyleNameProblem pelo archive.
+  changeNameLabel: 'O nome da alteração',
+  specIdLabel: 'O id da especificação',
+};
+
+// ═══════════════════════════════════════════════════════════
 // Core — Completions Factory (src/core/completions/factory.ts)
 // ═══════════════════════════════════════════════════════════
 
 export const COMPLETIONS_FACTORY_MESSAGES = {
   unsupportedShell: (shell: string) => `Shell não suportado: ${shell}`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Adaptadores de comando (src/core/command-generation/adapters/*)
+// ═══════════════════════════════════════════════════════════
+
+export const COMMAND_ADAPTER_MESSAGES = {
+  // Linha injetada no corpo do comando gerado logo após `**Entrada**:` para
+  // ferramentas que só substituem argumentos onde há um placeholder explícito
+  // (Command Code, Pi, OpenCode). O placeholder é literal da ferramenta
+  // (`$ARGUMENTS`, `$@`) e nunca é traduzido.
+  providedArguments: (placeholder: string) => `**Argumentos fornecidos**: ${placeholder}`,
+  // Continue injeta o prompt invocado no contexto do modelo. Modelos locais
+  // menores podem confundir o nome do fluxo com uma ferramenta a chamar (#925).
+  continueWorkflowAlreadyActive:
+    'Este prompt de fluxo de trabalho já está ativo. Siga as instruções dele diretamente. Não chame uma ferramenta com o nome deste fluxo de trabalho.',
+};
+
+// ═══════════════════════════════════════════════════════════
+// Core — Ferramentas de IA (src/core/config.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const AI_TOOL_MESSAGES = {
+  hermesSetupNote:
+    'O Hermes só carrega skills de ~/.hermes/skills por padrão. Adicione o diretório .hermes/skills deste projeto em skills.external_dirs no ~/.hermes/config.yaml para que o Hermes encontre as skills geradas do BR-OpenSpec.',
+  universalToolFallback: (id: string, dir: string) =>
+    `Ferramenta não listada? Use --tools ${id}: o alvo neutro de fornecedor que escreve ${dir}/skills/ para qualquer assistente.`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// Parsers — Blocos de requisito (src/core/parsers/requirement-blocks.ts)
+// ═══════════════════════════════════════════════════════════
+
+export const REQUIREMENT_BLOCK_MESSAGES = {
+  textAboveFirstSection: 'texto acima da primeira seção "## "',
+  textBeforeFirstRequirement: (section: string) => `texto antes do primeiro requisito em "## ${section}"`,
+  sectionHeading: (section: string) => `seção "## ${section}"`,
+  scenarioWord: (count: number) => (count === 1 ? 'cenário' : 'cenários'),
+  scenarioBalanceScale: (incoming: string, current: string) =>
+    `O bloco modificado tem ${incoming}; o spec atual tem ${current}.`,
+  scenarioBalanceAddsNone: 'Não adiciona nenhum.',
+  scenarioBalanceAdds: (countLabel: string, names: string) =>
+    `Adiciona ${countLabel} que não estão no spec atual: ${names}.`,
+  andMore: (listed: string, rest: number) => `${listed} e mais ${rest}`,
 };

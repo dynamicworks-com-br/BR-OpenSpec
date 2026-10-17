@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CommandAdapterRegistry } from '../../../src/core/command-generation/registry.js';
+import { resolveCommandSurfaceCapability } from '../../../src/core/command-surface.js';
 
 describe('command-generation/registry', () => {
   describe('get', () => {
@@ -27,8 +28,25 @@ describe('command-generation/registry', () => {
       expect(adapter?.toolId).toBe('junie');
     });
 
+    it('should return AtomCode adapter for "atomcode"', () => {
+      const adapter = CommandAdapterRegistry.get('atomcode');
+      expect(adapter).toBeDefined();
+      expect(adapter?.toolId).toBe('atomcode');
+    });
+
     it('should return undefined for unregistered tool', () => {
       const adapter = CommandAdapterRegistry.get('unknown-tool');
+      expect(adapter).toBeUndefined();
+    });
+
+    it('should return undefined for skills-only tools without adapters', () => {
+      expect(CommandAdapterRegistry.get('dsh')).toBeUndefined();
+      expect(CommandAdapterRegistry.get('hermes')).toBeUndefined();
+      expect(CommandAdapterRegistry.get('kimi')).toBeUndefined();
+    });
+
+    it('should return undefined for Codex', () => {
+      const adapter = CommandAdapterRegistry.get('codex');
       expect(adapter).toBeUndefined();
     });
 
@@ -52,7 +70,15 @@ describe('command-generation/registry', () => {
       expect(toolIds).toContain('claude');
       expect(toolIds).toContain('cursor');
       expect(toolIds).toContain('devin');
+      expect(toolIds).not.toContain('codex');
     });
+    it('should include the AtomCode adapter', () => {
+      const adapters = CommandAdapterRegistry.getAll();
+      const toolIds = adapters.map((a) => a.toolId);
+
+      expect(toolIds).toContain('atomcode');
+    });
+
   });
 
   describe('has', () => {
@@ -61,6 +87,8 @@ describe('command-generation/registry', () => {
       expect(CommandAdapterRegistry.has('cursor')).toBe(true);
       expect(CommandAdapterRegistry.has('devin')).toBe(true);
       expect(CommandAdapterRegistry.has('junie')).toBe(true);
+      expect(CommandAdapterRegistry.has('atomcode')).toBe(true);
+      expect(CommandAdapterRegistry.has('codex')).toBe(false);
     });
 
     it('should return false for unregistered tools', () => {
@@ -91,7 +119,7 @@ describe('command-generation/registry', () => {
       };
 
       // Tools that don't use YAML frontmatter (markdown headers or TOML or plain)
-      const noYamlFrontmatter = ['cline', 'kilocode', 'roocode', 'gemini', 'qwen'];
+      const noYamlFrontmatter = ['cline', 'command-code', 'kilocode', 'roocode', 'gemini', 'qwen', 'easycode'];
 
       const adapters = CommandAdapterRegistry.getAll();
       for (const adapter of adapters) {
@@ -103,6 +131,13 @@ describe('command-generation/registry', () => {
           expect(output).toContain('---');
         }
       }
+    });
+  });
+
+  describe('command surface capabilities', () => {
+    it('resolves Codex as skills-invocable without an adapter', () => {
+      expect(resolveCommandSurfaceCapability('codex')).toBe('skills-invocable');
+      expect(CommandAdapterRegistry.get('codex')).toBeUndefined();
     });
   });
 });
